@@ -69,6 +69,7 @@ export function createProceduralPostureDiagnosisService({
     artifactReader = null,
     artifactStatReader = null,
     artifactWriter = null,
+    stageRecorder = null,
   } = {}) {
     const matterRoot = await matterRootForName({ matterName, matterRootOverride });
     const outputPaths = {
@@ -88,17 +89,25 @@ export function createProceduralPostureDiagnosisService({
       };
     }
 
-    const packet = await buildDiagnosisInputPacket({
-      matterRoot,
-      matterRecordOverride,
-      matterContextPacketOverride,
-      matterJsonOverride,
-      artifactReader,
-      artifactStatReader,
+    const packet = await runRecordedStage(stageRecorder, {
+      id: "build_packet",
+      label: "Build procedural posture evidence packet",
+    }, async () => {
+      const built = await buildDiagnosisInputPacket({
+        matterRoot,
+        matterRecordOverride,
+        matterContextPacketOverride,
+        matterJsonOverride,
+        artifactReader,
+        artifactStatReader,
+      });
+      assertDiagnosisInputsReady(built);
+      return built;
+    }, {
+      successPatch: () => ({ salvageable: true }),
     });
-    assertDiagnosisInputsReady(packet);
 
-    const loop = await runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, env });
+    const loop = await runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, env, stageRecorder });
     const generatedAt = now().toISOString();
     const sidecar = buildDiagnosisSidecar({
       finalDiagnosis: loop.finalDiagnosis,
@@ -112,9 +121,14 @@ export function createProceduralPostureDiagnosisService({
       { relativePath: outputPaths.markdown, text: `${markdown}\n` },
       { relativePath: outputPaths.json, text: `${JSON.stringify(sidecar, null, 2)}\n` },
     ];
-    const artifactPersistence = typeof artifactWriter === "function"
-      ? await artifactWriter({ outputPaths, files, markdown, sidecar })
-      : await writeDiagnosisArtifacts({ matterRoot, files });
+    const artifactPersistence = await runRecordedStage(stageRecorder, {
+      id: "persist",
+      label: "Persist procedural posture diagnosis artifacts",
+    }, async () => (typeof artifactWriter === "function"
+      ? artifactWriter({ outputPaths, files, markdown, sidecar })
+      : writeDiagnosisArtifacts({ matterRoot, files })), {
+      successPatch: () => ({ summary: outputPaths.markdown }),
+    });
 
     return {
       schema_version: PROCEDURAL_POSTURE_DIAGNOSIS_SCHEMA_VERSION,
@@ -379,7 +393,21 @@ async function buildNativeMatterContextPacket(matterRoot) {
   return buildConfigurableSkillMatterContextPacket(matterRoot);
 }
 
-async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, env = process.env }) {
+async function runRecordedStage(stageRecorder, stage, operation, { successPatch = null } = {}) {
+  if (!stageRecorder) return operation();
+  await stageRecorder.startStage(stage);
+  try {
+    const result = await operation();
+    const patch = typeof successPatch === "function" ? successPatch(result) : {};
+    await stageRecorder.succeedStage({ ...stage, ...patch });
+    return result;
+  } catch (error) {
+    await stageRecorder.failStage(stage, error);
+    throw error;
+  }
+}
+
+async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, env = process.env, stageRecorder = null }) {
   if (typeof diagnosisProvider === "function") {
     const supplied = await diagnosisProvider({ packet, prompts: buildPostureDiagnosisPrompts(), schemas: postureDiagnosisSchemas() });
     return normalizeInjectedDiagnosisLoop(supplied);
@@ -393,7 +421,15 @@ async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, 
   }
   const prompts = buildPostureDiagnosisPrompts();
   const provider = resolveDiagnosisProvider(aiProviderService);
-  const proposer = await aiProviderService.invoke({
+  const proposerModel = modelForProvider(env.POSTURE_DIAGNOSIS_PROPOSER_MODEL || DEFAULT_PROPOSER_MODEL, provider);
+  const criticModel = modelForProvider(env.POSTURE_DIAGNOSIS_CRITIC_MODEL || DEFAULT_CRITIC_MODEL, provider);
+  const finalizerModel = modelForProvider(env.POSTURE_DIAGNOSIS_FINALIZER_MODEL || DEFAULT_FINALIZER_MODEL, provider);
+  const proposer = await runRecordedStage(stageRecorder, {
+    id: "proposer",
+    label: "Posture diagnosis proposer",
+    provider,
+    model: proposerModel,
+  }, () => aiProviderService.invoke({
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
     systemPrompt: prompts.proposerSystem,
     userPayload: { matterPacket: packet },
@@ -402,9 +438,16 @@ async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, 
     schemaDescription: "Provisional filing and procedural posture diagnosis draft.",
     responseMode: "json",
     label: "posture diagnosis proposer",
-    overrides: providerOverrides(modelForProvider(env.POSTURE_DIAGNOSIS_PROPOSER_MODEL || DEFAULT_PROPOSER_MODEL, provider), env),
+    overrides: providerOverrides(proposerModel, env),
+  }), {
+    successPatch: (result) => ({ aiRun: result?.aiRun, salvageable: true }),
   });
-  const critique = await aiProviderService.invoke({
+  const critique = await runRecordedStage(stageRecorder, {
+    id: "critic",
+    label: "Posture diagnosis critic",
+    provider,
+    model: criticModel,
+  }, () => aiProviderService.invoke({
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
     systemPrompt: prompts.criticSystem,
     userPayload: { matterPacket: packet, proposerDraft: proposer.parsed },
@@ -413,9 +456,16 @@ async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, 
     schemaDescription: "Critique of provisional filing and procedural posture diagnosis.",
     responseMode: "json",
     label: "posture diagnosis critic",
-    overrides: providerOverrides(modelForProvider(env.POSTURE_DIAGNOSIS_CRITIC_MODEL || DEFAULT_CRITIC_MODEL, provider), env),
+    overrides: providerOverrides(criticModel, env),
+  }), {
+    successPatch: (result) => ({ aiRun: result?.aiRun, salvageable: true }),
   });
-  const finalizer = await aiProviderService.invoke({
+  const finalizer = await runRecordedStage(stageRecorder, {
+    id: "finalizer",
+    label: "Posture diagnosis finalizer",
+    provider,
+    model: finalizerModel,
+  }, () => aiProviderService.invoke({
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
     systemPrompt: prompts.finalizerSystem,
     userPayload: { matterPacket: packet, proposerDraft: proposer.parsed, critique: critique.parsed },
@@ -424,9 +474,16 @@ async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, 
     schemaDescription: "Final provisional filing and procedural posture diagnosis after critique.",
     responseMode: "json",
     label: "posture diagnosis finalizer",
-    overrides: providerOverrides(modelForProvider(env.POSTURE_DIAGNOSIS_FINALIZER_MODEL || DEFAULT_FINALIZER_MODEL, provider), env),
+    overrides: providerOverrides(finalizerModel, env),
+  }), {
+    successPatch: (result) => ({ aiRun: result?.aiRun, salvageable: true }),
   });
-  validateFinalDiagnosis(finalizer.parsed);
+  await runRecordedStage(stageRecorder, {
+    id: "validate",
+    label: "Validate procedural posture diagnosis",
+  }, async () => validateFinalDiagnosis(finalizer.parsed), {
+    successPatch: () => ({ summary: "Final diagnosis schema valid", salvageable: true }),
+  });
   return {
     finalDiagnosis: finalizer.parsed,
     aiRuns: {

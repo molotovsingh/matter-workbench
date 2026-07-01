@@ -293,6 +293,25 @@ export interface SkillRunReceipt {
   outputFileStatusLabel: string;
 }
 
+export interface JobStageStatus {
+  id: string;
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled' | string;
+  label?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
+  provider?: string;
+  model?: string;
+  failureCode?: string;
+  failureClass?: string;
+  errorMessage?: string;
+  summary?: string;
+  salvageable?: boolean;
+  aiRun?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
 export interface JobStatus {
   schema_version?: 'job-status/v1';
   id: string;
@@ -309,6 +328,7 @@ export interface JobStatus {
   errorMessage?: string;
   errorCode?: string;
   failureClass?: string;
+  stages?: JobStageStatus[];
   metadata?: Record<string, unknown>;
 }
 

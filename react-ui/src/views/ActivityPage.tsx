@@ -11,6 +11,7 @@ import {
   skillRunOutputExistsInWorkspace,
 } from '../lib/configurableSkillRunReport';
 import { getErrorMessage } from '../lib/errors';
+import { formatJobStageSummary, formatJobStatusReport } from '../lib/jobStatusReport';
 import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
 import { canSeeOperatorSurface } from '../lib/lawyerMode';
 import { useLatestValue } from '../hooks/useLatestValue';
@@ -95,6 +96,15 @@ export default function ActivityPage() {
       appendTerminal([`[activity] copied run report: ${run.slash || run.title || run.id}`]);
     } catch (e) {
       appendTerminal([`[activity] copy failed: ${getErrorMessage(e)}`]);
+    }
+  }
+
+  async function handleCopyJobReport(job: JobStatus) {
+    try {
+      await writeClipboardText(formatJobStatusReport(job));
+      appendTerminal([`[activity] copied job report: ${job.id}`]);
+    } catch (e) {
+      appendTerminal([`[activity] job copy failed: ${getErrorMessage(e)}`]);
     }
   }
 
@@ -249,7 +259,7 @@ export default function ActivityPage() {
           </p>
           <div className="activity-day-list quiet">
             {visibleJobs.map((job) => (
-              <JobCard key={job.id} job={job} />
+              <JobCard key={job.id} job={job} onCopy={handleCopyJobReport} />
             ))}
           </div>
         </section>
@@ -489,11 +499,12 @@ function formatMatterLogSource(sourceLedger: string): string {
   return humanizeJobKind(sourceLedger || 'ledger');
 }
 
-function JobCard({ job }: { job: JobStatus }) {
+function JobCard({ job, onCopy }: { job: JobStatus; onCopy: (job: JobStatus) => void }) {
   const finishedTime = job.finishedAt ? formatTime(job.finishedAt) : null;
   const startedTime = formatTime(job.startedAt);
   const statusClass = jobStatusClass(job.status);
   const failureCode = jobFailureCode(job);
+  const stages = Array.isArray(job.stages) ? job.stages : [];
   return (
     <article className={`activity-card compact ${statusClass}`}>
       <div className="activity-card-main">
@@ -515,10 +526,38 @@ function JobCard({ job }: { job: JobStatus }) {
               Failure code: <code>{failureCode}</code>
             </p>
           )}
+          {stages.length > 0 && (
+            <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 11 }}>
+              Stages: {stages.length} recorded
+            </p>
+          )}
         </div>
         <time style={{ color: 'var(--muted-light)', fontSize: 11, flexShrink: 0, marginTop: 2 }}>
           {finishedTime || startedTime}
         </time>
+      </div>
+      <div className="activity-card-actions">
+        <button className="run-skill-button secondary" type="button" onClick={() => onCopy(job)}>
+          Copy job report
+        </button>
+        <details className="activity-run-details">
+          <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}>Job details</summary>
+          <dl className="skill-card-meta">
+            <div><dt>ID</dt><dd>{job.id}</dd></div>
+            <div><dt>Kind</dt><dd>{humanizeJobKind(job.kind)}</dd></div>
+            <div><dt>Started</dt><dd>{new Date(job.startedAt).toLocaleString()}</dd></div>
+            {job.finishedAt && <div><dt>Finished</dt><dd>{new Date(job.finishedAt).toLocaleString()}</dd></div>}
+            {job.errorCode && <div><dt>Failure code</dt><dd>{job.errorCode}</dd></div>}
+            {job.failureClass && <div><dt>Failure class</dt><dd>{job.failureClass}</dd></div>}
+          </dl>
+          {stages.length > 0 && (
+            <ol style={{ margin: '10px 0 0', paddingLeft: 18, color: 'var(--muted)', fontSize: 12, lineHeight: 1.6 }}>
+              {stages.map((stage) => (
+                <li key={stage.id}>{formatJobStageSummary(stage)}</li>
+              ))}
+            </ol>
+          )}
+        </details>
       </div>
     </article>
   );

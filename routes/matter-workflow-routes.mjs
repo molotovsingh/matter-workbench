@@ -6,6 +6,7 @@ import { runMatterInit } from "../matter-init-engine.mjs";
 import { buildCopilotInteractionReceipt } from "../services/copilot-interaction-receipt-service.mjs";
 import { currentRequestContext } from "../services/request-context.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
+import { createSkillStageService } from "../services/skill-stage-service.mjs";
 import { searchMatterContextPacket, summarizeMatterContextPacket } from "../services/matter-context-service.mjs";
 import { buildSourceRemovalImpactPreviewFromPacket, previewSourceRemovalImpact } from "../services/source-removal-impact-preview-service.mjs";
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
@@ -299,7 +300,8 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           route: "/api/procedural-posture-diagnosis",
           label: "Diagnose Procedural Posture",
           matterName: matterNameForBody(matterStore, body),
-          operation: async () => {
+          operation: async ({ job } = {}) => {
+            const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
             if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
               const matter = await runtimeDbMatterForBody(matterStore, body);
               assertRuntimeDbProceduralPostureRunAvailable({ runtimeDbStorageService });
@@ -316,6 +318,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
                 artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
                 artifactStatReader: (relativePath) => runtimeDbStorageService.artifactStat(matter, relativePath),
                 artifactWriter: ({ files }) => runtimeDbStorageService.persistTextArtifacts(matter, files),
+                stageRecorder,
               });
               const { artifactPersistence, ...responsePayload } = result;
               return Array.isArray(artifactPersistence) && artifactPersistence.length
@@ -326,6 +329,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
             return proceduralPostureDiagnosisService.runDiagnosis({
               matterName: body.matterName,
               overwrite: Boolean(body.overwrite),
+              stageRecorder,
             });
           },
         }));
@@ -862,6 +866,17 @@ async function runTrackedWorkflow({
     operation,
   });
   return attachJobStatus(result, job);
+}
+
+function stageRecorderForWorkflow({ jobStatusService, job } = {}) {
+  if (!job?.id || !jobStatusService?.updateJobStage) return null;
+  const stages = createSkillStageService({ jobStatusService });
+  return {
+    startStage: (stage) => stages.startStage(job.id, stage),
+    succeedStage: (stage) => stages.succeedStage(job.id, stage),
+    failStage: (stage, error) => stages.failStage(job.id, stage, error),
+    skipStage: (stage) => stages.skipStage(job.id, stage),
+  };
 }
 
 function attachJobStatus(result, job) {

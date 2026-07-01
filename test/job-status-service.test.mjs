@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createJobStatusService } from "../services/job-status-service.mjs";
+import { createSkillStageService } from "../services/skill-stage-service.mjs";
 
 test("job status service records a running job and completes it with durable evidence", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-"));
@@ -73,6 +74,37 @@ test("job status service fails closed and keeps secret-looking details out of th
   assert.match(listed.jobs[0].errorMessage, /\[redacted-secret\]/);
   assert.match(listed.jobs[0].errorMessage, /postgres:\/\/operator:\*\*\*@db:5432\/mwb/);
   assert.doesNotMatch(JSON.stringify(listed), /sk-job-secret|jobpass|AIzaSyFixtureGoogleKeyValue/);
+});
+
+test("job status service derives failure class from provider error codes before message heuristics", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-provider-code-"));
+  const service = createJobStatusService({
+    jobsPath: path.join(tmp, "job-status-ledger.json"),
+    now: fixedClock([
+      "2026-06-07T12:00:00.000Z",
+      "2026-06-07T12:00:02.000Z",
+    ]),
+    idFactory: () => "job_provider_failed",
+  });
+
+  await assert.rejects(
+    () => service.runTrackedJob({
+      kind: "posture_diagnosis",
+      label: "Diagnose Procedural Posture",
+      matterName: "Taori vs Roma Builder",
+      operation: async () => {
+        const error = new Error("Unexpected end of JSON input");
+        error.code = "provider.invalid_json";
+        throw error;
+      },
+    }),
+    /Unexpected end of JSON input/,
+  );
+
+  const listed = await service.listJobs({ status: "failed" });
+  assert.equal(listed.jobs.length, 1);
+  assert.equal(listed.jobs[0].errorCode, "provider.invalid_json");
+  assert.equal(listed.jobs[0].failureClass, "provider");
 });
 
 test("job status service stores safe app error codes separately from messages", async () => {
@@ -146,6 +178,61 @@ test("job status service applies fallback workflow failure codes and keeps diagn
     route: "/api/extract",
     label: "Extract Documents",
   });
+});
+
+test("job status service records auditable stage progress", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-status-stages-"));
+  const service = createJobStatusService({
+    jobsPath: path.join(tmp, "job-status-ledger.json"),
+    now: fixedClock([
+      "2026-06-07T12:00:00.000Z",
+      "2026-06-07T12:00:01.000Z",
+      "2026-06-07T12:00:05.000Z",
+    ]),
+    idFactory: () => "job_staged",
+  });
+  const stages = createSkillStageService({
+    jobStatusService: service,
+    now: fixedClock([
+      "2026-06-07T12:00:01.000Z",
+      "2026-06-07T12:00:05.000Z",
+    ]),
+  });
+
+  const job = await service.createJob({
+    kind: "posture_diagnosis",
+    label: "Diagnose Procedural Posture",
+    matterName: "Taori vs Roma Builder",
+  });
+  await stages.startStage(job.id, {
+    id: "finalizer",
+    label: "Posture diagnosis finalizer",
+    provider: "openai-direct",
+    model: "gpt-5.5",
+  });
+  await stages.succeedStage(job.id, {
+    id: "finalizer",
+    summary: "Final diagnosis generated",
+    aiRun: { model: "gpt-5.5", outputTokens: 1200 },
+  });
+
+  const listed = await service.listJobs({ matterName: "Taori vs Roma Builder" });
+  assert.equal(listed.jobs.length, 1);
+  assert.deepEqual(listed.jobs[0].stages, [
+    {
+      id: "finalizer",
+      status: "succeeded",
+      label: "Posture diagnosis finalizer",
+      startedAt: "2026-06-07T12:00:01.000Z",
+      finishedAt: "2026-06-07T12:00:05.000Z",
+      durationMs: 4000,
+      provider: "openai-direct",
+      model: "gpt-5.5",
+      summary: "Final diagnosis generated",
+      aiRun: { model: "gpt-5.5", outputTokens: 1200 },
+      salvageable: true,
+    },
+  ]);
 });
 
 test("job status service lists newest jobs with matter, kind, and status filters", async () => {

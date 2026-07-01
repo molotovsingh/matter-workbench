@@ -54,7 +54,7 @@ test("private beta RC closure pack writes release evidence across required gates
   const outDir = await mkdtemp(path.join(os.tmpdir(), "mwb-rc-closure-pack-"));
   const calls = [];
 
-  assert.equal(parseRcClosurePackArgs([], {}).release, "v1.0.0-beta.112");
+  assert.equal(parseRcClosurePackArgs([], {}).release, "v1.0.0-beta.113");
   const parsedHandoffArgs = parseRcClosurePackArgs([
     "--tester-users-file",
     "/secure/users.json",

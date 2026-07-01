@@ -9,6 +9,8 @@ const LEDGER_SCHEMA_VERSION = "job-status-ledger/v1";
 const JOB_SCHEMA_VERSION = "job-status/v1";
 const DEFAULT_LIMIT = 100;
 const DEFAULT_STALE_RUNNING_JOB_MS = 30 * 60 * 1000;
+const VALID_STAGE_STATUSES = new Set(["pending", "running", "succeeded", "failed", "skipped", "cancelled"]);
+const STAGE_ID_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/;
 
 export function createJobStatusService({
   appDir = process.cwd(),
@@ -85,6 +87,45 @@ export function createJobStatusService({
     });
   }
 
+  async function updateJobStage(jobId, stagePatch = {}) {
+    const stageId = normalizeStageId(stagePatch.id);
+    if (!stageId) throw new Error("stage id is required");
+    return writeMutatedStore(async (store) => {
+      const index = store.jobs.findIndex((job) => job.id === jobId);
+      if (index < 0) throw new Error(`Job not found: ${jobId}`);
+      const current = normalizeJobStatus(store.jobs[index]);
+      const currentStages = Array.isArray(current.stages) ? current.stages : [];
+      const stageIndex = currentStages.findIndex((stage) => stage.id === stageId);
+      const existing = stageIndex >= 0 ? currentStages[stageIndex] : { id: stageId };
+      const mergedRawStage = {
+        ...existing,
+        ...stagePatch,
+        id: stageId,
+      };
+      const mergedMetadata = sanitizeMetadata(mergeMetadata(existing.metadata || {}, stagePatch.metadata || {}));
+      if (Object.keys(mergedMetadata).length) mergedRawStage.metadata = mergedMetadata;
+      else delete mergedRawStage.metadata;
+      if (mergedRawStage.durationMs === undefined && mergedRawStage.startedAt && mergedRawStage.finishedAt) {
+        const started = Date.parse(mergedRawStage.startedAt);
+        const finished = Date.parse(mergedRawStage.finishedAt);
+        if (Number.isFinite(started) && Number.isFinite(finished) && finished >= started) {
+          mergedRawStage.durationMs = finished - started;
+        }
+      }
+      const mergedStage = normalizeJobStage(mergedRawStage);
+      const stages = stageIndex >= 0
+        ? currentStages.map((stage, i) => (i === stageIndex ? mergedStage : stage))
+        : [...currentStages, mergedStage];
+      const updated = normalizeJobStatus({
+        ...current,
+        stages,
+        updatedAt: isoNow(now),
+      });
+      store.jobs[index] = updated;
+      return updated;
+    });
+  }
+
   async function completeJob(jobId, patch = {}) {
     return updateJob(jobId, {
       ...patch,
@@ -102,7 +143,7 @@ export function createJobStatusService({
       finishedAt: isoNow(now),
       errorMessage: message,
       ...(errorCode ? { errorCode } : {}),
-      failureClass: patch.failureClass || classifyFailure(message),
+      failureClass: patch.failureClass || classifyFailure(message, { errorCode }),
     });
   }
 
@@ -117,6 +158,16 @@ export function createJobStatusService({
       await failJob(job.id, error, { fallbackErrorCode: failureErrorCode });
       throw error;
     }
+  }
+
+  async function getJob(jobId) {
+    const id = typeof jobId === "string" ? jobId.trim() : "";
+    if (!id) throw new Error("job id is required");
+    await finalizeStaleRunningJobs();
+    const store = await loadStore();
+    const job = store.jobs.find((entry) => entry.id === id);
+    if (!job) throw new Error(`Job not found: ${id}`);
+    return normalizeJobStatus(job);
   }
 
   async function listJobs(filters = {}) {
@@ -162,9 +213,11 @@ export function createJobStatusService({
   return {
     createJob,
     updateJob,
+    updateJobStage,
     completeJob,
     failJob,
     runTrackedJob,
+    getJob,
     listJobs,
   };
 }
@@ -194,7 +247,49 @@ export function normalizeJobStatus(job = {}) {
   if (job.errorMessage) normalized.errorMessage = sanitizeText(job.errorMessage, 500);
   if (job.errorCode) normalized.errorCode = safeErrorCode(job.errorCode);
   if (job.failureClass) normalized.failureClass = normalizeFailureClass(job.failureClass);
+  if (Array.isArray(job.stages)) normalized.stages = normalizeJobStages(job.stages);
   if (job.metadata && typeof job.metadata === "object") normalized.metadata = sanitizeMetadata(job.metadata);
+  return normalized;
+}
+
+function normalizeJobStages(stages = []) {
+  const normalized = [];
+  const seen = new Set();
+  for (const stage of Array.isArray(stages) ? stages : []) {
+    const next = normalizeJobStage(stage);
+    if (!next || !next.id || seen.has(next.id)) continue;
+    seen.add(next.id);
+    normalized.push(next);
+  }
+  return normalized.slice(0, 50);
+}
+
+function normalizeJobStage(stage = {}) {
+  const id = normalizeStageId(stage.id);
+  if (!id) return null;
+  const normalized = {
+    id,
+    status: normalizeStageStatus(stage.status),
+  };
+  if (stage.label) normalized.label = sanitizeText(stage.label, 160);
+  if (stage.startedAt) normalized.startedAt = normalizeIso(stage.startedAt) || String(stage.startedAt);
+  if (stage.updatedAt) normalized.updatedAt = normalizeIso(stage.updatedAt) || String(stage.updatedAt);
+  if (stage.finishedAt) normalized.finishedAt = normalizeIso(stage.finishedAt) || String(stage.finishedAt);
+  const durationMs = normalizeNonNegativeInteger(stage.durationMs);
+  if (durationMs !== null) normalized.durationMs = durationMs;
+  if (stage.provider) normalized.provider = sanitizeText(stage.provider, 80);
+  if (stage.model) normalized.model = sanitizeText(stage.model, 160);
+  if (stage.failureCode) normalized.failureCode = safeErrorCode(stage.failureCode);
+  if (stage.failureClass) normalized.failureClass = normalizeFailureClass(stage.failureClass);
+  if (stage.errorMessage) normalized.errorMessage = sanitizeText(stage.errorMessage, 500);
+  if (stage.summary) normalized.summary = sanitizeText(stage.summary, 500);
+  if (stage.aiRun && typeof stage.aiRun === "object" && !Array.isArray(stage.aiRun)) {
+    normalized.aiRun = sanitizeMetadata(stage.aiRun);
+  }
+  if (stage.metadata && typeof stage.metadata === "object" && !Array.isArray(stage.metadata)) {
+    normalized.metadata = sanitizeMetadata(stage.metadata);
+  }
+  if (stage.salvageable !== undefined) normalized.salvageable = Boolean(stage.salvageable);
   return normalized;
 }
 
@@ -312,13 +407,42 @@ function normalizeStatus(status) {
   return "running";
 }
 
-export function classifyFailure(message = "") {
+function normalizeStageId(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return STAGE_ID_PATTERN.test(text) ? text : "";
+}
+
+function normalizeStageStatus(status) {
+  const text = typeof status === "string" ? status.trim() : "";
+  return VALID_STAGE_STATUSES.has(text) ? text : "pending";
+}
+
+function normalizeNonNegativeInteger(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return null;
+  return Math.trunc(number);
+}
+
+export function classifyFailure(message = "", { errorCode = "" } = {}) {
+  const codeClass = classifyFailureCode(errorCode);
+  if (codeClass) return codeClass;
   const text = String(message || "").toLowerCase();
   if (/login required|unauth|forbidden|permission denied/.test(text)) return "auth";
   if (/api key|provider|openrouter|openai|gemini|mistral|rate limit|quota|timeout|timed out/.test(text)) return "provider";
   if (/database|postgres|psql|storage|write|read|enoent|no such file|not found/.test(text)) return "storage";
   if (/source folder is missing|source files|pick one|no matter|missing|required|invalid/.test(text)) return "user_action_needed";
   return "unknown";
+}
+
+function classifyFailureCode(errorCode = "") {
+  const code = safeErrorCode(errorCode);
+  if (!code) return "";
+  if (/^(provider|openai|openrouter|gemini|mistral)\./.test(code)) return "provider";
+  if (/^(auth|authentication|authorization|permission)\./.test(code)) return "auth";
+  if (/^(storage|database|postgres|runtime_db|artifact)\./.test(code)) return "storage";
+  if (/^(user_action|validation|missing_input)\./.test(code)) return "user_action_needed";
+  return "";
 }
 
 function normalizeFailureClass(value) {

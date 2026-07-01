@@ -304,6 +304,7 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
   const code = sanitizeSignalCode(job.errorCode || "job_failed");
   const workflow = sanitizeWorkflowSignalDetails(job.metadata?.workflow);
   const failureClass = sanitizeText(job.failureClass || "", 80).trim();
+  const failedStage = sanitizeFailedJobStage(job.stages);
   return {
     source: "job_status",
     fingerprint: stableFingerprint(["job_status", job.id || "", job.matterName || "", kind, title]),
@@ -318,6 +319,7 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
       state: "failed",
       ...(code ? { errorCode: code } : {}),
       ...(workflow.stage ? { stage: workflow.stage } : {}),
+      ...(failedStage.id ? { failedStage: failedStage.id } : {}),
     },
     details: {
       jobId: sanitizeText(job.id, 120).trim(),
@@ -326,6 +328,10 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
       errorCode: code,
       ...(failureClass ? { failureClass } : {}),
       ...(workflow.stage ? { stage: workflow.stage } : {}),
+      ...(failedStage.id ? { failedStage: failedStage.id } : {}),
+      ...(failedStage.failureCode ? { stageFailureCode: failedStage.failureCode } : {}),
+      ...(failedStage.provider ? { stageProvider: failedStage.provider } : {}),
+      ...(failedStage.model ? { stageModel: failedStage.model } : {}),
       ...(workflow.route ? { route: workflow.route } : {}),
       errorMessage: sanitizeText(job.errorMessage || "Job failed", 300).trim(),
       startedAt: normalizeIso(job.startedAt),
@@ -521,6 +527,7 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     "errorCode",
     "errorMessage",
     "failureClass",
+    "failedStage",
     "finishedAt",
     "displayName",
     "errorClass",
@@ -532,6 +539,9 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     "requestId",
     "route",
     "stage",
+    "stageFailureCode",
+    "stageModel",
+    "stageProvider",
     "startedAt",
     "status",
     "storePaths",
@@ -579,6 +589,21 @@ function sanitizeWorkflowSignalDetails(workflow = {}) {
   const details = {};
   if (/^[a-z0-9_]{1,80}$/.test(stage)) details.stage = stage;
   if (/^\/api\/[a-z0-9/_-]{1,120}$/i.test(route)) details.route = route;
+  return details;
+}
+
+function sanitizeFailedJobStage(stages = []) {
+  const failed = Array.isArray(stages) ? stages.find((stage) => stage?.status === "failed") : null;
+  if (!failed || typeof failed !== "object" || Array.isArray(failed)) return {};
+  const id = sanitizeText(failed.id, 80).trim();
+  const failureCode = sanitizeSignalCode(failed.failureCode || "", "");
+  const provider = sanitizeText(failed.provider, 80).trim();
+  const model = sanitizeText(failed.model, 160).trim();
+  const details = {};
+  if (/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(id)) details.id = id;
+  if (failureCode) details.failureCode = failureCode;
+  if (/^[a-z0-9_.:/+-]{1,80}$/i.test(provider)) details.provider = provider;
+  if (/^[a-z0-9_.:/+-]{1,160}$/i.test(model)) details.model = model;
   return details;
 }
 

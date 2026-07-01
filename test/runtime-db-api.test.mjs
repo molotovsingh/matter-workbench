@@ -2454,6 +2454,10 @@ test("runtime DB postgres storage mode runs procedural posture diagnosis from DB
 
     assert.equal(result.state, "written");
     assert.equal(result.artifactPath, "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md");
+    assert.deepEqual(result.job.stages.map((stage) => [stage.id, stage.status]), [
+      ["build_packet", "succeeded"],
+      ["persist", "succeeded"],
+    ]);
     assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
       "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
       "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",

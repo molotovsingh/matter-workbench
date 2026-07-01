@@ -10,9 +10,11 @@ const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts
 const reactPresentationLabelsPath = new URL("../react-ui/src/lib/presentationLabels.ts", import.meta.url);
 const reactWorkspaceLabelsPath = new URL("../react-ui/src/lib/workspaceLabels.ts", import.meta.url);
 const reactRunReportPath = new URL("../react-ui/src/lib/configurableSkillRunReport.ts", import.meta.url);
+const reactJobReportPath = new URL("../react-ui/src/lib/jobStatusReport.ts", import.meta.url);
 const reactActivityPagePath = new URL("../react-ui/src/views/ActivityPage.tsx", import.meta.url);
 
 let reactRunReportModulePromise = null;
+let reactJobReportModulePromise = null;
 
 async function importReactRunReportModule() {
   if (reactRunReportModulePromise) return reactRunReportModulePromise;
@@ -38,6 +40,25 @@ async function importReactRunReportModule() {
   })();
 
   return reactRunReportModulePromise;
+}
+
+async function importReactJobReportModule() {
+  if (reactJobReportModulePromise) return reactJobReportModulePromise;
+
+  reactJobReportModulePromise = (async () => {
+    const tempDir = await mkdtemp(path.join(tmpdir(), "mwb-react-job-report-"));
+    const secretFile = path.join(tempDir, "secretRedaction.mjs");
+    const jobReportFile = path.join(tempDir, "jobStatusReport.mjs");
+
+    await writeFile(secretFile, transpile(await readFile(reactSecretRedactionPath, "utf8")));
+    const source = (await readFile(reactJobReportPath, "utf8"))
+      .replace("'./secretRedaction'", "'./secretRedaction.mjs'");
+    await writeFile(jobReportFile, transpile(source));
+
+    return import(pathToFileURL(jobReportFile).href);
+  })();
+
+  return reactJobReportModulePromise;
 }
 
 function transpile(source) {
@@ -93,6 +114,36 @@ test("React custom skill run report mirrors metadata-only redaction boundary", a
   assert.doesNotMatch(report, /sk-title-secret|sk-path-secret|sk-warning-secret|sk-error-secret/);
   assert.match(report, /OPENAI_API_KEY=\[redacted-secret\]/);
   assert.match(report, /Bearer \[redacted-secret\]/);
+});
+
+test("React job status report includes stage audit trail without secrets", async () => {
+  const { formatJobStatusReport, formatJobStageSummary } = await importReactJobReportModule();
+  const job = {
+    id: "job_123",
+    kind: "posture_diagnosis",
+    label: "Diagnose Procedural Posture sk-label-secret",
+    status: "failed",
+    matterName: "Taori vs Roma Builder",
+    startedAt: "2026-07-01T01:31:35.000Z",
+    finishedAt: "2026-07-01T01:35:11.000Z",
+    errorCode: "provider.invalid_json",
+    failureClass: "provider",
+    errorMessage: "Unexpected end OPENAI_API_KEY=sk-error-secret",
+    stages: [
+      { id: "proposer", label: "Posture proposer", status: "succeeded", durationMs: 90000, provider: "openai-direct", model: "gpt-5.5", salvageable: true },
+      { id: "finalizer", label: "Posture finalizer", status: "failed", durationMs: 46000, failureCode: "provider.invalid_json", errorMessage: "Bearer sk-stage-secret" },
+    ],
+  };
+
+  assert.equal(formatJobStageSummary(job.stages[0]), "Posture proposer: succeeded · 1m 30s · gpt-5.5");
+  const report = formatJobStatusReport(job);
+  assert.match(report, /^# Job Status Report/);
+  assert.match(report, /Job id: job_123/);
+  assert.match(report, /Failure code: provider\.invalid_json/);
+  assert.match(report, /Posture proposer \(proposer\): succeeded · 1m 30s · openai-direct · gpt-5\.5 · salvageable/);
+  assert.match(report, /Posture finalizer \(finalizer\): failed · 46s · failure: provider\.invalid_json/);
+  assert.match(report, /OPENAI_API_KEY=\[redacted-secret\]/);
+  assert.doesNotMatch(report, /sk-label-secret|sk-error-secret|sk-stage-secret/);
 });
 
 test("React Activity output opening is limited to the run matter", async () => {
