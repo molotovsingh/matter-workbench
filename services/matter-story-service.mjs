@@ -9,6 +9,7 @@ import { CASE_TIMELINE_JSON_RELATIVE, CASE_TIMELINE_MARKDOWN_RELATIVE, isCaseTim
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
 import { buildConfigurableSkillMatterContextPacket, summarizeMatterContext } from "./configurable-skill-context.mjs";
 import { createDefaultRunProvider } from "./configurable-skill-providers.mjs";
+import { runRecordedStage } from "./skill-stage-service.mjs";
 
 export const DISPUTE_STORY_SKILL_SLASH = "/the_story";
 export const DISPUTE_STORY_OUTPUT_RELATIVE = "20_Workshop/The Story.md";
@@ -296,20 +297,6 @@ export function createMatterStoryService({
     readDisputeStoryStatus,
     runDisputeStory,
   };
-}
-
-async function runRecordedStage(stageRecorder, stage, operation, { successPatch = null } = {}) {
-  if (!stageRecorder) return operation();
-  await stageRecorder.startStage(stage);
-  try {
-    const result = await operation();
-    const patch = typeof successPatch === "function" ? successPatch(result) : {};
-    await stageRecorder.succeedStage({ ...stage, ...patch });
-    return result;
-  } catch (error) {
-    await stageRecorder.failStage(stage, error);
-    throw error;
-  }
 }
 
 async function buildNativeStoryMatterContextPacket(matterRoot) {

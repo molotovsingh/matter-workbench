@@ -1,5 +1,20 @@
 import { classifyFailure } from "./job-status-service.mjs";
 
+export async function runRecordedStage(stageRecorder, stage, operation, { successPatch = null } = {}) {
+  if (typeof operation !== "function") throw new Error("stage operation is required");
+  if (!stageRecorder) return operation();
+  await stageRecorder.startStage(stage);
+  try {
+    const result = await operation();
+    const patch = typeof successPatch === "function" ? successPatch(result) : {};
+    await stageRecorder.succeedStage({ ...stage, ...patch });
+    return result;
+  } catch (error) {
+    await stageRecorder.failStage(stage, error);
+    throw error;
+  }
+}
+
 export function createSkillStageService({
   jobStatusService,
   now = () => new Date(),

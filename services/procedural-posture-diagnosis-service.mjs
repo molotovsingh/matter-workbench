@@ -9,6 +9,7 @@ import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
 import { CASE_TIMELINE_JSON_RELATIVE, CASE_TIMELINE_MARKDOWN_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
 import { buildConfigurableSkillMatterContextPacket, summarizeMatterContext } from "./configurable-skill-context.mjs";
 import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
+import { runRecordedStage } from "./skill-stage-service.mjs";
 import {
   POSTURE_DIAGNOSIS_DISPOSITION_VALUES,
   diagnosisSchema,
@@ -391,20 +392,6 @@ async function buildNativeMatterContextPacket(matterRoot) {
     );
   }
   return buildConfigurableSkillMatterContextPacket(matterRoot);
-}
-
-async function runRecordedStage(stageRecorder, stage, operation, { successPatch = null } = {}) {
-  if (!stageRecorder) return operation();
-  await stageRecorder.startStage(stage);
-  try {
-    const result = await operation();
-    const patch = typeof successPatch === "function" ? successPatch(result) : {};
-    await stageRecorder.succeedStage({ ...stage, ...patch });
-    return result;
-  } catch (error) {
-    await stageRecorder.failStage(stage, error);
-    throw error;
-  }
 }
 
 async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, env = process.env, stageRecorder = null }) {
