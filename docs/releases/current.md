@@ -4,12 +4,12 @@ Status: Current release pointer
 
 This is the single current-release pointer for supervised private beta. General docs should link here instead of repeating the beta number.
 
-Release: [v1.0.0-beta.116](v1.0.0-beta.116.md)
+Release: [v1.0.0-beta.117](v1.0.0-beta.117.md)
 
 Tag target / deployed commit:
 
 ```text
-503f6c1 Retry truncated posture diagnosis JSON
+02c2309 Tidy posture diagnosis UI after confirmation
 ```
 
 Deployment surface:
