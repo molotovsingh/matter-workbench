@@ -14,7 +14,9 @@ import { runSourceDescriptors } from "../source-descriptors-engine.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import {
   firstBlockedRuntimePreparationStage,
+  firstNonCurrentRuntimePreparationStageBefore,
   firstQueueableRuntimePreparationStage,
+  normalizeRuntimePreparationStageSelector,
   RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES,
   runtimePreparationJobKindForStage,
   runtimePreparationJobMetadataForStage,
@@ -598,15 +600,31 @@ async function enqueueRuntimeDbNeededPreparation({
     error.code = "matter_workflow.preparation_queue_needed_only";
     throw error;
   }
+  const startStage = requestedRuntimePreparationStartStage(body);
   const plan = await runtimeDbStorageService.readPrepareMatterPlan(matter, { includeDisputeStory });
-  const stage = firstQueueableRuntimePreparationStage(plan);
+  const upstreamBlocker = startStage ? firstNonCurrentRuntimePreparationStageBefore(plan, startStage) : null;
+  if (upstreamBlocker) {
+    return {
+      schema_version: PREPARE_MATTER_RUN_SCHEMA,
+      state: "blocked",
+      matterName: matter.matterName || matter.name || plan?.matterName || "",
+      mode,
+      startStage,
+      message: `Cannot start preparation from ${runtimePreparationStartStageLabel(startStage)} until ${upstreamBlocker.label || upstreamBlocker.id || "the earlier stage"} is current. ${upstreamBlocker.reason || "Run needed preparation first."}`,
+      stage: upstreamBlocker,
+      plan,
+    };
+  }
+  const stage = firstQueueableRuntimePreparationStage(plan, { startStage });
   if (!stage) {
-    const blockedStage = firstBlockedRuntimePreparationStage(plan);
+    const blockedStage = firstBlockedRuntimePreparationStage(plan, { startStage });
     return {
       schema_version: PREPARE_MATTER_RUN_SCHEMA,
       state: blockedStage ? "blocked" : "complete",
       matterName: matter.matterName || matter.name || plan?.matterName || "",
-      message: blockedStage?.reason || plan?.nextStep?.message || (blockedStage ? "Preparation is blocked." : "Core preparation is current."),
+      mode,
+      ...(startStage ? { startStage } : {}),
+      message: blockedStage?.reason || plan?.nextStep?.message || (blockedStage ? "Preparation is blocked." : "Selected preparation range is current."),
       ...(blockedStage ? { stage: blockedStage } : {}),
       plan,
     };
@@ -626,6 +644,7 @@ async function enqueueRuntimeDbNeededPreparation({
       state: "queued",
       matterName: matter.matterName || matter.name || plan?.matterName || "",
       mode,
+      ...(startStage ? { startStage } : {}),
       kind,
       stage,
       job: existing,
@@ -644,6 +663,7 @@ async function enqueueRuntimeDbNeededPreparation({
       stage: kind,
       requestedMode: mode,
       reason: sanitizeWorkflowText(body.reason || "Run needed preparation", 240),
+      ...(startStage ? { requestedStartStage: startStage } : {}),
       ...runtimePreparationJobMetadataForStage(stage),
     },
   });
@@ -652,6 +672,7 @@ async function enqueueRuntimeDbNeededPreparation({
     state: "queued",
     matterName: matter.matterName || matter.name || plan?.matterName || "",
     mode,
+    ...(startStage ? { startStage } : {}),
     kind,
     stage,
     job,
@@ -672,6 +693,30 @@ function assertRuntimeDbPreparationQueueAvailable({ runtimeDbStorageService, run
 
 function normalizePreparationRunMode(value) {
   return String(value || "needed").trim() === "full" ? "full" : "needed";
+}
+
+function requestedRuntimePreparationStartStage(body = {}) {
+  const raw = body.startStage || body.startSlash || body.fromStage || "";
+  if (!String(raw || "").trim()) return "";
+  const normalized = normalizeRuntimePreparationStageSelector(raw);
+  if (!normalized) {
+    const error = new Error("Choose a valid preparation stage to start from.");
+    error.statusCode = 400;
+    error.code = "matter_workflow.preparation_start_stage_invalid";
+    throw error;
+  }
+  return normalized;
+}
+
+function runtimePreparationStartStageLabel(startStage = "") {
+  const normalized = normalizeRuntimePreparationStageSelector(startStage);
+  if (normalized === "/describe_sources") return "Source Labels";
+  if (normalized === "/create_listofdates") return "Case Timeline";
+  if (normalized === "/the_story") return "Matter Story";
+  if (normalized === "/procedural_posture_diagnosis") return "Procedural Diagnosis";
+  if (normalized === "/extract") return "document reading";
+  if (normalized === "/matter-init") return "matter setup";
+  return "the selected stage";
 }
 
 async function findActiveRuntimePreparationJob({ runtimeDbStorageService, matter = {}, kind = "" } = {}) {

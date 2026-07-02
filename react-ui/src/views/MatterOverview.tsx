@@ -24,7 +24,7 @@ import type {
 
 interface Props {
   onCommand: (command: string) => void;
-  onRunNeededPreparation: (matterName: string) => void;
+  onRunNeededPreparation: (matterName: string, startStage?: string) => void;
   onForceFullPreparation: (matterName: string, reason: string) => void;
 }
 
@@ -382,7 +382,7 @@ function PipelineCard({
   refreshKey: string;
   backendJobsError: string | null;
   hasBackendPreparationFailure: boolean;
-  onRunNeededPreparation: (matterName: string) => void;
+  onRunNeededPreparation: (matterName: string, startStage?: string) => void;
   onForceFullPreparation: (matterName: string, reason: string) => void;
 }) {
   const [stages, setStages] = useState<PreparationStage[] | null>(null);
@@ -494,7 +494,12 @@ function PipelineCard({
           </p>
           <div className="pipeline-stage-list">
             {stages.map((stage) => (
-              <StageRow key={stage.slash || stage.label} stage={stage} />
+              <StageRow
+                key={stage.slash || stage.label}
+                stage={stage}
+                isPreparationRunning={isPreparationRunning}
+                onRunFromStage={(startStage) => onRunNeededPreparation(matterName, startStage)}
+              />
             ))}
           </div>
         </>
@@ -519,7 +524,15 @@ function PreparationProgress({ run }: { run: PreparationRunStatus }) {
   );
 }
 
-function StageRow({ stage }: { stage: PreparationStage }) {
+function StageRow({
+  stage,
+  isPreparationRunning,
+  onRunFromStage,
+}: {
+  stage: PreparationStage;
+  isPreparationRunning: boolean;
+  onRunFromStage: (startStage: string) => void;
+}) {
   const stateClass = pipelineStageStateClass(stage);
   const label = stageDisplayLabel(stage);
   const pill = stagePill(stage);
@@ -539,6 +552,33 @@ function StageRow({ stage }: { stage: PreparationStage }) {
       <StageArtifacts stage={stage} />
       <StageAiRun aiRun={stage.aiRun} />
       {stage.rerunAdvice && <StageRerunHint stage={stage} />}
+      <StageRunFromHereAction stage={stage} disabled={isPreparationRunning} onRunFromStage={onRunFromStage} />
+    </div>
+  );
+}
+
+function StageRunFromHereAction({
+  stage,
+  disabled,
+  onRunFromStage,
+}: {
+  stage: PreparationStage;
+  disabled: boolean;
+  onRunFromStage: (startStage: string) => void;
+}) {
+  if (!canRunPreparationFromStage(stage)) return null;
+  const startStage = stage.slash || stage.id || '';
+  if (!startStage) return null;
+  return (
+    <div className="pipeline-stage-actions">
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => onRunFromStage(startStage)}
+        disabled={disabled}
+      >
+        Run needed from here
+      </button>
     </div>
   );
 }
@@ -839,6 +879,13 @@ function preparationSummaryText(preparationRun: PreparationRunStatus | null, sta
 function stageIsRunnable(stage: PreparationStage): boolean {
   return stage.action === PREPARATION_STAGE_ACTIONS.RUN
     || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN;
+}
+
+function canRunPreparationFromStage(stage: PreparationStage): boolean {
+  if (!stage.slash) return false;
+  if (stage.slash === '/matter-init' || stage.slash === '/extract') return false;
+  if (stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED) return false;
+  return true;
 }
 
 function stageNeedsUpdate(stage: PreparationStage): boolean {

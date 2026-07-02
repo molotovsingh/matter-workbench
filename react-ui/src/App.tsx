@@ -94,10 +94,12 @@ function AppShell() {
     {
       reason = '[prepare] automatic preparation started',
       mode = 'needed',
+      startStage = '',
       initialMessage = 'Preparing matter…',
     }: {
       reason?: string;
       mode?: 'needed' | 'full';
+      startStage?: string;
       initialMessage?: string;
     } = {},
   ) => {
@@ -126,6 +128,7 @@ function AppShell() {
         appendTerminal,
         isStale,
         mode,
+        startStage,
         initialMessage,
         onProgress: (status) => {
           latestRun = status;
@@ -174,14 +177,18 @@ function AppShell() {
     void runPreparationForMatter(matterName, { reason, mode: 'needed' });
   }, [runPreparationForMatter]);
 
-  const handleRunNeededPreparation = useCallback((matterName: string) => {
+  const handleRunNeededPreparation = useCallback((matterName: string, startStage = '') => {
     const cleanMatterName = matterName.trim();
     if (!cleanMatterName) return;
     if (state.preparationRun?.matterName === cleanMatterName && state.preparationRun.state === 'running') return;
+    const fromLabel = preparationStartStageLabel(startStage);
     void runPreparationForMatter(cleanMatterName, {
-      reason: `[prepare] running needed preparation for "${cleanMatterName}"`,
+      reason: startStage
+        ? `[prepare] running needed preparation for "${cleanMatterName}" from ${fromLabel}`
+        : `[prepare] running needed preparation for "${cleanMatterName}"`,
       mode: 'needed',
-      initialMessage: 'Running needed preparation…',
+      startStage,
+      initialMessage: startStage ? `Running preparation from ${fromLabel}…` : 'Running needed preparation…',
     });
   }, [runPreparationForMatter, state.preparationRun]);
 
@@ -913,6 +920,16 @@ function PrivateBetaAuthLoading({ error }: { error: string }) {
       </div>
     </div>
   );
+}
+
+function preparationStartStageLabel(startStage = ''): string {
+  if (startStage === '/describe_sources' || startStage === 'source_labels' || startStage === 'describe-sources') return 'Source Labels';
+  if (startStage === '/create_listofdates' || startStage === 'case_timeline' || startStage === 'create-listofdates') return 'Case Timeline';
+  if (startStage === '/the_story' || startStage === 'matter_story' || startStage === 'dispute-story') return 'Matter Story';
+  if (startStage === '/procedural_posture_diagnosis' || startStage === 'posture_diagnosis' || startStage === 'procedural-posture-diagnosis') return 'Procedural Diagnosis';
+  if (startStage === '/extract' || startStage === 'extract') return 'document reading';
+  if (startStage === '/matter-init' || startStage === 'matter_init' || startStage === 'matter-init') return 'matter setup';
+  return 'selected stage';
 }
 
 function PrivateBetaLogin({

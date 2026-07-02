@@ -53,6 +53,8 @@ test("React automatic preparation runner includes Case Timeline, story, posture 
   assert.match(runner, /overwrite: options\.forceStoryRegeneration === true \|\| stage\.state === 'stale'/);
   assert.match(runner, /api\.refreshListOfDatesLabels\(\{ matterName, dryRun: false \}\)/);
   assert.match(runner, /api\.queueNeededPreparation\(/);
+  assert.match(runner, /startStage: normalizePreparationStartStage\(startStage\) \|\| undefined/);
+  assert.match(runner, /firstNonCurrentStageBefore\(plan, startStage\)/);
   assert.match(runner, /api\.getJobs\(\{ matterName, kind, limit: 20 \}\)/);
   assert.match(runner, /server queue unavailable; running needed preparation in the browser session/);
   assert.match(runner, /progress is kept in Activity/);
@@ -117,12 +119,14 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.match(runner, /!options\.forceCaseTimelineRegeneration && stage\.rerunAdvice\?\.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES\.LABEL_REFRESH_NEEDED/);
   assert.doesNotMatch(runner, /for \(const stage of FULL_PREPARATION_STAGES\) \{[\s\S]{0,80}if \(isStale\(\)\) return staleResult\(\)/);
   assert.match(app, /mode: 'needed'/);
+  assert.match(app, /startStage/);
+  assert.match(app, /preparationStartStageLabel/);
   assert.match(app, /handleForceFullPreparation[\s\S]*mode: 'full'/);
-  assert.match(app, /initialMessage: 'Running needed preparation…'/);
+  assert.match(app, /initialMessage: startStage \? `Running preparation from \$\{fromLabel\}…` : 'Running needed preparation…'/);
   assert.match(app, /initialMessage: 'Force rebuilding preparation…'/);
   assert.match(app, /onRunNeededPreparation=\{handleRunNeededPreparation\}/);
   assert.match(app, /onForceFullPreparation=\{handleForceFullPreparation\}/);
-  assert.match(mainContent, /onRunNeededPreparation: \(matterName: string\) => void/);
+  assert.match(mainContent, /onRunNeededPreparation: \(matterName: string, startStage\?: string\) => void/);
   assert.match(mainContent, /onForceFullPreparation: \(matterName: string, reason: string\) => void/);
   assert.match(homeLanding, /<MatterOverview onCommand=\{onCommand\} onRunNeededPreparation=\{onRunNeededPreparation\} onForceFullPreparation=\{onForceFullPreparation\} \/>/);
   assert.match(overview, /Run needed preparation/);
@@ -137,6 +141,8 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.match(overview, /const isPreparationRunning = preparationRun\?\.state === 'running'/);
   assert.match(overview, /disabled=\{isPreparationRunning\}/);
   assert.match(overview, /onRunNeededPreparation\(matterName\)/);
+  assert.match(overview, /Run needed from here/);
+  assert.match(overview, /onRunNeededPreparation\(matterName, startStage\)/);
   assert.match(overview, /stages\.some\(stageIsBlocked\)/);
   assert.match(overview, /stage\.state === 'current_unconfirmed'\) return false/);
   assert.match(overview, /Diagnosis has not been generated yet\. Run saved procedural diagnosis to create it without rebuilding current upstream preparation\./);
@@ -176,7 +182,7 @@ test("React automatic preparation suppresses failed-stage UI updates after the m
 test("React automatic preparation does not fail downstream blocked steps while an upstream step can run", async () => {
   const runner = await readFile(runnerPath, "utf8");
 
-  assert.match(runner, /const nextStage = firstRunnablePreparationStage\(plan\)/);
+  assert.match(runner, /const nextStage = upstreamBlocker \? null : firstRunnablePreparationStage\(plan, startStage\)/);
   assert.match(runner, /mergePlanIntoStatus\(status, plan, \{ markBlocked: !nextStage \}\)/);
   assert.match(runner, /completePreparationAdvisory/);
   assert.match(runner, /markBlockedWhenNoRunnable: true/);

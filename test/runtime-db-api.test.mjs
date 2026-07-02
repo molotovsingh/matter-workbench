@@ -510,6 +510,71 @@ test("runtime DB prepare-matter run queues the next needed backend stage", async
   }
 });
 
+test("runtime DB prepare-matter run can start from a selected preparation stage", async () => {
+  const { appDir } = await runtimeDbTestPaths("runtime-db-prepare-run-target-stage");
+  const matter = runtimeDbMatter({ name: "Targeted Matter", matterName: "Targeted Matter" });
+  let queuedInput = null;
+  const server = await startRuntimeDbTestServer({
+    appDir,
+    matter,
+    runtimeDbProcessingWorkerService: {
+      enabled: () => true,
+      supportedKinds: () => ["source_labels", "case_timeline", "matter_story", "posture_diagnosis"],
+      start() {},
+      stop() {},
+    },
+    runtimeDbStorageService: {
+      enabled: true,
+      async readPrepareMatterPlan() {
+        return {
+          schema_version: "prepare-matter-plan/v1",
+          matterName: matter.name,
+          stages: [
+            { id: "describe-sources", slash: "/describe_sources", label: "Label sources", state: "current", action: "skip_current" },
+            { id: "create-listofdates", slash: "/create_listofdates", label: "Build Case Timeline", state: "stale", action: "confirm_paid_run" },
+            { id: "dispute-story", slash: "/the_story", label: "Write dispute story", state: "missing", action: "confirm_paid_run" },
+            { id: "procedural-posture-diagnosis", slash: "/procedural_posture_diagnosis", label: "Diagnose procedural posture", state: "blocked", action: "blocked", reason: "Write Story first." },
+          ],
+        };
+      },
+      async listProcessingJobs() {
+        return { schema_version: "runtime-db-processing-jobs/v1", jobs: [] };
+      },
+      async enqueueProcessingJob(input) {
+        queuedInput = input;
+        return { id: "job-story-targeted", kind: input.kind, status: "queued", matterName: matter.name, metadata: input.metadata };
+      },
+    },
+  });
+
+  try {
+    const blocked = await postJson(server.baseUrl, "/api/prepare-matter/run", {
+      matterName: matter.name,
+      mode: "needed",
+      startStage: "/the_story",
+    });
+
+    assert.equal(blocked.state, "blocked");
+    assert.equal(blocked.stage.slash, "/create_listofdates");
+    assert.match(blocked.message, /Cannot start preparation from Matter Story/i);
+
+    const result = await postJson(server.baseUrl, "/api/prepare-matter/run", {
+      matterName: matter.name,
+      mode: "needed",
+      startStage: "case_timeline",
+      runId: "target_case_timeline",
+    });
+
+    assert.equal(result.state, "queued");
+    assert.equal(result.startStage, "/create_listofdates");
+    assert.equal(result.kind, "case_timeline");
+    assert.equal(queuedInput.metadata.requestedStartStage, "/create_listofdates");
+    assert.equal(queuedInput.idempotencyKey, `manual-prepare:${matter.id}:target_case_timeline:case_timeline`);
+  } finally {
+    await server.close();
+  }
+});
+
 test("runtime DB prepare-matter run marks stale Story jobs for overwrite", async () => {
   const { appDir } = await runtimeDbTestPaths("runtime-db-prepare-run-stale-story");
   const matter = runtimeDbMatter({ name: "Stale Story Matter", matterName: "Stale Story Matter" });

@@ -1248,6 +1248,7 @@ export interface PreparationQueueRunRequest {
   mode?: 'needed';
   reason?: string;
   runId?: string;
+  startStage?: string;
 }
 
 export interface PreparationQueueRunResponse {
@@ -1255,6 +1256,7 @@ export interface PreparationQueueRunResponse {
   state: 'queued' | 'complete' | 'blocked' | string;
   matterName?: string;
   mode?: 'needed' | string;
+  startStage?: string;
   kind?: string;
   stage?: PreparationStage;
   job?: JobStatus;
@@ -1287,6 +1289,7 @@ export interface PreparationRunTelemetryRequest {
   runId: string;
   matterName?: string;
   mode?: 'needed' | 'full';
+  startStage?: string;
   status?: 'running' | 'succeeded' | 'prepared' | 'needs_review' | 'blocked' | 'failed';
   message?: string;
   error?: string;

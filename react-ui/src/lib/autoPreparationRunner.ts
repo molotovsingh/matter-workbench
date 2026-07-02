@@ -37,6 +37,7 @@ export interface RunAutomaticPreparationOptions {
   isStale?: () => boolean;
   maxPasses?: number;
   mode?: PreparationRunMode;
+  startStage?: string;
   initialMessage?: string;
 }
 
@@ -73,6 +74,7 @@ export async function runAutomaticPreparation({
   isStale = () => false,
   maxPasses = 8,
   mode = 'needed',
+  startStage = '',
   initialMessage = 'Preparing matter…',
 }: RunAutomaticPreparationOptions): Promise<AutomaticPreparationResult> {
   let status = createInitialPreparationRun(matterName, initialMessage);
@@ -83,6 +85,7 @@ export async function runAutomaticPreparation({
     runId: telemetryRunId,
     matterName,
     mode,
+    startStage: normalizePreparationStartStage(startStage) || undefined,
     status: 'running',
     stages: status.steps.map(telemetryStageForProgressStep),
   });
@@ -92,6 +95,7 @@ export async function runAutomaticPreparation({
       runId: telemetryRunId,
       matterName,
       mode,
+      startStage: normalizePreparationStartStage(startStage) || undefined,
       status: telemetryStatusForResult(result),
       message: result.message,
       stages: runStatus.steps.map(telemetryStageForProgressStep),
@@ -122,6 +126,7 @@ export async function runAutomaticPreparation({
     telemetryRunId,
     stageStarts,
     maxPasses,
+    startStage,
   });
   if (serverQueuedResult) return finishWithTelemetry(serverQueuedResult, serverQueuedResult.status || status);
 
@@ -129,9 +134,17 @@ export async function runAutomaticPreparation({
     if (isStale()) return finishWithTelemetry(staleResult());
 
     const plan = await api.getPrepareMatter(matterName);
-    const nextStage = firstRunnablePreparationStage(plan);
+    const upstreamBlocker = firstNonCurrentStageBefore(plan, startStage);
+    const nextStage = upstreamBlocker ? null : firstRunnablePreparationStage(plan, startStage);
     status = mergePlanIntoStatus(status, plan, { markBlocked: !nextStage });
     onProgress(status);
+
+    if (upstreamBlocker) {
+      const message = `Cannot start preparation from ${stageLabelForStart(startStage)} until ${stageLabel(upstreamBlocker)} is current. ${upstreamBlocker.reason || 'Run needed preparation first.'}`;
+      status = markStageFailed(status, upstreamBlocker, message);
+      onProgress(status);
+      return finishWithTelemetry({ state: 'blocked', message }, status);
+    }
 
     if (!nextStage) {
       const result = await completePreparationAdvisory({
@@ -241,6 +254,7 @@ async function runServerOwnedNeededPreparation({
   telemetryRunId,
   stageStarts,
   maxPasses,
+  startStage = '',
 }: {
   matterName: string;
   appendTerminal: (lines: string[]) => void;
@@ -250,6 +264,7 @@ async function runServerOwnedNeededPreparation({
   telemetryRunId: string;
   stageStarts: Map<string, number>;
   maxPasses: number;
+  startStage?: string;
 }): Promise<AutomaticPreparationTelemetryResult | null> {
   let next = status;
   let usedServerQueue = false;
@@ -258,9 +273,18 @@ async function runServerOwnedNeededPreparation({
     if (isStale()) return { ...staleResult(), status: next };
 
     const plan = await api.getPrepareMatter(matterName);
-    const nextStage = firstRunnablePreparationStage(plan);
+    const upstreamBlocker = firstNonCurrentStageBefore(plan, startStage);
+    const nextStage = upstreamBlocker ? null : firstRunnablePreparationStage(plan, startStage);
     next = mergePlanIntoStatus(next, plan, { markBlocked: !nextStage });
     onProgress(next);
+
+    if (upstreamBlocker) {
+      const message = `Cannot start preparation from ${stageLabelForStart(startStage)} until ${stageLabel(upstreamBlocker)} is current. ${upstreamBlocker.reason || 'Run needed preparation first.'}`;
+      next = markStageFailed(next, upstreamBlocker, message);
+      await recordStageTelemetry(telemetryRunId, matterName, upstreamBlocker, 'failed', stageStarts, message);
+      onProgress(next);
+      return { state: 'blocked', message, status: next };
+    }
 
     if (!nextStage) {
       return completePreparationAdvisory({
@@ -288,7 +312,8 @@ async function runServerOwnedNeededPreparation({
         matterName,
         mode: 'needed',
         runId: telemetryRunId,
-        reason: 'Run needed preparation',
+        startStage: normalizePreparationStartStage(startStage) || undefined,
+        reason: startStage ? `Run needed preparation from ${stageLabel(runningStage)}` : 'Run needed preparation',
       });
     } catch (error) {
       if (!usedServerQueue && isBackendPreparationQueueUnavailable(error)) {
@@ -545,12 +570,77 @@ export function stageLabel(stage: PreparationStage): string {
   return 'Preparation step';
 }
 
-function firstRunnablePreparationStage(plan: PreparationPlan): PreparationStage | null {
-  return plan.stages.find(isRunnablePreparationStage) || null;
+const PREPARATION_STAGE_SLASHES = [
+  '/matter-init',
+  '/extract',
+  '/describe_sources',
+  '/create_listofdates',
+  '/the_story',
+  '/procedural_posture_diagnosis',
+];
+
+const PREPARATION_STAGE_ALIASES: Record<string, string> = {
+  'matter-init': '/matter-init',
+  matter_init: '/matter-init',
+  extract: '/extract',
+  'describe-sources': '/describe_sources',
+  describe_sources: '/describe_sources',
+  source_labels: '/describe_sources',
+  'create-listofdates': '/create_listofdates',
+  create_listofdates: '/create_listofdates',
+  case_timeline: '/create_listofdates',
+  'dispute-story': '/the_story',
+  the_story: '/the_story',
+  matter_story: '/the_story',
+  'procedural-posture-diagnosis': '/procedural_posture_diagnosis',
+  procedural_posture_diagnosis: '/procedural_posture_diagnosis',
+  posture_diagnosis: '/procedural_posture_diagnosis',
+};
+
+function normalizePreparationStartStage(value?: string): string {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (PREPARATION_STAGE_SLASHES.includes(text)) return text;
+  return PREPARATION_STAGE_ALIASES[text.replace(/^\/+/, '')] || '';
+}
+
+function preparationStageIndex(stageOrSelector?: PreparationStage | string | null): number {
+  const slash = typeof stageOrSelector === 'string'
+    ? normalizePreparationStartStage(stageOrSelector)
+    : normalizePreparationStartStage(stageOrSelector?.slash || stageOrSelector?.id || '');
+  return slash ? PREPARATION_STAGE_SLASHES.indexOf(slash) : -1;
+}
+
+function firstRunnablePreparationStage(plan: PreparationPlan, startStage = ''): PreparationStage | null {
+  const startIndex = preparationStageIndex(startStage);
+  return plan.stages.find((stage) => {
+    const index = preparationStageIndex(stage);
+    return (startIndex < 0 || index < 0 || index >= startIndex) && isRunnablePreparationStage(stage);
+  }) || null;
+}
+
+function firstNonCurrentStageBefore(plan: PreparationPlan, startStage = ''): PreparationStage | null {
+  const startIndex = preparationStageIndex(startStage);
+  if (startIndex <= 0) return null;
+  return plan.stages.find((stage) => {
+    const index = preparationStageIndex(stage);
+    return index >= 0 && index < startIndex && !isCurrentPreparationStage(stage);
+  }) || null;
 }
 
 function firstBlockedStage(plan: PreparationPlan): PreparationStage | null {
   return plan.stages.find((stage) => stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED) || null;
+}
+
+function stageLabelForStart(startStage = ''): string {
+  const normalized = normalizePreparationStartStage(startStage);
+  if (normalized === '/describe_sources') return 'Source Labels';
+  if (normalized === '/create_listofdates') return 'Case Timeline';
+  if (normalized === '/the_story') return 'Matter Story';
+  if (normalized === '/procedural_posture_diagnosis') return 'Procedural Diagnosis';
+  if (normalized === '/extract') return 'document reading';
+  if (normalized === '/matter-init') return 'matter setup';
+  return 'the selected stage';
 }
 
 function allStagesCurrent(plan: PreparationPlan): boolean {

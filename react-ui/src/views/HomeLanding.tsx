@@ -44,7 +44,7 @@ interface Props {
   onOpenMatter: (name: string) => void;
   onViewAllMatters: () => void;
   onCommand: (command: string) => void;
-  onRunNeededPreparation: (matterName: string) => void;
+  onRunNeededPreparation: (matterName: string, startStage?: string) => void;
   onForceFullPreparation: (matterName: string, reason: string) => void;
   showMatterBrowser?: boolean;
 }

@@ -3,11 +3,16 @@ import test from "node:test";
 
 import {
   firstBlockedRuntimePreparationStage,
+  firstNonCurrentRuntimePreparationStageBefore,
   firstQueueableRuntimePreparationStage,
+  isRuntimePreparationStageCurrent,
+  normalizeRuntimePreparationStageSelector,
   RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES,
   RUNTIME_PREPARATION_JOB_KIND_BY_SLASH,
+  RUNTIME_PREPARATION_STAGE_SLASHES,
   runtimePreparationJobKindForStage,
   runtimePreparationJobMetadataForStage,
+  runtimePreparationStageIndex,
   runtimePreparationStageShouldOverwrite,
   safeRuntimePreparationChainId,
 } from "../shared/runtime-preparation-jobs.mjs";
@@ -35,8 +40,32 @@ test("runtime preparation helpers select queueable and blocked stages", () => {
     ],
   };
   assert.equal(firstQueueableRuntimePreparationStage(plan)?.id, "create-listofdates");
+  assert.equal(firstQueueableRuntimePreparationStage(plan, { startStage: "/the_story" }), null);
   assert.equal(firstBlockedRuntimePreparationStage(plan)?.id, "dispute-story");
+  assert.equal(firstBlockedRuntimePreparationStage(plan, { startStage: "matter_story" })?.id, "dispute-story");
   assert.deepEqual([...RUNTIME_PREPARATION_ACTIVE_JOB_STATUSES], ["queued", "running", "retrying"]);
+});
+
+test("runtime preparation helpers support targeted start stages", () => {
+  const plan = {
+    stages: [
+      { id: "matter-init", slash: "/matter-init", action: "skip_current", state: "current" },
+      { id: "extract", slash: "/extract", action: "skip_current", state: "current" },
+      { id: "describe-sources", slash: "/describe_sources", action: "skip_current", state: "current" },
+      { id: "create-listofdates", slash: "/create_listofdates", action: "confirm_paid_run", state: "stale" },
+      { id: "dispute-story", slash: "/the_story", action: "confirm_paid_run", state: "missing" },
+      { id: "procedural-posture-diagnosis", slash: "/procedural_posture_diagnosis", action: "blocked", state: "blocked" },
+    ],
+  };
+
+  assert.deepEqual([...RUNTIME_PREPARATION_STAGE_SLASHES], ["/matter-init", "/extract", "/describe_sources", "/create_listofdates", "/the_story", "/procedural_posture_diagnosis"]);
+  assert.equal(normalizeRuntimePreparationStageSelector("case_timeline"), "/create_listofdates");
+  assert.equal(normalizeRuntimePreparationStageSelector("/procedural_posture_diagnosis"), "/procedural_posture_diagnosis");
+  assert.equal(runtimePreparationStageIndex("matter_story"), 4);
+  assert.equal(isRuntimePreparationStageCurrent(plan.stages[2]), true);
+  assert.equal(firstQueueableRuntimePreparationStage(plan, { startStage: "case_timeline" })?.id, "create-listofdates");
+  assert.equal(firstQueueableRuntimePreparationStage(plan, { startStage: "matter_story" })?.id, "dispute-story");
+  assert.equal(firstNonCurrentRuntimePreparationStageBefore(plan, "matter_story")?.id, "create-listofdates");
 });
 
 test("runtime preparation stale Story and posture jobs request overwrite", () => {

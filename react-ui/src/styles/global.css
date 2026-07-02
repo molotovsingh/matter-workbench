@@ -789,6 +789,8 @@ padding: 0 2px;
 .pipeline-state.warning { border-color: var(--warning-border); color: var(--warning-text); }
 
 .pipeline-stage-reason { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.pipeline-stage-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pipeline-stage-actions button { font-size: 12px; padding: 6px 10px; }
 .pipeline-artifacts, .pipeline-ai-run { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 12px; }
 .pipeline-artifacts code, .pipeline-ai-run code { white-space: normal; overflow-wrap: anywhere; }
 .pipeline-rerun-hint { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--border); background: var(--subtle-bg); color: var(--muted); font-size: 12px; line-height: 1.45; }
