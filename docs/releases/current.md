@@ -4,12 +4,12 @@ Status: Current release pointer
 
 This is the single current-release pointer for supervised private beta. General docs should link here instead of repeating the beta number.
 
-Release: [v1.0.0-beta.118](v1.0.0-beta.118.md)
+Release: [v1.0.0-beta.119](v1.0.0-beta.119.md)
 
 Tag target / deployed commit:
 
 ```text
-3595a47 Render generic markdown previews safely
+27461ee Give markdown previews a document page layout
 ```
 
 Deployment surface:

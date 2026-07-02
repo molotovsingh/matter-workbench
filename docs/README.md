@@ -187,6 +187,7 @@ implementation plan.
 | [v1.0.0-beta.116](releases/v1.0.0-beta.116.md) | Procedural posture diagnosis JSON retry. **Codename:** Posture Latch. |
 | [v1.0.0-beta.117](releases/v1.0.0-beta.117.md) | Procedural posture UI cleanup. **Codename:** Posture Fold. |
 | [v1.0.0-beta.118](releases/v1.0.0-beta.118.md) | Rendered Markdown previews. **Codename:** Markdown Glass. |
+| [v1.0.0-beta.119](releases/v1.0.0-beta.119.md) | Document-style Markdown page frame. **Codename:** Page Frame. |
 | [Maintenance Checkpoints](releases/maintenance-checkpoints.md) | Tier 2 behavior-preserving deployment log. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |
