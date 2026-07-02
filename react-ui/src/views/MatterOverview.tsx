@@ -9,6 +9,7 @@ import { cleanCommandLabel } from '../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import { PREPARATION_STAGE_ACTIONS } from '../lib/preparationStageActions';
+import { getPreparationRowAction, isPreparationStageCurrent } from '../lib/preparationRowActions';
 import { useBackendPreparationJobs } from '../hooks/useBackendPreparationJobs';
 import { PostureSummary } from '../components/matters/PostureSummary';
 import type {
@@ -531,7 +532,7 @@ function StagePrimaryAction({
   disabled: boolean;
   onRunFromStage: (startStage: string) => void;
 }) {
-  const action = stagePrimaryAction(stage);
+  const action = getPreparationRowAction(stage);
   if (!action) return null;
   const startStage = action.startStage || stage.slash || stage.id || '';
   if (!startStage && !action.disabled) return null;
@@ -548,87 +549,6 @@ function StagePrimaryAction({
       {action.hint && <span className="pipeline-stage-action-hint">{action.hint}</span>}
     </div>
   );
-}
-
-function stagePrimaryAction(stage: PreparationStage): { label: string; hint: string; disabled?: boolean; primary?: boolean; startStage?: string } | null {
-  const slash = stage.slash || '';
-  const state = String(stage.state || '').trim();
-
-  if (stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED) {
-    return {
-      label: blockedActionLabel(stage),
-      hint: stage.reason || 'Resolve the upstream dependency first.',
-      disabled: true,
-      startStage: slash,
-    };
-  }
-
-  if (slash === '/matter-init') {
-    if (stageIsCurrent(stage)) return null;
-    return { label: 'Set up matter', hint: 'Creates matter setup files before preparation can continue.', startStage: slash };
-  }
-
-  if (slash === '/extract') {
-    if (stageIsCurrent(stage)) return null;
-    return { label: 'Read documents', hint: 'Runs local document reading before source labels.', startStage: slash };
-  }
-
-  if (slash === '/describe_sources') {
-    return {
-      label: stageIsCurrent(stage) || state === 'stale' ? 'Refresh from Source Labels' : 'Run Source Labels',
-      hint: 'Checks source labels and downstream stages; skips current work.',
-      primary: !stageIsCurrent(stage),
-      startStage: slash,
-    };
-  }
-
-  if (slash === '/create_listofdates') {
-    return {
-      label: stageIsCurrent(stage) || state === 'stale' ? 'Refresh from Case Timeline' : 'Build Case Timeline',
-      hint: 'Starts at Case Timeline; does not re-read documents when upstream is current.',
-      primary: !stageIsCurrent(stage),
-      startStage: slash,
-    };
-  }
-
-  if (slash === '/the_story') {
-    return {
-      label: stageIsCurrent(stage) || state === 'stale' ? 'Refresh from Matter Story' : 'Write Matter Story',
-      hint: 'Starts at Story and continues to downstream diagnosis if needed.',
-      primary: !stageIsCurrent(stage),
-      startStage: slash,
-    };
-  }
-
-  if (slash === '/procedural_posture_diagnosis') {
-    if (state === 'current_unconfirmed') {
-      return {
-        label: 'Confirm in Case Analysis card',
-        hint: 'The diagnosis is saved; use the confirmation controls above before relying on it.',
-        disabled: true,
-        startStage: slash,
-      };
-    }
-    if (stageIsCurrent(stage)) return null;
-    return {
-      label: state === 'stale' ? 'Refresh saved Procedural Diagnosis' : 'Run saved Procedural Diagnosis',
-      hint: 'Creates the Case Analysis Markdown/JSON artifact, job, and receipt. Not chat.',
-      primary: true,
-      startStage: slash,
-    };
-  }
-
-  return null;
-}
-
-function blockedActionLabel(stage: PreparationStage): string {
-  if (stage.slash === '/describe_sources') return 'Needs documents first';
-  if (stage.slash === '/create_listofdates') return 'Needs Source Labels first';
-  if (stage.slash === '/the_story') return 'Needs Case Timeline first';
-  if (stage.slash === '/procedural_posture_diagnosis') return 'Needs Matter Story first';
-  if (stage.slash === '/extract') return 'Needs matter setup first';
-  if (stage.slash === '/matter-init') return 'Needs matter details';
-  return 'Blocked';
 }
 
 function StageReason({ stage }: { stage: PreparationStage }) {
@@ -860,7 +780,7 @@ function preparationHeadlineLabel({
   if (stages.some(stageIsRunnable)) return stages.some(stageNeedsUpdate) ? 'Needs update' : 'Needs preparation';
   if (preparationRun?.state === 'blocked') return 'Blocked';
   if (stages.some(stageIsBlocked)) return 'Blocked';
-  if (stages.length > 0 && stages.every(stageIsCurrent)) return 'Prepared';
+  if (stages.length > 0 && stages.every(isPreparationStageCurrent)) return 'Prepared';
   return 'Needs review';
 }
 
@@ -906,13 +826,6 @@ function stageNeedsUpdate(stage: PreparationStage): boolean {
     || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE;
 }
 
-function stageIsCurrent(stage: PreparationStage): boolean {
-  if (stage.rerunAdvice?.state && stage.rerunAdvice.state !== RERUN_ADVICE_STATES.CURRENT) return false;
-  if (stage.state === 'current_unconfirmed') return false;
-  return stage.action === PREPARATION_STAGE_ACTIONS.SKIP_CURRENT
-    && ['current', 'current_confirmed', 'current_corrected'].includes(stage.state || '');
-}
-
 function stageIsBlocked(stage: PreparationStage): boolean {
   return stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED
     || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.FAILED
@@ -922,7 +835,7 @@ function stageIsBlocked(stage: PreparationStage): boolean {
 function pipelineStageStateClass(stage: PreparationStage): string {
   if (stageIsBlocked(stage)) return 'failed';
   if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN || stage.state === 'current_unconfirmed') return 'warning';
-  if (stageIsCurrent(stage)) return 'present';
+  if (isPreparationStageCurrent(stage)) return 'present';
   return 'not-run';
 }
 
@@ -932,7 +845,7 @@ function pipelineStageStateLabel(stage: PreparationStage): string {
   if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE || stage.state === 'stale') return 'Needs update';
   if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) return stage.state === 'missing' ? 'Not started' : 'Needs review';
   if (stage.action === PREPARATION_STAGE_ACTIONS.RUN) return stage.state === 'missing' ? 'Not started' : 'Ready to run';
-  return stageIsCurrent(stage) ? 'Done' : 'Needs review';
+  return isPreparationStageCurrent(stage) ? 'Done' : 'Needs review';
 }
 
 function postureBlockedMessage(status: ProceduralPostureDiagnosisResult): string {

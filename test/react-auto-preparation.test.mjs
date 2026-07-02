@@ -7,6 +7,7 @@ const newMatterPath = new URL("../react-ui/src/views/NewMatterForm.tsx", import.
 const addFilesPath = new URL("../react-ui/src/views/AddFilesForm.tsx", import.meta.url);
 const runnerPath = new URL("../react-ui/src/lib/autoPreparationRunner.ts", import.meta.url);
 const overviewPath = new URL("../react-ui/src/views/MatterOverview.tsx", import.meta.url);
+const preparationRowActionsPath = new URL("../react-ui/src/lib/preparationRowActions.ts", import.meta.url);
 const postureSummaryPath = new URL("../react-ui/src/components/matters/PostureSummary.tsx", import.meta.url);
 const mainContentPath = new URL("../react-ui/src/components/layout/MainContent.tsx", import.meta.url);
 const homeLandingPath = new URL("../react-ui/src/views/HomeLanding.tsx", import.meta.url);
@@ -74,6 +75,7 @@ test("React automatic preparation runner includes Case Timeline, story, posture 
 
 test("React matter overview renders Matter Workbench story before original intake note", async () => {
   const overview = await readFile(overviewPath, "utf8");
+  const preparationRowActions = await readFile(preparationRowActionsPath, "utf8");
   const postureSummary = await readFile(postureSummaryPath, "utf8");
 
   assert.match(overview, /<MatterStoryCard meta=\{meta\} \/>/);
@@ -89,9 +91,9 @@ test("React matter overview renders Matter Workbench story before original intak
   assert.match(postureSummary, /Recommended route:/);
   assert.match(postureSummary, /Next best actions/);
   assert.match(postureSummary, /Full legal routes are saved in/);
-  assert.match(overview, /Run saved Procedural Diagnosis/);
-  assert.match(overview, /Refresh saved Procedural Diagnosis/);
-  assert.match(overview, /Creates the Case Analysis Markdown\/JSON artifact, job, and receipt\. Not chat\./);
+  assert.match(preparationRowActions, /Run saved Procedural Diagnosis/);
+  assert.match(preparationRowActions, /Refresh saved Procedural Diagnosis/);
+  assert.match(preparationRowActions, /Creates the Case Analysis Markdown\/JSON artifact, job, and receipt\. Not chat\./);
   assert.match(overview, /Confirm working posture/);
   assert.match(overview, /Disagree \/ correct/);
   assert.match(overview, /Not sure yet/);
@@ -102,6 +104,7 @@ test("React matter overview runs needed preparation by default", async () => {
   const app = await readFile(appPath, "utf8");
   const runner = await readFile(runnerPath, "utf8");
   const overview = await readFile(overviewPath, "utf8");
+  const preparationRowActions = await readFile(preparationRowActionsPath, "utf8");
   const mainContent = await readFile(mainContentPath, "utf8");
   const homeLanding = await readFile(homeLandingPath, "utf8");
 
@@ -142,15 +145,18 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.match(overview, /disabled=\{isPreparationRunning\}/);
   assert.match(overview, /onRunNeededPreparation\(matterName\)/);
   assert.doesNotMatch(overview, /Run needed from here/);
-  assert.match(overview, /Refresh from Source Labels/);
-  assert.match(overview, /Refresh from Case Timeline/);
-  assert.match(overview, /Refresh from Matter Story/);
-  assert.match(overview, /Run saved Procedural Diagnosis/);
-  assert.match(overview, /Needs Case Timeline first/);
-  assert.match(overview, /Needs Matter Story first/);
+  assert.match(preparationRowActions, /Refresh from Source Labels/);
+  assert.match(preparationRowActions, /Refresh from Case Timeline/);
+  assert.match(preparationRowActions, /Refresh from Matter Story/);
+  assert.match(preparationRowActions, /Run saved Procedural Diagnosis/);
+  assert.match(preparationRowActions, /Needs Case Timeline first/);
+  assert.match(preparationRowActions, /Needs Matter Story first/);
+  assert.match(overview, /getPreparationRowAction\(stage\)/);
   assert.match(overview, /onRunNeededPreparation\(matterName, startStage\)/);
   assert.match(overview, /stages\.some\(stageIsBlocked\)/);
-  assert.match(overview, /stage\.state === 'current_unconfirmed'\) return false/);
+  assert.match(overview, /isPreparationStageCurrent/);
+  assert.match(preparationRowActions, /export function getPreparationRowAction/);
+  assert.match(preparationRowActions, /stage\.state === 'current_unconfirmed'\) return false/);
   assert.match(overview, /Diagnosis has not been generated yet\. Use the Procedural Diagnosis row below to run and save it\./);
 });
 
