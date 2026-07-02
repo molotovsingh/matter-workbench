@@ -3,6 +3,7 @@ import { readRequestJson, sendJson } from "./http-utils.mjs";
 import { readMatterSummary } from "./active-matter-summary.mjs";
 import { dispatchRoutes, exactRoute, patternRoute } from "./route-dispatcher.mjs";
 import { currentRequestContext } from "../services/request-context.mjs";
+import { deriveNativeSkillRunReceipt } from "../shared/native-skill-run-receipts.mjs";
 import {
   filterByVisibleMatterNames,
   isPrivateBetaScopedUser,
@@ -114,6 +115,18 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
           runtimeMode: usesRuntimeDbStorage(matterStore, runtimeDbStorageService) ? "postgres" : "filesystem",
         }));
         sendJson(response, 200, jobs);
+      }),
+      patternRoute("GET", /^\/api\/jobs\/([^/]+)$/, async ({ params }) => {
+        const detail = await readScopedJobDetail({
+          jobStatusService,
+          matterStore,
+          jobId: decodeURIComponent(params[0] || ""),
+        });
+        if (!detail) {
+          sendJson(response, 404, { error: "Job not found", code: "job.not_found" });
+          return;
+        }
+        sendJson(response, 200, detail);
       }),
       exactRoute("GET", "/api/matter-log", async () => {
         const log = await matterLogService.readMatterLog({
@@ -788,6 +801,35 @@ async function scopedMatterLedger({ matterStore, list, key, fields }) {
   return {
     ...ledger,
     [key]: filterByVisibleMatterNames(ledger?.[key], visibleNames, { fields }),
+  };
+}
+
+async function readScopedJobDetail({ jobStatusService, matterStore, jobId }) {
+  if (!jobStatusService?.getJob) return null;
+  let job;
+  try {
+    job = await jobStatusService.getJob(jobId);
+  } catch {
+    return null;
+  }
+  if (isPrivateBetaScopedUser()) {
+    const visibleNames = await visibleMatterNameSet(matterStore);
+    if (!filterByVisibleMatterNames([job], visibleNames, { fields: ["matterName"] }).length) return null;
+  }
+  return {
+    schema_version: "job-detail/v1",
+    job,
+    receipt: deriveNativeSkillRunReceipt(nativeReceiptInputForJob(job)),
+  };
+}
+
+function nativeReceiptInputForJob(job = {}) {
+  const skill = job.metadata?.skill && typeof job.metadata.skill === "object" ? job.metadata.skill : {};
+  return {
+    job,
+    slash: skill.slash || job.slash || "",
+    skillId: skill.skillId || job.skillId || job.kind || "",
+    skillVersion: skill.skillVersion || job.skillVersion || 1,
   };
 }
 

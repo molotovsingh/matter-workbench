@@ -5,12 +5,22 @@ import path from "node:path";
 import test from "node:test";
 
 import { createWorkbenchServer } from "../server.mjs";
+import { createJobStatusService } from "../services/job-status-service.mjs";
+import { hashPrivateBetaPassword } from "../services/private-beta-auth-service.mjs";
 
 async function getJson(baseUrl, pathName) {
   const response = await fetch(`${baseUrl}${pathName}`);
   const payload = await response.json();
   assert.equal(response.ok, true, payload.error);
   return payload;
+}
+
+async function getJsonWithHttp(baseUrl, pathName, { cookie = "" } = {}) {
+  const response = await fetch(`${baseUrl}${pathName}`, {
+    headers: cookie ? { cookie } : {},
+  });
+  const payload = await response.json();
+  return { response, payload };
 }
 
 async function postJson(baseUrl, pathName, body = {}) {
@@ -208,6 +218,139 @@ test("source labels all-batch failure fails the active label stage", async () =>
     assert.equal(jobs.jobs[0].stages[0].id, "label_pass");
     assert.equal(jobs.jobs[0].stages[0].status, "failed");
     assert.equal(jobs.jobs[0].stages[0].failureCode, "source_descriptors.all_batches_failed");
+  } finally {
+    app.server.close();
+  }
+});
+
+test("job detail route exposes a native run receipt without work product", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-detail-"));
+  const appDir = path.join(tmp, "app");
+  const jobsPath = path.join(tmp, "job-status-ledger.json");
+  await mkdir(appDir, { recursive: true });
+  const jobStatusService = createJobStatusService({
+    jobsPath,
+    idFactory: () => "job_native_receipt_detail",
+  });
+  const job = await jobStatusService.createJob({
+    kind: "posture_diagnosis",
+    label: "Diagnose Procedural Posture",
+    matterName: "Receipt Matter",
+    metadata: {
+      skill: {
+        slash: "/procedural_posture_diagnosis",
+        skillId: "procedural_posture_diagnosis",
+      },
+    },
+  });
+  await jobStatusService.updateJobStage(job.id, {
+    id: "proposer",
+    label: "Propose procedural posture",
+    status: "succeeded",
+    salvageable: true,
+  });
+  await jobStatusService.updateJobStage(job.id, {
+    id: "finalizer",
+    label: "Finalize procedural posture",
+    status: "failed",
+    failureCode: "provider.invalid_json",
+    failureClass: "provider",
+    errorMessage: "Unexpected end of JSON input with api_key=sk-native-secret",
+  });
+  const error = new Error("Unexpected end of JSON input with api_key=sk-native-secret");
+  error.code = "provider.invalid_json";
+  await jobStatusService.failJob(job.id, error);
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: {},
+    host: "127.0.0.1",
+    port: 0,
+    jobStatusPath: jobsPath,
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const detail = await getJson(baseUrl, `/api/jobs/${job.id}`);
+    assert.equal(detail.schema_version, "job-detail/v1");
+    assert.equal(detail.job.id, job.id);
+    assert.equal(detail.receipt.schema_version, "native-skill-run-receipt/v1");
+    assert.equal(detail.receipt.slash, "/procedural_posture_diagnosis");
+    assert.equal(detail.receipt.failure.stageId, "finalizer");
+    assert.deepEqual(detail.receipt.failure.salvageableStageIds, ["proposer"]);
+    assert.equal(detail.receipt.recovery.action, "retry_stage");
+    assert.doesNotMatch(JSON.stringify(detail), /sk-native-secret/);
+  } finally {
+    app.server.close();
+  }
+});
+
+test("job detail route hides other matter jobs from scoped private beta testers", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-detail-auth-"));
+  const appDir = path.join(tmp, "app");
+  const jobsPath = path.join(tmp, "job-status-ledger.json");
+  const usersFile = path.join(tmp, "private-beta-users.json");
+  await mkdir(appDir, { recursive: true });
+  await writeFile(usersFile, `${JSON.stringify({
+    schemaVersion: "private-beta-users/v1",
+    users: [{
+      username: "tester@example.test",
+      role: "tester",
+      status: "active",
+      passwordHash: hashPrivateBetaPassword("tester-secret", { salt: "job-detail-salt", iterations: 1_000 }),
+    }],
+  }, null, 2)}\n`, "utf8");
+  const jobStatusService = createJobStatusService({ jobsPath });
+  const visible = await jobStatusService.createJob({
+    id: "job_visible_detail",
+    kind: "posture_diagnosis",
+    label: "Visible Job",
+    matterName: "Visible Matter",
+  });
+  await jobStatusService.completeJob(visible.id);
+  const hidden = await jobStatusService.createJob({
+    id: "job_hidden_detail",
+    kind: "posture_diagnosis",
+    label: "Hidden Job",
+    matterName: "Hidden Matter",
+  });
+  await jobStatusService.completeJob(hidden.id);
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: {
+      MWB_PRIVATE_BETA_AUTH: "required",
+      MWB_PRIVATE_BETA_USERS_FILE: usersFile,
+    },
+    host: "127.0.0.1",
+    port: 0,
+    jobStatusPath: jobsPath,
+    runtimeMatterIndex: {
+      enabled: true,
+      listMatterFolders: async () => [{ name: "Visible Matter", folderName: "Visible Matter" }],
+      findMatterFolder: async () => null,
+    },
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    const login = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "tester@example.test", password: "tester-secret" }),
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get("set-cookie").split(";")[0];
+
+    const visibleDetail = await getJsonWithHttp(baseUrl, `/api/jobs/${visible.id}`, { cookie });
+    assert.equal(visibleDetail.response.status, 200);
+    assert.equal(visibleDetail.payload.job.matterName, "Visible Matter");
+
+    const hiddenDetail = await getJsonWithHttp(baseUrl, `/api/jobs/${hidden.id}`, { cookie });
+    assert.equal(hiddenDetail.response.status, 404);
+    assert.equal(hiddenDetail.payload.code, "job.not_found");
   } finally {
     app.server.close();
   }
