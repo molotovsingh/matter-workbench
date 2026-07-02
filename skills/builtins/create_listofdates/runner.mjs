@@ -23,7 +23,10 @@ export function createListOfDatesRunner({
           request.runtimeDbMatter || { name: request.matterName },
         );
       }
-      return runCreateListOfDates(options);
+      return withListOfDatesOutputAvailability(
+        await runCreateListOfDates(options),
+        { artifactsPersisted: !options.dryRun },
+      );
     },
   };
 }
@@ -53,7 +56,28 @@ function runtimeDbListOfDatesResult(result = {}, matter = {}) {
   operationResult.dbPersistence = {
     persisted: Array.isArray(result.persisted) ? result.persisted : [],
   };
-  return operationResult;
+  return withListOfDatesOutputAvailability(operationResult, {
+    persisted: operationResult.dbPersistence.persisted,
+  });
+}
+
+function withListOfDatesOutputAvailability(result = {}, { artifactsPersisted = false, persisted = [] } = {}) {
+  const outputPaths = result.outputPaths && typeof result.outputPaths === "object" ? result.outputPaths : {};
+  const persistedPaths = new Set((Array.isArray(persisted) ? persisted : [])
+    .map((item) => item?.relativePath)
+    .filter((value) => typeof value === "string" && value.trim()));
+  const markdownPresent = artifactsPersisted || (outputPaths.markdown && persistedPaths.has(outputPaths.markdown));
+  const jsonPresent = artifactsPersisted || (outputPaths.json && persistedPaths.has(outputPaths.json));
+  return {
+    ...result,
+    outputAvailability: {
+      ...(result.outputAvailability && typeof result.outputAvailability === "object" && !Array.isArray(result.outputAvailability)
+        ? result.outputAvailability
+        : {}),
+      ...(outputPaths.markdown ? { markdown: markdownPresent ? "present" : "not_recorded" } : {}),
+      ...(outputPaths.json ? { json: jsonPresent ? "present" : "not_recorded" } : {}),
+    },
+  };
 }
 
 function bindStageRecorder({ jobId, stages }) {

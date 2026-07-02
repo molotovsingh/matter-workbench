@@ -45,5 +45,5 @@ test("List of Dates runner records native skill stages and durable output receip
   assert.equal(run.job.stages[1].salvageable, true);
   assert.equal(run.receipt.slash, "/create_listofdates");
   assert.equal(run.receipt.outputPaths.markdown, "10_Library/List of Dates.md");
-  assert.equal(run.receipt.outputFileStatus, "not_recorded");
+  assert.equal(run.receipt.outputFileStatus, "present");
 });
