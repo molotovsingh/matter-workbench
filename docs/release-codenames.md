@@ -117,3 +117,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.111](releases/v1.0.0-beta.111.md) | **Reason Beacon** | Release note present. |
 | [v1.0.0-beta.112](releases/v1.0.0-beta.112.md) | **Flow Latch** | Release note present. |
 | [v1.0.0-beta.113](releases/v1.0.0-beta.113.md) | **Posture Compass** | Release note present. |
+| [v1.0.0-beta.114](releases/v1.0.0-beta.114.md) | **Artifact Compass** | Release note present. |

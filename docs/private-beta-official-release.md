@@ -2,15 +2,15 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.112`](releases/v1.0.0-beta.112.md)
+Release: [`v1.0.0-beta.114`](releases/v1.0.0-beta.114.md)
 
-Codename: **Flow Latch**
+Codename: **Artifact Compass**
 
-Date: 2026-07-01
+Date: 2026-07-02
 
 ## Release Decision
 
-`v1.0.0-beta.112` is the official private beta release checkpoint.
+`v1.0.0-beta.114` is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -73,6 +73,8 @@ The release is acceptable for supervised private beta because:
 - beta.110 refactors that posture output contract, schema, normalization, markdown renderer, prototype loop reuse, and Matter Overview summary into dedicated modules without changing beta.109 user-facing behavior;
 - beta.111 shows Matter Overview blocked/stale preparation-stage reasons, avoids misleading empty-output copy for blocked downstream stages, and canonicalizes Case Timeline dependency-state internals while preserving List of Dates storage paths;
 - beta.112 fixes stale Matter Story / procedural posture needed-preparation flow so stale Story and posture jobs can overwrite stale artifacts, and Matter Overview presents runnable upstream updates as **Needs update** rather than terminally **Blocked**;
+- beta.113 adds the native Filing and Procedural Posture Diagnosis skill surface under Case Analysis;
+- beta.114 adds audited native skill runner jobs/receipts, saved-diagnosis chat boundaries, targeted preparation starts, and row-level Matter Preparation actions;
 - service check, UI hardening, local tests, typecheck, and build all passed.
 
 ## Fixed Or Closed Tester Feedback
@@ -106,18 +108,18 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 ## Current Live Release
 
 ```text
-release: v1.0.0-beta.112
-codename: Flow Latch
-deployed_commit: add8955
+release: v1.0.0-beta.114
+codename: Artifact Compass
+deployed_commit: 39f939f
 release_doc_commit: this documentation commit
 live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: d32eacf / v1.0.0-beta.111
+rollback_candidate: 2269a61 / v1.0.0-beta.113
 ```
 
 Latest evidence:
 
 ```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-07-01T00-02-58-300Z/ui-hardening-report.md
+/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-07-02T07-09-22-309Z/ui-hardening-report.md
 ```
 
 ## Operator Rule

@@ -103,8 +103,8 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.112`,
-codename **Flow Latch**. It is feature-frozen unless a blocker,
+The current official supervised private beta release is `v1.0.0-beta.114`,
+codename **Artifact Compass**. It is feature-frozen unless a blocker,
 regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
@@ -139,6 +139,9 @@ Completed release checks include:
 - the posture diagnosis output contract, renderer, normalizers, prototype loop reuse, and Matter Overview summary are split into dedicated modules without changing beta.109 behavior;
 - Matter Overview blocked/stale preparation rows show their backend reason instead of implying an output document is unexpectedly missing;
 - stale Matter Story and procedural posture backend preparation jobs carry overwrite metadata so **Run needed preparation** can refresh stale artifacts and continue through unblocked downstream steps;
+- native skill runner jobs/receipts are visible for posture, Matter Story, Case Timeline, and Source Labels;
+- saved procedural diagnosis UX distinguishes chat-only answers from durable artifacts;
+- Matter Preparation row actions expose Source Labels, Case Timeline, Matter Story, and saved Procedural Diagnosis refreshes without duplicate bottom buttons;
 - login smoke;
 - matter upload smoke;
 - extraction, source labels, Case Timeline, Matter Story, and posture diagnosis smoke;
@@ -150,7 +153,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.113 release marker](docs/releases/v1.0.0-beta.113.md)
+- [v1.0.0-beta.114 release marker](docs/releases/v1.0.0-beta.114.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)
