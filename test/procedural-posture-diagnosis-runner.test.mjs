@@ -123,6 +123,7 @@ test("procedural posture runner attributes provider JSON failure to finalizer st
     "posture diagnosis proposer",
     "posture diagnosis critic",
     "posture diagnosis finalizer",
+    "posture diagnosis finalizer",
   ]);
   assert.equal(result.job.status, "failed");
   assert.equal(result.job.errorCode, "provider.invalid_json");
@@ -151,7 +152,7 @@ test("procedural posture runner can retry finalizer from durable stage state", a
       calls.push(label);
       if (label.includes("finalizer")) {
         finalizerAttempts += 1;
-        if (finalizerAttempts === 1) {
+        if (finalizerAttempts <= 2) {
           const error = new Error("Unexpected end of JSON input");
           error.code = "provider.invalid_json";
           throw error;
@@ -213,6 +214,7 @@ test("procedural posture runner can retry finalizer from durable stage state", a
   assert.deepEqual(calls, [
     "posture diagnosis proposer",
     "posture diagnosis critic",
+    "posture diagnosis finalizer",
     "posture diagnosis finalizer",
     "posture diagnosis finalizer",
   ]);

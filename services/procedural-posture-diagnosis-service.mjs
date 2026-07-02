@@ -44,7 +44,9 @@ const DEFAULT_PROPOSER_MODEL = "gpt-5.5";
 const DEFAULT_CRITIC_MODEL = "o3";
 const DEFAULT_FINALIZER_MODEL = "gpt-5.5";
 const DEFAULT_MAX_OUTPUT_TOKENS = 8000;
+const DEFAULT_RETRY_MAX_OUTPUT_TOKENS = 12000;
 const DEFAULT_TIMEOUT_MS = 180_000;
+const PROVIDER_JSON_ATTEMPTS = 2;
 
 export function createProceduralPostureDiagnosisService({
   matterStore,
@@ -449,16 +451,16 @@ async function runDiagnosisLoop({
     resumeFromStage,
     runState,
     stageRecorder,
-    operation: () => aiProviderService.invoke({
+    operation: ({ retry = false } = {}) => aiProviderService.invoke({
       task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
       systemPrompt: prompts.proposerSystem,
-      userPayload: { matterPacket: packet },
+      userPayload: postureProviderPayload({ matterPacket: packet }, { retry, stageLabel: "proposer" }),
       schema: diagnosisSchema("posture_diagnosis_draft"),
       schemaName: "posture_diagnosis_draft",
       schemaDescription: "Provisional filing and procedural posture diagnosis draft.",
       responseMode: "json",
       label: "posture diagnosis proposer",
-      overrides: providerOverrides(proposerModel, env),
+      overrides: providerOverrides(proposerModel, env, { retryJson: retry }),
     }),
   });
   const critique = await runReusableProviderStage({
@@ -473,16 +475,16 @@ async function runDiagnosisLoop({
     resumeFromStage,
     runState,
     stageRecorder,
-    operation: () => aiProviderService.invoke({
+    operation: ({ retry = false } = {}) => aiProviderService.invoke({
       task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
       systemPrompt: prompts.criticSystem,
-      userPayload: { matterPacket: packet, proposerDraft: proposer.parsed },
+      userPayload: postureProviderPayload({ matterPacket: packet, proposerDraft: proposer.parsed }, { retry, stageLabel: "critic" }),
       schema: critiqueSchema(),
       schemaName: "posture_diagnosis_critique",
       schemaDescription: "Critique of provisional filing and procedural posture diagnosis.",
       responseMode: "json",
       label: "posture diagnosis critic",
-      overrides: providerOverrides(criticModel, env),
+      overrides: providerOverrides(criticModel, env, { retryJson: retry }),
     }),
   });
   const finalizer = await runReusableProviderStage({
@@ -497,16 +499,16 @@ async function runDiagnosisLoop({
     resumeFromStage,
     runState,
     stageRecorder,
-    operation: () => aiProviderService.invoke({
+    operation: ({ retry = false } = {}) => aiProviderService.invoke({
       task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
       systemPrompt: prompts.finalizerSystem,
-      userPayload: { matterPacket: packet, proposerDraft: proposer.parsed, critique: critique.parsed },
+      userPayload: postureProviderPayload({ matterPacket: packet, proposerDraft: proposer.parsed, critique: critique.parsed }, { retry, stageLabel: "finalizer" }),
       schema: finalDiagnosisSchema(),
       schemaName: "posture_diagnosis_final",
       schemaDescription: "Final provisional filing and procedural posture diagnosis after critique.",
       responseMode: "json",
       label: "posture diagnosis finalizer",
-      overrides: providerOverrides(finalizerModel, env),
+      overrides: providerOverrides(finalizerModel, env, { retryJson: retry }),
     }),
   });
   await runRecordedStage(stageRecorder, {
@@ -553,7 +555,7 @@ async function runReusableProviderStage({
       return prior;
     }
   }
-  const result = await runRecordedStage(stageRecorder, stage, operation, {
+  const result = await runRecordedStage(stageRecorder, stage, () => runProviderStageOperationWithRetry(operation), {
     successPatch: (stageResult) => ({ aiRun: stageResult?.aiRun, salvageable: true }),
   });
   await writeRunStageState(runState, {
@@ -570,6 +572,24 @@ function shouldReuseStage(stageId = "", resumeFromStage = "") {
   const stageIndex = order.indexOf(stageId);
   const resumeIndex = order.indexOf(String(resumeFromStage || "").trim().toLowerCase());
   return stageIndex >= 0 && resumeIndex > stageIndex;
+}
+
+async function runProviderStageOperationWithRetry(operation) {
+  let lastError = null;
+  for (let attempt = 0; attempt < PROVIDER_JSON_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation({ attempt, retry: attempt > 0 });
+    } catch (error) {
+      lastError = error;
+      if (attempt >= PROVIDER_JSON_ATTEMPTS - 1 || !isRetryableProviderJsonError(error)) throw error;
+    }
+  }
+  throw lastError;
+}
+
+function isRetryableProviderJsonError(error) {
+  const code = String(error?.code || "").trim();
+  return code === "provider.invalid_json" || code === "provider.empty_output";
 }
 
 function providerStageState(result = {}) {
@@ -631,15 +651,30 @@ function resolveDiagnosisProvider(aiProviderService) {
   }
 }
 
-function providerOverrides(model, env = process.env) {
+function providerOverrides(model, env = process.env, { retryJson = false } = {}) {
+  const baseMaxOutputTokens = parsePositiveInteger(env.POSTURE_DIAGNOSIS_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS);
+  const retryMaxOutputTokens = parsePositiveInteger(env.POSTURE_DIAGNOSIS_RETRY_MAX_OUTPUT_TOKENS, DEFAULT_RETRY_MAX_OUTPUT_TOKENS);
   return {
     model,
-    maxOutputTokens: parsePositiveInteger(env.POSTURE_DIAGNOSIS_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS),
+    maxOutputTokens: retryJson ? Math.max(baseMaxOutputTokens, retryMaxOutputTokens) : baseMaxOutputTokens,
     timeoutMs: parsePositiveInteger(env.POSTURE_DIAGNOSIS_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     omitTemperature: true,
     requireParameters: true,
     allowFallbacks: false,
     extraHeaders: { "x-title": "Matter Workbench Procedural Posture Diagnosis" },
+  };
+}
+
+function postureProviderPayload(payload = {}, { retry = false, stageLabel = "stage" } = {}) {
+  if (!retry) return payload;
+  return {
+    ...payload,
+    retry_instructions: [
+      `The previous procedural posture ${stageLabel} response was truncated or invalid JSON.`,
+      "Return exactly one complete JSON object matching the provided schema.",
+      "Prefer concise arrays and concise reasons over long prose so the JSON closes completely.",
+      "Do not include markdown, commentary, or text outside the JSON object.",
+    ].join(" "),
   };
 }
 

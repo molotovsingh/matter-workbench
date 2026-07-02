@@ -148,6 +148,21 @@ function finalDiagnosisFixture() {
   };
 }
 
+function critiqueFixture() {
+  return {
+    schema_version: "posture_diagnosis_critique/v1",
+    overall_risk: "low",
+    serious_issues: [],
+    missed_possibilities: [],
+    overconfidence_flags: ["Keep forum confidence provisional."],
+    adverse_fact_gaps: [],
+    source_grounding_gaps: [],
+    recommended_revisions: ["Keep the result concise and provisional."],
+    questions_for_lawyer: ["Confirm whether a proceeding exists."],
+    verdict: "usable_with_revisions",
+  };
+}
+
 test("procedural posture prompts require provisional, adverse-fact-aware diagnosis", () => {
   const prompts = buildPostureDiagnosisPrompts();
   assert.match(prompts.proposerSystem, /provisional Filing and Procedural Posture Diagnosis/i);
@@ -248,6 +263,45 @@ test("procedural posture diagnosis writes markdown and JSON sidecar", async () =
   assert.equal(json.legal_routes.length, 2);
   assert.equal(json.recommended_route.route_title, "Confirm live status and complete record");
   assert.deepEqual(json.next_best_actions, ["Confirm whether proceedings already exist", "Collect complete notice papers", "Confirm forum and limitation before drafting"]);
+});
+
+test("procedural posture retries truncated provider JSON once", async () => {
+  const root = await matterRoot();
+  const invocations = [];
+  const service = createProceduralPostureDiagnosisService({
+    matterStore: store(root),
+    env: {
+      POSTURE_DIAGNOSIS_MAX_OUTPUT_TOKENS: "8000",
+      POSTURE_DIAGNOSIS_RETRY_MAX_OUTPUT_TOKENS: "12000",
+    },
+    aiProviderService: {
+      resolveTask: () => ({ providerConfig: { provider: "openrouter" } }),
+      invoke: async (request) => {
+        invocations.push(request);
+        if (invocations.length === 1) {
+          const error = new Error("posture diagnosis proposer response was not valid JSON: Unexpected end of JSON input");
+          error.code = "provider.invalid_json";
+          throw error;
+        }
+        if (request.schemaName === "posture_diagnosis_critique") {
+          return { parsed: critiqueFixture(), aiRun: { provider: "openrouter", model: request.overrides?.model } };
+        }
+        return { parsed: finalDiagnosisFixture(), aiRun: { provider: "openrouter", model: request.overrides?.model } };
+      },
+    },
+    now: () => new Date("2026-06-29T10:00:00.000Z"),
+  });
+
+  const result = await service.runDiagnosis({ overwrite: true, matterContextPacketOverride: contextPacket });
+
+  assert.equal(result.state, "written");
+  assert.equal(invocations.length, 4);
+  assert.equal(invocations[0].schemaName, "posture_diagnosis_draft");
+  assert.equal(invocations[0].overrides.maxOutputTokens, 8000);
+  assert.equal(invocations[1].schemaName, "posture_diagnosis_draft");
+  assert.equal(invocations[1].overrides.maxOutputTokens, 12000);
+  assert.match(invocations[1].userPayload.retry_instructions, /invalid JSON/);
+  assert.match(invocations[1].userPayload.retry_instructions, /complete JSON object/);
 });
 
 test("procedural posture status detects stale upstream changes", async () => {
