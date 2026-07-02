@@ -236,6 +236,15 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("POST", "/api/matter-story", async () => {
         const body = await readRequestJson(request);
+        if (skillRunnerService?.start) {
+          sendJson(response, 200, await runMatterStorySkill({
+            body,
+            matterStore,
+            runtimeDbStorageService,
+            skillRunnerService,
+          }));
+          return;
+        }
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "custom_skill",
@@ -244,42 +253,11 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           matterName: matterNameForBody(matterStore, body),
           operation: async ({ job } = {}) => {
             const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
-            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-              const matter = await runtimeDbMatterForBody(matterStore, body);
-              assertRuntimeDbMatterStoryAvailable({ runtimeDbStorageService });
-              const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
-              const matterJson = await runtimeDbStorageService.readMatterJson(matter);
-              const result = await matterStoryService.runDisputeStory({
-                matterName: matter.name,
-                overwrite: Boolean(body.overwrite),
-                matterRootOverride: `postgres:${matter.name}`,
-                matterRecordOverride: matter,
-                matterContextPacketOverride: packet,
-                artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
-                artifactWriter: ({ outputPaths, markdown, metadata, runId }) => runtimeDbStorageService.persistTextArtifacts(matter, [
-                  { relativePath: outputPaths.markdown, text: `${String(markdown || "")}\n` },
-                  { relativePath: outputPaths.json, text: `${JSON.stringify({ ...metadata, runId, markdown: String(markdown || "") }, null, 2)}\n` },
-                ]),
-                matterJsonOverride: matterJson,
-                matterJsonWriter: ({ matterJson: nextMatterJson }) => runtimeDbStorageService.persistMatterJson(matter, nextMatterJson),
-                storyMarkdownReader: typeof runtimeDbStorageService.readFilePreview === "function"
-                  ? async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content
-                  : null,
-                stageRecorder,
-              });
-              const { artifactPersistence, matterJsonPersistence, ...responsePayload } = result;
-              const persisted = [
-                ...(Array.isArray(artifactPersistence) ? artifactPersistence : []),
-                ...(Array.isArray(matterJsonPersistence) ? matterJsonPersistence : []),
-              ];
-              return persisted.length
-                ? { ...responsePayload, dbPersistence: { persisted } }
-                : responsePayload;
-            }
-            assertFilesystemWorkflowAvailable(matterStore, "Write dispute story");
-            return matterStoryService.runDisputeStory({
-              matterName: body.matterName,
-              overwrite: Boolean(body.overwrite),
+            return runMatterStoryLegacy({
+              body,
+              matterStore,
+              matterStoryService,
+              runtimeDbStorageService,
               stageRecorder,
             });
           },
@@ -857,6 +835,102 @@ async function runTrackedWorkflow({
     operation,
   });
   return attachJobStatus(result, job);
+}
+
+async function runMatterStorySkill({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  skillRunnerService,
+} = {}) {
+  const { request, runtimeDb } = await matterStoryRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const run = await skillRunnerService.start({
+    slash: "/the_story",
+    request,
+    mode: "inline",
+    metadata: workflowJobMetadata({
+      kind: "custom_skill",
+      route: "/api/matter-story",
+      label: "The Story",
+    }),
+  });
+  if (!run?.accepted) {
+    throw httpError(run?.reason || "Matter Story is not ready to run.", 409, "native_skill.preflight_failed");
+  }
+  if (run.error) throw run.error;
+  const result = runtimeDb ? presentRuntimeDbMatterStoryResult(run.result) : run.result;
+  return attachJobStatusWithReceipt(result, run.job, run.receipt);
+}
+
+async function runMatterStoryLegacy({
+  body = {},
+  matterStore,
+  matterStoryService,
+  runtimeDbStorageService,
+  stageRecorder = null,
+} = {}) {
+  const { request, runtimeDb } = await matterStoryRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const result = await matterStoryService.runDisputeStory({
+    ...request,
+    stageRecorder,
+  });
+  return runtimeDb ? presentRuntimeDbMatterStoryResult(result) : result;
+}
+
+async function matterStoryRunnerRequest({ body = {}, matterStore, runtimeDbStorageService } = {}) {
+  if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+    const matter = await runtimeDbMatterForBody(matterStore, body);
+    assertRuntimeDbMatterStoryAvailable({ runtimeDbStorageService });
+    const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+    const matterJson = await runtimeDbStorageService.readMatterJson(matter);
+    return {
+      runtimeDb: true,
+      request: {
+        matterName: matter.name,
+        overwrite: Boolean(body.overwrite),
+        matterRootOverride: `postgres:${matter.name}`,
+        matterRecordOverride: matter,
+        matterContextPacketOverride: packet,
+        artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
+        artifactWriter: ({ outputPaths, markdown, metadata, runId }) => runtimeDbStorageService.persistTextArtifacts(matter, [
+          { relativePath: outputPaths.markdown, text: `${String(markdown || "")}\n` },
+          { relativePath: outputPaths.json, text: `${JSON.stringify({ ...metadata, runId, markdown: String(markdown || "") }, null, 2)}\n` },
+        ]),
+        matterJsonOverride: matterJson,
+        matterJsonWriter: ({ matterJson: nextMatterJson }) => runtimeDbStorageService.persistMatterJson(matter, nextMatterJson),
+        storyMarkdownReader: typeof runtimeDbStorageService.readFilePreview === "function"
+          ? async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content
+          : null,
+      },
+    };
+  }
+  assertFilesystemWorkflowAvailable(matterStore, "Write dispute story");
+  return {
+    runtimeDb: false,
+    request: {
+      matterName: matterNameForBody(matterStore, body),
+      overwrite: Boolean(body.overwrite),
+    },
+  };
+}
+
+function presentRuntimeDbMatterStoryResult(result = {}) {
+  const { artifactPersistence, matterJsonPersistence, ...responsePayload } = result || {};
+  const persisted = [
+    ...(Array.isArray(artifactPersistence) ? artifactPersistence : []),
+    ...(Array.isArray(matterJsonPersistence) ? matterJsonPersistence : []),
+  ];
+  return persisted.length
+    ? { ...responsePayload, dbPersistence: { persisted } }
+    : responsePayload;
 }
 
 async function runProceduralPostureDiagnosisSkill({

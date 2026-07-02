@@ -68,15 +68,21 @@ test("runtime DB matter story route stays DB-native", async () => {
     'exactRoute("POST", "/api/matter-story"',
     'exactRoute("POST", "/api/doctor/scan"',
   );
+  const fullSource = await readFile(matterWorkflowRoutesPath, "utf8");
+  const helperSource = fullSource.slice(
+    fullSource.indexOf("async function matterStoryRunnerRequest"),
+    fullSource.indexOf("async function runProceduralPostureDiagnosisSkill"),
+  );
 
-  assert.match(routeSource, /assertRuntimeDbMatterStoryAvailable/);
-  assert.match(routeSource, /readMatterContextPacket/);
-  assert.match(routeSource, /readMatterJson/);
-  assert.match(routeSource, /persistTextArtifacts/);
-  assert.match(routeSource, /persistMatterJson/);
-  assert.doesNotMatch(routeSource, /runRuntimeDbMaterializedWorkflow/);
-  assert.doesNotMatch(routeSource, /runMaterializedMatterWrite/);
-  assert.doesNotMatch(routeSource, /matterRootOverride: matterRoot/);
+  assert.match(routeSource, /runMatterStorySkill/);
+  assert.match(helperSource, /assertRuntimeDbMatterStoryAvailable/);
+  assert.match(helperSource, /readMatterContextPacket/);
+  assert.match(helperSource, /readMatterJson/);
+  assert.match(helperSource, /persistTextArtifacts/);
+  assert.match(helperSource, /persistMatterJson/);
+  assert.doesNotMatch(helperSource, /runRuntimeDbMaterializedWorkflow/);
+  assert.doesNotMatch(helperSource, /runMaterializedMatterWrite/);
+  assert.doesNotMatch(helperSource, /matterRootOverride: matterRoot/);
 });
 
 test("runtime DB doctor read and fix routes stay DB-native", async () => {

@@ -65,6 +65,7 @@ import { sendJson } from "./routes/http-utils.mjs";
 import { handlePrivateBetaAuthApiRequest, requirePrivateBetaAuth } from "./routes/private-beta-auth-routes.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
 import { createProceduralPostureDiagnosisRunner } from "./skills/builtins/procedural_posture_diagnosis/runner.mjs";
+import { createMatterStoryRunner } from "./skills/builtins/the_story/runner.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
 import {
@@ -323,6 +324,11 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     jobsPath: options.jobStatusPath,
   });
+  const matterStoryRunner = createMatterStoryRunner({
+    matterStore,
+    configurableSkillsService,
+    service: matterStoryService,
+  });
   const postureDiagnosisRunner = createProceduralPostureDiagnosisRunner({
     matterStore,
     service: proceduralPostureDiagnosisService,
@@ -331,6 +337,7 @@ export async function createWorkbenchServer(options = {}) {
     ? createSkillRunnerService({
       jobStatusService,
       runners: {
+        [matterStoryRunner.slash]: matterStoryRunner,
         [postureDiagnosisRunner.slash]: postureDiagnosisRunner,
       },
     })

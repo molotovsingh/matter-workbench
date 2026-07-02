@@ -123,7 +123,7 @@ function normalizeJobMetadata(metadata = {}) {
 
 function resultJobPatch(result = {}) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return {};
-  const outputPaths = sanitizeOutputPaths(result.outputPaths);
+  const outputPaths = sanitizeOutputPaths(result.outputPaths || artifactOutputPaths(result));
   const outputAvailability = sanitizeOutputAvailability(result.outputAvailability);
   const warnings = sanitizeWarnings(result.warnings);
   return {
@@ -144,6 +144,11 @@ function summarizeResult(result = {}) {
     if (paths.length) return paths.join(", ");
   }
   return "";
+}
+
+function artifactOutputPaths(result = {}) {
+  const artifactPath = typeof result.artifactPath === "string" ? result.artifactPath.trim() : "";
+  return artifactPath ? { markdown: artifactPath } : {};
 }
 
 function sanitizeOutputPaths(outputPaths = {}) {

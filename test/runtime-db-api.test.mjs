@@ -2344,6 +2344,10 @@ test("runtime DB postgres storage mode runs matter story from DB-native custody"
 
     assert.equal(result.state, "updated");
     assert.equal(result.description, "The dispute is about unpaid runtime story invoices.");
+    assert.equal(result.job.metadata.skill.slash, "/the_story");
+    assert.equal(result.job.outputPaths.markdown, "20_Workshop/The Story.md");
+    assert.equal(result.receipt.slash, "/the_story");
+    assert.equal(result.receipt.outputPaths.markdown, "20_Workshop/The Story.md");
     assert.equal(result.runRecord.matterRoot, "postgres:DB Direct Story Matter");
     assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
       "20_Workshop/The Story.md",
