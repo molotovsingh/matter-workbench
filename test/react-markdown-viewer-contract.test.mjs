@@ -35,6 +35,8 @@ test("Markdown viewer contract uses the approved safe renderer stack", async () 
   assert.match(css, /\.markdown-viewer/);
   assert.match(css, /width: min\(100%, 794px\)/);
   assert.match(css, /margin: 0 auto/);
+  assert.match(css, /font-size: 15px/);
+  assert.match(css, /\.markdown-viewer p,\n\.markdown-viewer li \{[\s\S]*color: var\(--text\);[\s\S]*font-size: inherit;[\s\S]*line-height: 1\.65;[\s\S]*max-width: none;/);
   assert.match(css, /\.markdown-viewer p \{ text-align: justify; text-justify: inter-word; \}/);
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /\.markdown-viewer p \{ text-align: left; \}/);
