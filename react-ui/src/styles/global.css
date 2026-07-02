@@ -443,9 +443,18 @@ padding: 0 2px;
 
 /* ─── Markdown viewer ───────────────────────────────────── */
 .markdown-viewer {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.07);
+  box-sizing: border-box;
   color: var(--text);
   line-height: 1.65;
+  margin: 0 auto;
+  max-width: 100%;
   overflow-wrap: anywhere;
+  padding: clamp(24px, 4vw, 48px) clamp(22px, 5vw, 56px);
+  width: min(100%, 794px);
 }
 .markdown-viewer > :first-child { margin-top: 0; }
 .markdown-viewer > :last-child { margin-bottom: 0; }
@@ -467,6 +476,7 @@ padding: 0 2px;
 .markdown-viewer blockquote,
 .markdown-viewer table,
 .markdown-viewer pre { margin: 0.75em 0; }
+.markdown-viewer p { text-align: justify; text-justify: inter-word; }
 .markdown-viewer ul,
 .markdown-viewer ol { padding-left: 1.35rem; }
 .markdown-viewer blockquote {
@@ -490,12 +500,16 @@ padding: 0 2px;
   padding: 0.85rem;
 }
 .markdown-viewer pre code { background: transparent; padding: 0; }
-.markdown-viewer table { border-collapse: collapse; font-size: 0.95em; width: 100%; }
+.markdown-viewer table { border-collapse: collapse; display: block; font-size: 0.95em; max-width: 100%; overflow-x: auto; width: 100%; }
 .markdown-viewer th,
 .markdown-viewer td { border: 1px solid var(--border); padding: 0.55rem 0.65rem; vertical-align: top; }
 .markdown-viewer th { background: var(--panel-2); color: var(--text); font-weight: 650; }
 .markdown-viewer a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .markdown-viewer input[type="checkbox"] { margin-right: 0.35rem; }
+@media (max-width: 760px) {
+  .markdown-viewer { border-radius: 6px; padding: 22px; }
+  .markdown-viewer p { text-align: left; }
+}
 
 /* ─── Command panel ─────────────────────────────────────── */
 .command-panel {

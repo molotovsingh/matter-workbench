@@ -33,6 +33,11 @@ test("Markdown viewer contract uses the approved safe renderer stack", async () 
   assert.doesNotMatch(viewer, /rehypeRaw|rehype-raw/);
   assert.doesNotMatch(safety, /dangerouslySetInnerHTML/);
   assert.match(css, /\.markdown-viewer/);
+  assert.match(css, /width: min\(100%, 794px\)/);
+  assert.match(css, /margin: 0 auto/);
+  assert.match(css, /\.markdown-viewer p \{ text-align: justify; text-justify: inter-word; \}/);
+  assert.match(css, /@media \(max-width: 760px\)/);
+  assert.match(css, /\.markdown-viewer p \{ text-align: left; \}/);
 });
 
 test("safeMarkdownUrl rejects dangerous URL schemes", async () => {
