@@ -98,7 +98,12 @@ export function createSkillRunnerService({
   }
 
   async function retry({ failedRunId, retryStageId = "", request = {}, slash = "", mode = "auto", metadata = {} } = {}) {
-    const failedJob = await jobStatusService.getJob(failedRunId);
+    let failedJob;
+    try {
+      failedJob = await jobStatusService.getJob(failedRunId);
+    } catch {
+      throw retrySourceNotFoundError(failedRunId);
+    }
     const key = normalizeSlash(slash || failedJob.metadata?.skill?.slash || failedJob.slash || "");
     const stageId = normalizeStageId(retryStageId || recoveryRetryStageId(failedJob));
     return start({
@@ -201,6 +206,13 @@ function sanitizeWarnings(warnings = []) {
     .filter((warning) => typeof warning === "string" && warning.trim())
     .map((warning) => warning.trim())
     .slice(0, 10);
+}
+
+function retrySourceNotFoundError(runId = "") {
+  const error = new Error(`Retry source job not found: ${String(runId || "").trim() || "unknown"}`);
+  error.statusCode = 404;
+  error.code = "native_skill.retry_source_not_found";
+  return error;
 }
 
 function recoveryRetryStageId(job = {}) {

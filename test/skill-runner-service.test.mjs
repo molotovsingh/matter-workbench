@@ -73,6 +73,19 @@ test("skill runner service can execute an operation inline and return a terminal
   assert.equal(result.receipt.outputFileStatus, "present");
 });
 
+test("skill runner service reports missing retry source jobs as stable 404s", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-retry-missing-"));
+  const runnerService = createSkillRunnerService({
+    jobStatusService: createJobStatusService({ jobsPath: path.join(tmp, "jobs.json") }),
+    runners: { "/demo_skill": DEMO_RUNNER },
+  });
+
+  await assert.rejects(
+    () => runnerService.retry({ failedRunId: "job_missing", slash: "/demo_skill", mode: "inline" }),
+    (error) => error?.statusCode === 404 && error?.code === "native_skill.retry_source_not_found",
+  );
+});
+
 test("skill runner service can start an operation through a fake queued worker", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-queued-"));
   const queued = [];

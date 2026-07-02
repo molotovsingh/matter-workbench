@@ -944,16 +944,26 @@ async function runProceduralPostureDiagnosisSkill({
     matterStore,
     runtimeDbStorageService,
   });
-  const run = await skillRunnerService.start({
-    slash: "/procedural_posture_diagnosis",
-    request,
-    mode: "inline",
-    metadata: workflowJobMetadata({
-      kind: "posture_diagnosis",
-      route: "/api/procedural-posture-diagnosis",
-      label: "Diagnose Procedural Posture",
-    }),
+  const workflowMetadata = workflowJobMetadata({
+    kind: "posture_diagnosis",
+    route: "/api/procedural-posture-diagnosis",
+    label: "Diagnose Procedural Posture",
   });
+  const retryOfJobId = typeof body.retryOfJobId === "string" ? body.retryOfJobId.trim() : "";
+  const run = retryOfJobId
+    ? await skillRunnerService.retry({
+      failedRunId: retryOfJobId,
+      retryStageId: typeof body.retryStageId === "string" ? body.retryStageId.trim() : "",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    })
+    : await skillRunnerService.start({
+      slash: "/procedural_posture_diagnosis",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    });
   if (!run?.accepted) {
     throw httpError(run?.reason || "Procedural posture diagnosis is not ready to run.", 409, "native_skill.preflight_failed");
   }
