@@ -71,11 +71,14 @@ test("React app shell runs procedural posture diagnosis as a native skill", asyn
   assert.match(appSource, /20_Workshop\/Case Analysis\/Filing and Procedural Posture Diagnosis\.md/);
 });
 
-test("React command panel offers durable posture diagnosis after chat-only answers", async () => {
+test("React command panel separates procedural posture chat from saved diagnosis", async () => {
   const commandPanelSource = await readFile(commandPanelPath, "utf8");
 
   assert.match(commandPanelSource, /shouldShowSavedPostureDiagnosisCta/);
   assert.match(commandPanelSource, /This Assistant answer is chat-only/);
+  assert.match(commandPanelSource, /shouldAskProceduralPostureModeChoice/);
+  assert.match(commandPanelSource, /setPendingPostureChoice\(cmd\)/);
+  assert.match(commandPanelSource, /Quick chat answer/);
   assert.match(commandPanelSource, /Run saved procedural diagnosis/);
   assert.match(commandPanelSource, /onCommand\('\/procedural_posture_diagnosis'\)/);
 });

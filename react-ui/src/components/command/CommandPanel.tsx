@@ -67,6 +67,7 @@ export default function CommandPanel({
   const [resumedSkillIdea, setResumedSkillIdea] = useState(state.pendingSkillIdeaResume);
   const [pendingIntentChoice, setPendingIntentChoice] = useState<PendingIntentChoice | null>(null);
   const [pendingResearchChoice, setPendingResearchChoice] = useState<string | null>(null);
+  const [pendingPostureChoice, setPendingPostureChoice] = useState<string | null>(null);
   const [commandMode, setCommandMode] = useState<CommandMode>('ask');
   const inputOverrideRef = useRef<((input: string) => boolean) | null>(null);
   const lastActiveMatterNameRef = useRef(state.activeMatter?.name ?? null);
@@ -99,6 +100,7 @@ export default function CommandPanel({
     setResumedSkillIdea(null);
     setPendingIntentChoice(null);
     setPendingResearchChoice(null);
+    setPendingPostureChoice(null);
     onClearCopilotThread?.();
     dispatch({ type: 'SET_COMMAND_COPY', payload: DEFAULT_COMMAND_COPY_TEXT });
     void loadCommandSuggestions();
@@ -116,6 +118,7 @@ export default function CommandPanel({
     resetSuggestions();
     setPendingIntentChoice(null);
     setPendingResearchChoice(null);
+    setPendingPostureChoice(null);
     setResumedSkillIdea(idea);
     setSkillIdeaInput(idea.text || 'new skill');
     dispatch({ type: 'SET_PENDING_SKILL_IDEA_RESUME', payload: null });
@@ -163,6 +166,7 @@ export default function CommandPanel({
     closeSuggestionPicker();
     setPendingIntentChoice(null);
     setPendingResearchChoice(null);
+    setPendingPostureChoice(null);
   }
 
   function runExampleCommand(command: string) {
@@ -171,6 +175,7 @@ export default function CommandPanel({
     resetSuggestions();
     setPendingIntentChoice(null);
     setPendingResearchChoice(null);
+    setPendingPostureChoice(null);
     if (command === 'new skill') {
       setResumedSkillIdea(null);
       setSkillIdeaInput(command);
@@ -245,6 +250,26 @@ export default function CommandPanel({
     await api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
   }
 
+  async function answerPendingPostureAsChat() {
+    if (!pendingPostureChoice || state.isCommandRunning) return;
+    const command = `/ask ${pendingPostureChoice}`;
+    setCommandMode('ask');
+    setPendingPostureChoice(null);
+    appendTerminal(['[assistant] user chose chat-only procedural posture answer']);
+    onCommand(command);
+    await api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
+  }
+
+  async function runPendingSavedPostureDiagnosis() {
+    if (!pendingPostureChoice || state.isCommandRunning) return;
+    const command = '/procedural_posture_diagnosis';
+    setCommandMode('skill');
+    setPendingPostureChoice(null);
+    appendTerminal(['[posture] user chose saved procedural diagnosis']);
+    onCommand(command);
+    await api.logCommandInteraction({ command, matterName: state.activeMatter?.name });
+  }
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const cmd = input.trim();
@@ -253,8 +278,16 @@ export default function CommandPanel({
     resetSuggestions();
     setPendingIntentChoice(null);
     setPendingResearchChoice(null);
+    setPendingPostureChoice(null);
 
     if (inputOverrideRef.current?.(cmd)) {
+      return;
+    }
+
+    if (commandMode === 'ask' && shouldAskProceduralPostureModeChoice(cmd)) {
+      setPendingPostureChoice(cmd);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Choose a quick chat answer or run the saved procedural diagnosis artifact.' });
+      appendTerminal(['[assistant] procedural posture request needs save-vs-chat choice']);
       return;
     }
 
@@ -376,6 +409,31 @@ export default function CommandPanel({
             <button
               type="button"
               onClick={() => onCommand('/procedural_posture_diagnosis')}
+              disabled={state.isCommandRunning}
+            >
+              Run saved procedural diagnosis
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pendingPostureChoice && (
+        <div className="intent-choice-panel procedural-posture-choice-panel" style={{ order: 3 }}>
+          <div className="intent-choice-title">Procedural diagnosis: chat or saved artifact?</div>
+          <p>
+            A chat answer is quick and disposable. The saved diagnosis creates the Case Analysis artifact, job, and receipt.
+          </p>
+          <div className="intent-choice-actions">
+            <button
+              type="button"
+              onClick={() => { void answerPendingPostureAsChat(); }}
+              disabled={state.isCommandRunning}
+            >
+              Quick chat answer
+            </button>
+            <button
+              type="button"
+              onClick={() => { void runPendingSavedPostureDiagnosis(); }}
               disabled={state.isCommandRunning}
             >
               Run saved procedural diagnosis
@@ -589,6 +647,10 @@ function shouldShowSavedPostureDiagnosisCta(copilotThread: CopilotThreadTurn[]):
   const text = latestAnswer?.text || '';
   return /\/procedural_posture_diagnosis/.test(text)
     && /(chat-only|not saved|saved diagnosis artifact|Filing and Procedural Posture Diagnosis)/i.test(text);
+}
+
+function shouldAskProceduralPostureModeChoice(command: string): boolean {
+  return /\b(procedural posture|posture diagnosis|procedural diagnosis|filing and procedural|filing forum|current case stage|diagnose procedural)\b/i.test(command);
 }
 
 function commandForMode(mode: CommandMode, command: string): string {
