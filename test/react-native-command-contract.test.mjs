@@ -82,3 +82,11 @@ test("React command panel separates procedural posture chat from saved diagnosis
   assert.match(commandPanelSource, /Run saved procedural diagnosis/);
   assert.match(commandPanelSource, /onCommand\('\/procedural_posture_diagnosis'\)/);
 });
+
+test("React command panel preserves explicit slash commands outside skill mode", async () => {
+  const commandPanelSource = await readFile(commandPanelPath, "utf8");
+
+  assert.match(commandPanelSource, /function isExplicitSlashCommand/);
+  assert.match(commandPanelSource, /if \(isExplicitSlashCommand\(command\)\) return command/);
+  assert.match(commandPanelSource, /\^\\\/\(\?!ask\\b\|research\\b\)\\S\+/);
+});

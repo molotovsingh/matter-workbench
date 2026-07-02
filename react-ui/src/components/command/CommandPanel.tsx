@@ -654,10 +654,15 @@ function shouldAskProceduralPostureModeChoice(command: string): boolean {
 }
 
 function commandForMode(mode: CommandMode, command: string): string {
+  if (isExplicitSlashCommand(command)) return command;
   if (/^(?:\/ask|ask|\/research|research)\b/i.test(command)) return command;
   if (mode === 'ask') return `/ask ${command}`;
   if (mode === 'research') return `/research ${command}`;
   return command;
+}
+
+function isExplicitSlashCommand(command: string): boolean {
+  return /^\/(?!ask\b|research\b)\S+/i.test(command.trim());
 }
 
 function commandPlaceholder(mode: CommandMode, matterName?: string, canUseResearch = false): string {
