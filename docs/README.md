@@ -183,6 +183,8 @@ implementation plan.
 | [v1.0.0-beta.112](releases/v1.0.0-beta.112.md) | Stale preparation-chain unblock. **Codename:** Flow Latch. |
 | [v1.0.0-beta.113](releases/v1.0.0-beta.113.md) | Native procedural posture diagnosis skill. **Codename:** Posture Compass. |
 | [v1.0.0-beta.114](releases/v1.0.0-beta.114.md) | Saved procedural diagnosis and row-level preparation actions. **Codename:** Artifact Compass. |
+| [v1.0.0-beta.115](releases/v1.0.0-beta.115.md) | Running preparation row status. **Codename:** Stage Beacon. |
+| [v1.0.0-beta.116](releases/v1.0.0-beta.116.md) | Procedural posture diagnosis JSON retry. **Codename:** Posture Latch. |
 | [Maintenance Checkpoints](releases/maintenance-checkpoints.md) | Tier 2 behavior-preserving deployment log. |
 | [Beta User Runbook](beta-user-runbook.md) | Short supervised-beta operating guide and stop rules. |
 | [Beta Operator Checklist](beta-operator-checklist.md) | Practical supervised local/private beta runbook. |

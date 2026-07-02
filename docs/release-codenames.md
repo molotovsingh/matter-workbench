@@ -118,3 +118,5 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.112](releases/v1.0.0-beta.112.md) | **Flow Latch** | Release note present. |
 | [v1.0.0-beta.113](releases/v1.0.0-beta.113.md) | **Posture Compass** | Release note present. |
 | [v1.0.0-beta.114](releases/v1.0.0-beta.114.md) | **Artifact Compass** | Release note present. |
+| [v1.0.0-beta.115](releases/v1.0.0-beta.115.md) | **Stage Beacon** | Release note present. |
+| [v1.0.0-beta.116](releases/v1.0.0-beta.116.md) | **Posture Latch** | Release note present. |
