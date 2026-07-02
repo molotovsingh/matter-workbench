@@ -20,7 +20,7 @@ export function createSkillRunnerService({
     return { key, runner };
   }
 
-  async function start({ slash, request = {}, idempotencyKey = "", mode = "auto" } = {}) {
+  async function start({ slash, request = {}, idempotencyKey = "", mode = "auto", metadata = {} } = {}) {
     const { key, runner } = resolveRunner(slash);
     if (typeof runner.preflight === "function") {
       const preflight = await runner.preflight({ request });
@@ -33,13 +33,16 @@ export function createSkillRunnerService({
       }
     }
 
+    const jobMetadata = normalizeJobMetadata(metadata);
     const job = await jobStatusService.createJob({
       kind: runner.kind || kindFromSlash(key),
       label: runner.label || runner.title || key,
       matterName: request.matterName || request.matter || "",
       matterId: request.matterId || "",
       metadata: {
+        ...jobMetadata,
         skill: {
+          ...(jobMetadata.skill && typeof jobMetadata.skill === "object" && !Array.isArray(jobMetadata.skill) ? jobMetadata.skill : {}),
           slash: key,
           skillId: runner.id || kindFromSlash(key),
           idempotencyKey: String(idempotencyKey || "").trim(),
@@ -111,6 +114,11 @@ export function createSkillRunnerService({
     getReceipt,
     resolveRunner,
   };
+}
+
+function normalizeJobMetadata(metadata = {}) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
+  return metadata;
 }
 
 function resultJobPatch(result = {}) {

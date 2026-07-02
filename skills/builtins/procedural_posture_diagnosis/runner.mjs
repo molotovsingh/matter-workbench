@@ -5,12 +5,13 @@ import {
 
 export function createProceduralPostureDiagnosisRunner({
   matterStore,
+  service: providedService = null,
   aiProviderService = null,
   diagnosisProvider = null,
   env = process.env,
   now = () => new Date(),
 } = {}) {
-  const service = createProceduralPostureDiagnosisService({
+  const service = providedService || createProceduralPostureDiagnosisService({
     matterStore,
     aiProviderService,
     diagnosisProvider,

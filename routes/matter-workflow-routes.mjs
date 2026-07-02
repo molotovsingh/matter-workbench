@@ -50,6 +50,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     runtimeDbStorageService,
     runtimeDbProcessingWorkerService,
     runtimeDbSourceRemovalMutationService,
+    skillRunnerService,
     sourceRemovalMutationService,
   } = services;
 
@@ -297,6 +298,15 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("POST", "/api/procedural-posture-diagnosis", async () => {
         const body = await readRequestJson(request);
+        if (skillRunnerService?.start) {
+          sendJson(response, 200, await runProceduralPostureDiagnosisSkill({
+            body,
+            matterStore,
+            runtimeDbStorageService,
+            skillRunnerService,
+          }));
+          return;
+        }
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "posture_diagnosis",
@@ -305,33 +315,11 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           matterName: matterNameForBody(matterStore, body),
           operation: async ({ job } = {}) => {
             const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
-            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-              const matter = await runtimeDbMatterForBody(matterStore, body);
-              assertRuntimeDbProceduralPostureRunAvailable({ runtimeDbStorageService });
-              const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
-              const matterJson = await runtimeDbStorageService.readMatterJson(matter);
-              const result = await proceduralPostureDiagnosisService.runDiagnosis({
-                matterName: matter.name,
-                overwrite: Boolean(body.overwrite),
-                matterRootOverride: `postgres:${matter.name}`,
-                matterRecordOverride: matter,
-                matterContextPacketOverride: packet,
-                matterJsonOverride: matterJson,
-                artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
-                artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
-                artifactStatReader: (relativePath) => runtimeDbStorageService.artifactStat(matter, relativePath),
-                artifactWriter: ({ files }) => runtimeDbStorageService.persistTextArtifacts(matter, files),
-                stageRecorder,
-              });
-              const { artifactPersistence, ...responsePayload } = result;
-              return Array.isArray(artifactPersistence) && artifactPersistence.length
-                ? { ...responsePayload, dbPersistence: { persisted: artifactPersistence } }
-                : responsePayload;
-            }
-            assertFilesystemWorkflowAvailable(matterStore, "Diagnose procedural posture");
-            return proceduralPostureDiagnosisService.runDiagnosis({
-              matterName: body.matterName,
-              overwrite: Boolean(body.overwrite),
+            return runProceduralPostureDiagnosisLegacy({
+              body,
+              matterStore,
+              proceduralPostureDiagnosisService,
+              runtimeDbStorageService,
               stageRecorder,
             });
           },
@@ -869,6 +857,106 @@ async function runTrackedWorkflow({
     operation,
   });
   return attachJobStatus(result, job);
+}
+
+async function runProceduralPostureDiagnosisSkill({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  skillRunnerService,
+} = {}) {
+  const { request, runtimeDb } = await proceduralPostureDiagnosisRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const run = await skillRunnerService.start({
+    slash: "/procedural_posture_diagnosis",
+    request,
+    mode: "inline",
+    metadata: workflowJobMetadata({
+      kind: "posture_diagnosis",
+      route: "/api/procedural-posture-diagnosis",
+      label: "Diagnose Procedural Posture",
+    }),
+  });
+  if (!run?.accepted) {
+    throw httpError(run?.reason || "Procedural posture diagnosis is not ready to run.", 409, "native_skill.preflight_failed");
+  }
+  if (run.error) throw run.error;
+  const result = runtimeDb ? presentRuntimeDbPostureDiagnosisResult(run.result) : run.result;
+  return attachJobStatusWithReceipt(result, run.job, run.receipt);
+}
+
+async function runProceduralPostureDiagnosisLegacy({
+  body = {},
+  matterStore,
+  proceduralPostureDiagnosisService,
+  runtimeDbStorageService,
+  stageRecorder = null,
+} = {}) {
+  const { request, runtimeDb } = await proceduralPostureDiagnosisRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const result = await proceduralPostureDiagnosisService.runDiagnosis({
+    ...request,
+    stageRecorder,
+  });
+  return runtimeDb ? presentRuntimeDbPostureDiagnosisResult(result) : result;
+}
+
+async function proceduralPostureDiagnosisRunnerRequest({ body = {}, matterStore, runtimeDbStorageService } = {}) {
+  if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+    const matter = await runtimeDbMatterForBody(matterStore, body);
+    assertRuntimeDbProceduralPostureRunAvailable({ runtimeDbStorageService });
+    const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
+    const matterJson = await runtimeDbStorageService.readMatterJson(matter);
+    return {
+      runtimeDb: true,
+      request: {
+        matterName: matter.name,
+        overwrite: Boolean(body.overwrite),
+        matterRootOverride: `postgres:${matter.name}`,
+        matterRecordOverride: matter,
+        matterContextPacketOverride: packet,
+        matterJsonOverride: matterJson,
+        artifactExistsOverride: (relativePath) => runtimeDbStorageService.artifactExists(matter, relativePath),
+        artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
+        artifactStatReader: (relativePath) => runtimeDbStorageService.artifactStat(matter, relativePath),
+        artifactWriter: ({ files }) => runtimeDbStorageService.persistTextArtifacts(matter, files),
+      },
+    };
+  }
+  assertFilesystemWorkflowAvailable(matterStore, "Diagnose procedural posture");
+  return {
+    runtimeDb: false,
+    request: {
+      matterName: matterNameForBody(matterStore, body),
+      overwrite: Boolean(body.overwrite),
+    },
+  };
+}
+
+function presentRuntimeDbPostureDiagnosisResult(result = {}) {
+  const { artifactPersistence, ...responsePayload } = result || {};
+  return Array.isArray(artifactPersistence) && artifactPersistence.length
+    ? { ...responsePayload, dbPersistence: { persisted: artifactPersistence } }
+    : responsePayload;
+}
+
+function attachJobStatusWithReceipt(result, job, receipt) {
+  const payload = attachJobStatus(result, job);
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) return { ...payload, receipt };
+  return { result, job, receipt };
+}
+
+function httpError(message, statusCode = 500, code = "") {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  if (code) error.code = code;
+  return error;
 }
 
 function stageRecorderForWorkflow({ jobStatusService, job } = {}) {

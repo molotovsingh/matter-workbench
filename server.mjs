@@ -50,6 +50,7 @@ import { runStartupAiChecks } from "./services/startup-ai-check-service.mjs";
 import { createUserReadinessService } from "./services/user-readiness-service.mjs";
 import { createSkillInterviewPlannerService } from "./services/skill-interview-planner-service.mjs";
 import { createSkillRegistryService } from "./services/skill-registry-service.mjs";
+import { createSkillRunnerService } from "./services/skill-runner-service.mjs";
 import { createSkillRouterService } from "./services/skill-router-service.mjs";
 import { createSkillSamplesService } from "./services/skill-samples-service.mjs";
 import { createSkillSampleOutputService } from "./services/skill-sample-output-service.mjs";
@@ -63,6 +64,7 @@ import { handleApiRequest } from "./routes/api-routes.mjs";
 import { sendJson } from "./routes/http-utils.mjs";
 import { handlePrivateBetaAuthApiRequest, requirePrivateBetaAuth } from "./routes/private-beta-auth-routes.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
+import { createProceduralPostureDiagnosisRunner } from "./skills/builtins/procedural_posture_diagnosis/runner.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
 import {
@@ -321,6 +323,18 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     jobsPath: options.jobStatusPath,
   });
+  const postureDiagnosisRunner = createProceduralPostureDiagnosisRunner({
+    matterStore,
+    service: proceduralPostureDiagnosisService,
+  });
+  const skillRunnerService = options.skillRunnerService || (jobStatusService?.createJob && jobStatusService?.getJob && jobStatusService?.updateJobStage
+    ? createSkillRunnerService({
+      jobStatusService,
+      runners: {
+        [postureDiagnosisRunner.slash]: postureDiagnosisRunner,
+      },
+    })
+    : null);
   const matterLogService = options.matterLogService || createMatterLogService({
     configurableSkillRunsService,
     jobStatusService,
@@ -423,6 +437,7 @@ export async function createWorkbenchServer(options = {}) {
     skillFactoryHealthService,
     skillInterviewPlannerService,
     skillRegistryService,
+    skillRunnerService,
     skillRouterService,
     skillSamplesService,
     skillSampleOutputService,

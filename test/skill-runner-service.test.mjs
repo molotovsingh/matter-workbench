@@ -55,10 +55,18 @@ test("skill runner service can execute an operation inline and return a terminal
     slash: "/demo_skill",
     request: { matterName: "Matter A" },
     mode: "inline",
+    metadata: {
+      workflow: {
+        stage: "demo_skill",
+        route: "/api/demo-skill",
+      },
+    },
   });
 
   assert.equal(result.queued, false);
   assert.equal(result.job.status, "succeeded");
+  assert.equal(result.job.metadata.workflow.route, "/api/demo-skill");
+  assert.equal(result.job.metadata.skill.slash, "/demo_skill");
   assert.equal(result.receipt.state, "succeeded");
   assert.equal(result.receipt.runId, "job_inline");
   assert.deepEqual(result.receipt.stages.map((stage) => stage.id), ["build_packet"]);
