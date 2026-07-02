@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { useApp } from '../../store/AppContext';
 import { api } from '../../api/client';
@@ -29,6 +29,8 @@ import { getErrorMessage } from '../../lib/errors';
 import { canSeeOperatorSurface } from '../../lib/lawyerMode';
 import type { SourceRemovalImpactPreview } from '../../types';
 
+const MarkdownViewer = lazy(() => import('../common/MarkdownViewer').then((module) => ({ default: module.MarkdownViewer })));
+
 const ASSISTANT_WIDTH_STORAGE_KEY = 'mwb.matterAssistant.width';
 const DEFAULT_ASSISTANT_WIDTH = 380;
 const MIN_ASSISTANT_WIDTH = 320;
@@ -50,6 +52,7 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
   const { state, dispatch, appendTerminal, refreshActiveMatterWorkspace } = useApp();
   const filename = preview.path.split('/').pop() ?? preview.path;
   const isListOfDatesMarkdown = preview.type === 'text' && isListOfDatesMarkdownPath(preview.path);
+  const isGenericMarkdown = preview.type === 'text' && /\.md$/i.test(preview.path) && !isListOfDatesMarkdown;
   const listOfDates = isListOfDatesMarkdown ? parseListOfDatesMarkdown(preview.content || '') : null;
   const showOperatorChrome = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const sourceFileId = sourceFileIdForPreviewPath(preview.path);
@@ -214,7 +217,12 @@ function FilePreview({ preview }: { preview: { path: string; type: string; url?:
       {listOfDates && listOfDates.entries.length > 0 && (
         <ListOfDatesMarkdownPreview parsed={listOfDates} />
       )}
-      {preview.type === 'text' && (!listOfDates || listOfDates.entries.length === 0) && (
+      {isGenericMarkdown && (
+        <Suspense fallback={<p className="muted">Rendering Markdown preview…</p>}>
+          <MarkdownViewer content={preview.content || ''} ariaLabel="Markdown preview" />
+        </Suspense>
+      )}
+      {preview.type === 'text' && !isGenericMarkdown && (!listOfDates || listOfDates.entries.length === 0) && (
         <pre style={{
           margin: '12px 0', padding: '14px', border: '1px solid var(--border)',
           background: 'var(--code-bg)', color: 'var(--text)',

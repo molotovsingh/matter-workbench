@@ -230,8 +230,9 @@ export function safeMarkdownUrl(value = ''): string {
   // Allow local anchors such as #section.
   if (raw.startsWith('#')) return raw;
 
-  // Allow ordinary relative app paths, but not protocol-relative URLs.
-  if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  // Block protocol-relative URLs, then allow ordinary relative app paths.
+  if (raw.startsWith('//')) return '';
+  if (raw.startsWith('/')) return raw;
 
   try {
     const url = new URL(raw, 'https://matter-workbench.local');
