@@ -30,6 +30,7 @@ import {
 } from "./run-metadata.mjs";
 import { createConfiguredListOfDatesProvider } from "./run-config.mjs";
 import { prepareCreateListOfDatesInputsFromRecords } from "./one-pass-runner.mjs";
+import { runListOfDatesStage, skipListOfDatesStage } from "./stage-recording.mjs";
 
 export async function buildCreateListOfDatesTwoPassFromRecords(options = {}) {
   const prepared = prepareCreateListOfDatesInputsFromRecords(options);
@@ -49,6 +50,7 @@ export async function buildCreateListOfDatesTwoPassFromRecords(options = {}) {
     persistArtifacts: false,
     candidateLedgerWriter: options.candidateLedgerWriter,
     artifactWriter: options.artifactWriter,
+    stageRecorder: options.stageRecorder,
   });
 }
 
@@ -67,6 +69,7 @@ export async function runCreateListOfDatesTwoPass({
   persistArtifacts = !dryRun,
   candidateLedgerWriter,
   artifactWriter,
+  stageRecorder,
 }) {
   const pass1 = createConfiguredListOfDatesProvider({
     task: AI_TASKS.CREATE_LISTOFDATES_PASS1,
@@ -96,103 +99,108 @@ export async function runCreateListOfDatesTwoPass({
 
   const rawCandidates = [];
   const pass1ResponseAiRuns = [];
-  for (const [index, chunk] of chunks.entries()) {
-    const response = await pass1.provider({
-      matter: matterSummary(matterJson),
-      chunk,
-      chunkIndex: index + 1,
-      chunkCount: chunks.length,
-      schema: CANDIDATE_SCHEMA,
-    });
-    if (!response || !Array.isArray(response.candidates)) {
-      const error = new Error(`AI provider returned an invalid candidate-ledger payload for chunk ${index + 1}`);
-      error.statusCode = 502;
-      throw error;
-    }
-    rawCandidates.push(...response.candidates);
-    if (response.ai_run) pass1ResponseAiRuns.push(response.ai_run);
-    outputLines.push(`[listofdates] pass 1 chunk ${index + 1}/${chunks.length}: ${response.candidates.length} candidate(s)`);
-  }
+  let candidateLedger = null;
+  const candidatePass = await runListOfDatesStage(
+    stageRecorder,
+    {
+      id: "candidate_pass",
+      label: "Generate candidate date ledger",
+      provider: pass1.baseAiRun.provider,
+      model: pass1.baseAiRun.model,
+    },
+    async () => {
+      for (const [index, chunk] of chunks.entries()) {
+        const response = await pass1.provider({
+          matter: matterSummary(matterJson),
+          chunk,
+          chunkIndex: index + 1,
+          chunkCount: chunks.length,
+          schema: CANDIDATE_SCHEMA,
+        });
+        if (!response || !Array.isArray(response.candidates)) {
+          const error = new Error(`AI provider returned an invalid candidate-ledger payload for chunk ${index + 1}`);
+          error.statusCode = 502;
+          throw error;
+        }
+        rawCandidates.push(...response.candidates);
+        if (response.ai_run) pass1ResponseAiRuns.push(response.ai_run);
+        outputLines.push(`[listofdates] pass 1 chunk ${index + 1}/${chunks.length}: ${response.candidates.length} candidate(s)`);
+      }
 
-  const pass1AiRun = mergeAiRunMetadata(pass1.baseAiRun, pass1ResponseAiRuns);
-  const candidates = validateAndHydrateCandidates(rawCandidates, chronologyBlocks, sourceIndex);
-  const outputPaths = createListOfDatesOutputPaths(matterRoot, { includeCandidates: true });
-  let candidateLedger = createCandidateLedger({
-    matterJson,
-    candidates,
-    records,
-    chronologyBlocks,
-    filteredBlockCount,
-    pass1AiRun,
-    status: "pass1_complete",
-  });
+      const pass1AiRun = mergeAiRunMetadata(pass1.baseAiRun, pass1ResponseAiRuns);
+      const candidates = validateAndHydrateCandidates(rawCandidates, chronologyBlocks, sourceIndex);
+      const outputPaths = createListOfDatesOutputPaths(matterRoot, { includeCandidates: true });
+      candidateLedger = createCandidateLedger({
+        matterJson,
+        candidates,
+        records,
+        chronologyBlocks,
+        filteredBlockCount,
+        pass1AiRun,
+        status: "pass1_complete",
+      });
 
-  if (!dryRun) {
-    await persistCandidateLedger({
-      matterRoot,
-      outputPaths,
-      candidateLedger,
-      persistArtifacts,
-      candidateLedgerWriter,
-    });
-  }
+      if (!dryRun) {
+        await persistCandidateLedger({
+          matterRoot,
+          outputPaths,
+          candidateLedger,
+          persistArtifacts,
+          candidateLedgerWriter,
+        });
+      }
+      return { pass1AiRun, candidates, outputPaths };
+    },
+    ({ candidates = [], outputPaths = {} } = {}) => ({
+      summary: `Accepted ${candidates.length} candidate(s) into ${outputPaths.candidates || "candidate ledger"}`,
+      salvageable: true,
+    }),
+  );
+  const { pass1AiRun, candidates, outputPaths } = candidatePass;
 
   try {
-    const pass2Response = await pass2.provider({
-      matter: matterSummary(matterJson),
-      candidates,
-      schema: OUTPUT_SCHEMA,
-    });
-    if (!pass2Response || !Array.isArray(pass2Response.entries)) {
-      const error = new Error("AI provider returned an invalid two-pass list-of-dates editor payload");
-      error.statusCode = 502;
-      throw error;
-    }
+    const editorPass = await runListOfDatesStage(
+      stageRecorder,
+      {
+        id: "editor_pass",
+        label: "Edit final Case Timeline entries",
+        provider: pass2.baseAiRun.provider,
+        model: pass2.baseAiRun.model,
+      },
+      async () => {
+        const pass2Response = await pass2.provider({
+          matter: matterSummary(matterJson),
+          candidates,
+          schema: OUTPUT_SCHEMA,
+        });
+        if (!pass2Response || !Array.isArray(pass2Response.entries)) {
+          const error = new Error("AI provider returned an invalid two-pass list-of-dates editor payload");
+          error.statusCode = 502;
+          throw error;
+        }
 
-    const pass2AiRun = mergeAiRunMetadata(pass2.baseAiRun, pass2Response.ai_run ? [pass2Response.ai_run] : []);
-    const candidateCitations = new Set(candidates.map((candidate) => candidate.citation));
-    const editorEntries = pass2Response.entries.filter((entry) => candidateCitations.has(entry?.citation));
-    const validEntries = validateAndHydrateEntries(editorEntries, chronologyBlocks, sourceIndex);
-    const acceptedEntries = validEntries.sort(compareEntries);
-    const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
-    const aiRun = twoPassAiRunMetadata(pass1AiRun, pass2AiRun);
-    candidateLedger = {
-      ...candidateLedger,
-      status: "succeeded",
-      finished_at: new Date().toISOString(),
-      pass2_ai_run: pass2AiRun,
-      final_entry_count: entries.length,
-    };
+        const pass2AiRun = mergeAiRunMetadata(pass2.baseAiRun, pass2Response.ai_run ? [pass2Response.ai_run] : []);
+        const candidateCitations = new Set(candidates.map((candidate) => candidate.citation));
+        const editorEntries = pass2Response.entries.filter((entry) => candidateCitations.has(entry?.citation));
+        const validEntries = validateAndHydrateEntries(editorEntries, chronologyBlocks, sourceIndex);
+        const acceptedEntries = validEntries.sort(compareEntries);
+        const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
+        const aiRun = twoPassAiRunMetadata(pass1AiRun, pass2AiRun);
+        candidateLedger = {
+          ...candidateLedger,
+          status: "succeeded",
+          finished_at: new Date().toISOString(),
+          pass2_ai_run: pass2AiRun,
+          final_entry_count: entries.length,
+        };
 
-    const validation = {
-      candidate_count: candidates.length,
-      accepted_entries: acceptedEntries.length,
-      final_entries: entries.length,
-      clustered_entries: acceptedEntries.length - entries.length,
-    };
-    const artifactFiles = buildListOfDatesArtifactFiles({
-      matterJson,
-      engineVersion: TWO_PASS_ENGINE_VERSION,
-      markdownEngineVersion: TWO_PASS_ENGINE_VERSION,
-      generatedAt: options.generatedAt,
-      generationMode: "two_pass",
-      candidateLedgerPath: outputPaths.candidates,
-      aiRun,
-      pass1AiRun,
-      pass2AiRun,
-      records,
-      sourceIndex,
-      validation,
-      entries,
-    });
-    const candidateLedgerFile = candidateLedgerArtifactFile(outputPaths.candidates, candidateLedger);
-
-    if (!dryRun) {
-      if (typeof artifactWriter === "function") {
-        await artifactWriter({ files: [...artifactFiles.files, candidateLedgerFile] });
-      } else if (persistArtifacts) {
-        await writeListOfDatesArtifacts({
-          matterRoot,
+        const validation = {
+          candidate_count: candidates.length,
+          accepted_entries: acceptedEntries.length,
+          final_entries: entries.length,
+          clustered_entries: acceptedEntries.length - entries.length,
+        };
+        const artifactFiles = buildListOfDatesArtifactFiles({
           matterJson,
           engineVersion: TWO_PASS_ENGINE_VERSION,
           markdownEngineVersion: TWO_PASS_ENGINE_VERSION,
@@ -207,8 +215,47 @@ export async function runCreateListOfDatesTwoPass({
           validation,
           entries,
         });
-        await writeCandidateLedger(matterRoot, candidateLedger);
-      }
+        const candidateLedgerFile = candidateLedgerArtifactFile(outputPaths.candidates, candidateLedger);
+        return { pass2Response, pass2AiRun, acceptedEntries, entries, aiRun, validation, artifactFiles, candidateLedgerFile };
+      },
+      ({ acceptedEntries = [], entries = [] } = {}) => ({
+        summary: `Accepted ${acceptedEntries.length} cited event(s), rendering ${entries.length} row(s)`,
+        salvageable: true,
+      }),
+    );
+    const { pass2Response, pass2AiRun, acceptedEntries, entries, aiRun, validation, artifactFiles, candidateLedgerFile } = editorPass;
+
+    if (!dryRun) {
+      await runListOfDatesStage(
+        stageRecorder,
+        { id: "persist", label: "Persist Case Timeline artifacts" },
+        async () => {
+          if (typeof artifactWriter === "function") {
+            await artifactWriter({ files: [...artifactFiles.files, candidateLedgerFile] });
+          } else if (persistArtifacts) {
+            await writeListOfDatesArtifacts({
+              matterRoot,
+              matterJson,
+              engineVersion: TWO_PASS_ENGINE_VERSION,
+              markdownEngineVersion: TWO_PASS_ENGINE_VERSION,
+              generatedAt: options.generatedAt,
+              generationMode: "two_pass",
+              candidateLedgerPath: outputPaths.candidates,
+              aiRun,
+              pass1AiRun,
+              pass2AiRun,
+              records,
+              sourceIndex,
+              validation,
+              entries,
+            });
+            await writeCandidateLedger(matterRoot, candidateLedger);
+          }
+        },
+        () => ({ summary: `Wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}` }),
+      );
+    } else {
+      await skipListOfDatesStage(stageRecorder, { id: "persist", label: "Persist Case Timeline artifacts" }, { summary: "Dry run; artifacts were not written." });
     }
 
     outputLines.push(`[listofdates] pass 1 accepted ${candidates.length} candidate(s) into ${outputPaths.candidates}`);

@@ -175,46 +175,31 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("POST", "/api/create-listofdates", async () => {
         const body = await readRequestJson(request);
+        if (skillRunnerService?.start) {
+          sendJson(response, 200, await runListOfDatesSkill({
+            body,
+            matterStore,
+            runtimeDbStorageService,
+            skillRunnerService,
+          }));
+          return;
+        }
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "list_of_dates",
           route: "/api/create-listofdates",
           label: "Build Case Timeline",
           matterName: matterNameForBody(matterStore, body),
-          operation: async () => {
-            const env = services.env || {};
-            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-              const matter = await runtimeDbMatterForBody(matterStore, body);
-              assertRuntimeDbCreateListOfDatesAvailable({ runtimeDbStorageService });
-              const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
-              const options = {
-                dryRun: Boolean(body.dryRun),
-                aiProvider: services.aiProvider,
-                env,
-              };
-              if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
-                options.apiKey = env.OPENAI_API_KEY;
-                options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
-              }
-              return runtimeDbWorkflowResponse(
-                await runtimeDbStorageService.createListOfDates(matter, options),
-                matter,
-              );
-            }
-            assertFilesystemWorkflowAvailable(matterStore, "Build Case Timeline");
-            const root = await matterRootForBody(matterStore, body);
-            const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
-            const options = {
-              matterRoot: root,
-              dryRun: Boolean(body.dryRun),
+          operation: async ({ job } = {}) => {
+            const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
+            return runCreateListOfDatesLegacy({
+              body,
+              matterStore,
+              runtimeDbStorageService,
               aiProvider: services.aiProvider,
-              env,
-            };
-            if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
-              options.apiKey = env.OPENAI_API_KEY;
-              options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
-            }
-            return runCreateListOfDates(options);
+              env: services.env || {},
+              stageRecorder,
+            });
           },
         }));
       }),
@@ -852,6 +837,9 @@ async function runNativeSkillAlias({ slash = "", body = {}, matterStore, runtime
   if (!skillRunnerService?.start) {
     throw httpError("Native skill runner is not available.", 503, "native_skill.runner_unavailable");
   }
+  if (normalizedSlash === "/create_listofdates") {
+    return runListOfDatesSkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
+  }
   if (normalizedSlash === "/the_story") {
     return runMatterStorySkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
   }
@@ -873,6 +861,113 @@ function safeDecodeText(value = "") {
   } catch {
     return "";
   }
+}
+
+async function runListOfDatesSkill({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  skillRunnerService,
+} = {}) {
+  const { request } = await listOfDatesRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const workflowMetadata = workflowJobMetadata({
+    kind: "list_of_dates",
+    route: "/api/create-listofdates",
+    label: "Build Case Timeline",
+  });
+  const retryOfJobId = typeof body.retryOfJobId === "string" ? body.retryOfJobId.trim() : "";
+  const run = retryOfJobId
+    ? await skillRunnerService.retry({
+      failedRunId: retryOfJobId,
+      retryStageId: typeof body.retryStageId === "string" ? body.retryStageId.trim() : "",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    })
+    : await skillRunnerService.start({
+      slash: "/create_listofdates",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    });
+  if (!run?.accepted) {
+    throw httpError(run?.reason || "Case Timeline is not ready to run.", 409, "native_skill.preflight_failed");
+  }
+  if (run.error) throw run.error;
+  return attachJobStatusWithReceipt(run.result, run.job, run.receipt);
+}
+
+async function runCreateListOfDatesLegacy({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  aiProvider = null,
+  env = {},
+  stageRecorder = null,
+} = {}) {
+  if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+    const matter = await runtimeDbMatterForBody(matterStore, body);
+    assertRuntimeDbCreateListOfDatesAvailable({ runtimeDbStorageService });
+    const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
+    const options = {
+      dryRun: Boolean(body.dryRun),
+      aiProvider,
+      env,
+      stageRecorder,
+    };
+    if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
+      options.apiKey = env.OPENAI_API_KEY;
+      options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
+    }
+    return runtimeDbWorkflowResponse(
+      await runtimeDbStorageService.createListOfDates(matter, options),
+      matter,
+    );
+  }
+  assertFilesystemWorkflowAvailable(matterStore, "Build Case Timeline");
+  const root = await matterRootForBody(matterStore, body);
+  const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
+  const options = {
+    matterRoot: root,
+    dryRun: Boolean(body.dryRun),
+    aiProvider,
+    env,
+    stageRecorder,
+  };
+  if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
+    options.apiKey = env.OPENAI_API_KEY;
+    options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
+  }
+  return runCreateListOfDates(options);
+}
+
+async function listOfDatesRunnerRequest({ body = {}, matterStore, runtimeDbStorageService } = {}) {
+  if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+    const matter = await runtimeDbMatterForBody(matterStore, body);
+    assertRuntimeDbCreateListOfDatesAvailable({ runtimeDbStorageService });
+    return {
+      runtimeDb: true,
+      request: {
+        matterName: matter.name,
+        dryRun: Boolean(body.dryRun),
+        runtimeDbMatter: matter,
+        runtimeDbCreateListOfDates: (options) => runtimeDbStorageService.createListOfDates(matter, options),
+      },
+    };
+  }
+  assertFilesystemWorkflowAvailable(matterStore, "Build Case Timeline");
+  return {
+    runtimeDb: false,
+    request: {
+      matterName: matterNameForBody(matterStore, body),
+      matterRoot: await matterRootForBody(matterStore, body),
+      dryRun: Boolean(body.dryRun),
+    },
+  };
 }
 
 async function runMatterStorySkill({

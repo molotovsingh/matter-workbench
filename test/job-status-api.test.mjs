@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { createWorkbenchServer } from "../server.mjs";
 import { createJobStatusService } from "../services/job-status-service.mjs";
+import { listOfDatesEntry } from "../test-support/listofdates-fixtures.mjs";
 import { hashPrivateBetaPassword } from "../services/private-beta-auth-service.mjs";
 
 async function getJson(baseUrl, pathName) {
@@ -355,6 +356,44 @@ test("job detail route hides other matter jobs from scoped private beta testers"
     const hiddenDetail = await getJsonWithHttp(baseUrl, `/api/jobs/${hidden.id}`, { cookie });
     assert.equal(hiddenDetail.response.status, 404);
     assert.equal(hiddenDetail.payload.code, "job.not_found");
+  } finally {
+    app.server.close();
+  }
+});
+
+test("create-listofdates route runs through the native skill runner", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-native-skill-listofdates-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Skill Job Matter");
+  await mkdir(appDir, { recursive: true });
+  await writeExtractedTextMatter(matterRoot);
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    aiProvider: async ({ chunk }) => ({
+      entries: [listOfDatesEntry({ citation: chunk[0].citation })],
+    }),
+    jobStatusPath: path.join(tmp, "job-status-ledger.json"),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    await postJson(baseUrl, "/api/switch-matter", { name: "Skill Job Matter" });
+
+    const result = await postJson(baseUrl, "/api/create-listofdates", {
+      matterName: "Skill Job Matter",
+    });
+
+    assert.equal(result.job.kind, "list_of_dates");
+    assert.equal(result.job.metadata.skill.slash, "/create_listofdates");
+    assert.deepEqual(result.job.stages.map((stage) => stage.id), ["build_packet", "generate", "validate", "persist"]);
+    assert.equal(result.receipt.slash, "/create_listofdates");
+    assert.equal(result.receipt.outputPaths.markdown, "10_Library/List of Dates.md");
   } finally {
     app.server.close();
   }

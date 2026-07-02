@@ -4,6 +4,7 @@ import { loadLocalEnv } from "./shared/local-env.mjs";
 import { createListOfDatesOutputPaths } from "./listofdates/artifacts.mjs";
 import { DEFAULT_LIST_OF_DATES_ENGINE_VERSION } from "./listofdates/rendering.mjs";
 import { isTwoPassListOfDatesEnabled } from "./listofdates/run-config.mjs";
+import { runListOfDatesStage } from "./listofdates/stage-recording.mjs";
 import { runCreateListOfDatesOnePass } from "./listofdates/one-pass-runner.mjs";
 import { runCreateListOfDatesTwoPass } from "./listofdates/two-pass-runner.mjs";
 import {
@@ -35,17 +36,29 @@ export async function runCreateListOfDates(options = {}) {
   const dryRun = Boolean(options.dryRun);
   const env = options.env || process.env;
 
-  const matterJson = await readMatterJson(matterRoot);
-  const intakes = getIntakes(matterJson);
-  if (!intakes.length) throw new Error("No intakes recorded in matter.json. Run /matter-init first.");
+  const stageRecorder = options.stageRecorder;
+  const { matterJson, records, inputs } = await runListOfDatesStage(
+    stageRecorder,
+    { id: "build_packet", label: "Build Case Timeline packet" },
+    async () => {
+      const matterJson = await readMatterJson(matterRoot);
+      const intakes = getIntakes(matterJson);
+      if (!intakes.length) throw new Error("No intakes recorded in matter.json. Run /matter-init first.");
 
-  const suppressionWarnings = [];
-  const sourceSuppressionIndex = await readSourceSuppressionIndex(matterRoot, { warnings: suppressionWarnings });
-  const fileIndex = await readFileRegisterIndex(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
-  const records = await readExtractionRecords(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
-  if (!records.length) throw new Error("No extraction records found. Run /extract before /create_listofdates.");
+      const suppressionWarnings = [];
+      const sourceSuppressionIndex = await readSourceSuppressionIndex(matterRoot, { warnings: suppressionWarnings });
+      const fileIndex = await readFileRegisterIndex(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
+      const records = await readExtractionRecords(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
+      if (!records.length) throw new Error("No extraction records found. Run /extract before /create_listofdates.");
 
-  const inputs = await prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun, suppressionWarnings });
+      const inputs = await prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun, suppressionWarnings });
+      return { matterJson, records, inputs };
+    },
+    ({ records = [], inputs = {} } = {}) => ({
+      summary: `Prepared ${records.length} extraction record(s), ${inputs.chronologyBlocks?.length || 0} chronology block(s)`,
+      salvageable: true,
+    }),
+  );
 
   if (isTwoPassListOfDatesEnabled({ env, options })) {
     return runCreateListOfDatesTwoPass({
@@ -56,6 +69,7 @@ export async function runCreateListOfDates(options = {}) {
       matterJson,
       records,
       ...inputs,
+      stageRecorder,
     });
   }
 
@@ -68,6 +82,7 @@ export async function runCreateListOfDates(options = {}) {
     records,
     ...inputs,
     persistArtifacts: !dryRun,
+    stageRecorder,
   });
 }
 

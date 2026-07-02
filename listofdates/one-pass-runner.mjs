@@ -5,6 +5,7 @@ import { buildListOfDatesArtifactFiles, createListOfDatesOutputPaths, writeListO
 import { compareEntries, matterSummary, validateAndHydrateEntries } from "./entries.mjs";
 import { DEFAULT_LIST_OF_DATES_ENGINE_VERSION } from "./rendering.mjs";
 import { mergeAiRunMetadata } from "./run-metadata.mjs";
+import { runListOfDatesStage, skipListOfDatesStage } from "./stage-recording.mjs";
 import { createConfiguredListOfDatesProvider } from "./run-config.mjs";
 import {
   buildSourceBlocks,
@@ -31,6 +32,7 @@ export async function buildCreateListOfDatesFromRecords(options = {}) {
     filteredBlockCount: prepared.filteredBlockCount,
     outputLines: prepared.outputLines,
     persistArtifacts: false,
+    stageRecorder: options.stageRecorder,
   });
 }
 
@@ -92,6 +94,7 @@ export async function runCreateListOfDatesOnePass({
   filteredBlockCount,
   outputLines,
   persistArtifacts = false,
+  stageRecorder,
 }) {
   const configured = createConfiguredListOfDatesProvider({
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
@@ -103,50 +106,84 @@ export async function runCreateListOfDatesOnePass({
 
   const rawEntries = [];
   const responseAiRuns = [];
-  for (const [index, chunk] of chunks.entries()) {
-    const response = await configured.provider({
-      matter: matterSummary(matterJson),
-      chunk,
-      chunkIndex: index + 1,
-      chunkCount: chunks.length,
-      schema: OUTPUT_SCHEMA,
-    });
-    if (!response || !Array.isArray(response.entries)) {
-      const error = new Error(`AI provider returned an invalid list-of-dates payload for chunk ${index + 1}`);
-      error.statusCode = 502;
-      throw error;
-    }
-    rawEntries.push(...response.entries);
-    if (response.ai_run) responseAiRuns.push(response.ai_run);
-    outputLines.push(`[listofdates] AI chunk ${index + 1}/${chunks.length}: ${response.entries.length} candidate event(s)`);
-  }
+  await runListOfDatesStage(
+    stageRecorder,
+    {
+      id: "generate",
+      label: "Generate Case Timeline candidates",
+      provider: configured.baseAiRun.provider,
+      model: configured.baseAiRun.model,
+    },
+    async () => {
+      for (const [index, chunk] of chunks.entries()) {
+        const response = await configured.provider({
+          matter: matterSummary(matterJson),
+          chunk,
+          chunkIndex: index + 1,
+          chunkCount: chunks.length,
+          schema: OUTPUT_SCHEMA,
+        });
+        if (!response || !Array.isArray(response.entries)) {
+          const error = new Error(`AI provider returned an invalid list-of-dates payload for chunk ${index + 1}`);
+          error.statusCode = 502;
+          throw error;
+        }
+        rawEntries.push(...response.entries);
+        if (response.ai_run) responseAiRuns.push(response.ai_run);
+        outputLines.push(`[listofdates] AI chunk ${index + 1}/${chunks.length}: ${response.entries.length} candidate event(s)`);
+      }
+    },
+    () => ({
+      summary: `Generated ${rawEntries.length} candidate event(s) from ${chunks.length} chunk(s)`,
+      salvageable: true,
+    }),
+  );
 
-  const validEntries = validateAndHydrateEntries(rawEntries, chronologyBlocks, sourceIndex);
-  const acceptedEntries = validEntries.sort(compareEntries);
-  const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
-  const aiRun = mergeAiRunMetadata(configured.baseAiRun, responseAiRuns);
-  const artifactFiles = buildListOfDatesArtifactFiles({
-    matterJson,
-    engineVersion,
-    generatedAt: options.generatedAt,
-    aiRun,
-    records,
-    sourceIndex,
-    entries,
-  });
-  const outputPaths = persistArtifacts ? createListOfDatesOutputPaths(matterRoot) : artifactFiles.outputPaths;
+  const validation = await runListOfDatesStage(
+    stageRecorder,
+    { id: "validate", label: "Validate Case Timeline citations" },
+    async () => {
+      const validEntries = validateAndHydrateEntries(rawEntries, chronologyBlocks, sourceIndex);
+      const acceptedEntries = validEntries.sort(compareEntries);
+      const entries = clusterChronologyEntries(acceptedEntries, { compareEntries }).sort(compareEntries);
+      const aiRun = mergeAiRunMetadata(configured.baseAiRun, responseAiRuns);
+      const artifactFiles = buildListOfDatesArtifactFiles({
+        matterJson,
+        engineVersion,
+        generatedAt: options.generatedAt,
+        aiRun,
+        records,
+        sourceIndex,
+        entries,
+      });
+      const outputPaths = persistArtifacts ? createListOfDatesOutputPaths(matterRoot) : artifactFiles.outputPaths;
+      return { validEntries, acceptedEntries, entries, aiRun, artifactFiles, outputPaths };
+    },
+    ({ acceptedEntries = [], entries = [] } = {}) => ({
+      summary: `Accepted ${acceptedEntries.length} cited event(s), rendering ${entries.length} row(s)`,
+      salvageable: true,
+    }),
+  );
+  const { acceptedEntries, entries, aiRun, artifactFiles, outputPaths } = validation;
 
   if (persistArtifacts) {
-    await writeListOfDatesArtifacts({
-      matterRoot,
-      matterJson,
-      engineVersion,
-      generatedAt: options.generatedAt,
-      aiRun,
-      records,
-      sourceIndex,
-      entries,
-    });
+    await runListOfDatesStage(
+      stageRecorder,
+      { id: "persist", label: "Persist Case Timeline artifacts" },
+      () => writeListOfDatesArtifacts({
+        matterRoot,
+        matterJson,
+        engineVersion,
+        generatedAt: options.generatedAt,
+        aiRun,
+        records,
+        sourceIndex,
+        entries,
+      }),
+      () => ({ summary: `Wrote ${outputPaths.json}, ${outputPaths.csv}, ${outputPaths.markdown}` }),
+    );
+  } else {
+    await skipListOfDatesStage(stageRecorder, { id: "persist", label: "Persist Case Timeline artifacts" }, { summary: "Dry run or in-memory build; artifacts were not written here." });
   }
 
   outputLines.push(`[listofdates] accepted ${acceptedEntries.length} cited date event(s)`);
