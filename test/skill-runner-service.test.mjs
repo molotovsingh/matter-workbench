@@ -95,6 +95,52 @@ test("skill runner service refuses stage retry for non-failed jobs", async () =>
   );
 });
 
+test("skill runner service keeps retry requests bound to the failed job matter", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-retry-matter-"));
+  let jobNumber = 0;
+  const seenRequests = [];
+  const retryRunner = {
+    id: "demo_skill",
+    kind: "demo_skill",
+    label: "Demo Skill",
+    async run({ request }) {
+      seenRequests.push(request);
+      if (seenRequests.length === 1) {
+        const error = new Error("Provider returned malformed JSON");
+        error.code = "provider.invalid_json";
+        throw error;
+      }
+      return { state: "written", outputPaths: { markdown: "20_Workshop/Demo.md" } };
+    },
+  };
+  const jobStatusService = createJobStatusService({
+    jobsPath: path.join(tmp, "jobs.json"),
+    idFactory: () => `job_retry_matter_${++jobNumber}`,
+  });
+  const runnerService = createSkillRunnerService({
+    jobStatusService,
+    runners: { "/demo_skill": retryRunner },
+  });
+
+  const failed = await runnerService.start({
+    slash: "/demo_skill",
+    request: { matterName: "Source Matter" },
+    mode: "inline",
+  });
+  assert.equal(failed.job.status, "failed");
+
+  const retried = await runnerService.retry({
+    failedRunId: failed.runId,
+    request: { matterName: "Other Matter" },
+    mode: "inline",
+  });
+
+  assert.equal(retried.job.status, "succeeded");
+  assert.equal(retried.job.matterName, "Source Matter");
+  assert.equal(seenRequests[1].matterName, "Source Matter");
+  assert.equal(seenRequests[1].resumeFromRunId, "job_retry_matter_1");
+});
+
 test("skill runner service reports missing retry source jobs as stable 404s", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-retry-missing-"));
   const runnerService = createSkillRunnerService({

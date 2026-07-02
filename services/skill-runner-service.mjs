@@ -110,9 +110,9 @@ export function createSkillRunnerService({
     return start({
       slash: key,
       request: {
+        ...request,
         matterName: failedJob.matterName || request.matterName,
         matterId: failedJob.matterId || request.matterId,
-        ...request,
         resumeFromRunId: failedJob.id,
         resumeFromStage: stageId,
       },
