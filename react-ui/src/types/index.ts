@@ -341,6 +341,22 @@ export interface JobStatusList {
   jobs: JobStatus[];
 }
 
+export interface NativeSkillRetryRequest {
+  slash: string;
+  matterName?: string;
+  retryOfJobId: string;
+  retryStageId?: string;
+}
+
+export interface NativeSkillRunResult {
+  accepted?: boolean;
+  queued?: boolean;
+  runId?: string;
+  slash?: string;
+  job?: JobStatus;
+  receipt?: Record<string, unknown>;
+}
+
 export interface MatterLogActor {
   username?: string;
   displayName?: string;

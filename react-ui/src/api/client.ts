@@ -27,6 +27,8 @@ import type {
   MatterContextPreview,
   MatterContextSearchResponse,
   MatterLog,
+  NativeSkillRetryRequest,
+  NativeSkillRunResult,
   MatterCopilotAnswer,
   MatterCopilotConversationTurn,
   MatterCopilotResearchAnswer,
@@ -445,6 +447,10 @@ export const api = {
       kind: query.kind,
       status: query.status,
     }));
+  },
+  retryNativeSkillJob: (body: NativeSkillRetryRequest) => {
+    const skill = String(body.slash || '').replace(/^\/+/, '');
+    return postJson<NativeSkillRunResult>(`/api/skill/${encodeURIComponent(skill)}/run`, body);
   },
   getMatterLog: (limit = 100, matterName?: string) => getJson<MatterLog>(withQuery('/api/matter-log', { limit: String(limit), matter: matterName })),
   getPrivateBetaFeedback: (limit = 100) => getJson<PrivateBetaFeedbackList>(`/api/private-beta/feedback?limit=${limit}`),

@@ -31,6 +31,7 @@ export default function ActivityPage() {
   const [feedback, setFeedback] = useState<PrivateBetaFeedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [retryingJobId, setRetryingJobId] = useState('');
   const canReviewFeedback = canSeeOperatorSurface(state.authEnabled, state.authUser);
 
   const loadActivityRuns = useCallback(async (isCancelled: () => boolean = () => false) => {
@@ -105,6 +106,32 @@ export default function ActivityPage() {
       appendTerminal([`[activity] copied job report: ${job.id}`]);
     } catch (e) {
       appendTerminal([`[activity] job copy failed: ${getErrorMessage(e)}`]);
+    }
+  }
+
+  async function handleRetryNativeJob(job: JobStatus) {
+    const slash = nativeSkillSlashForJob(job);
+    if (!slash) {
+      appendTerminal([`[activity] retry unavailable for job ${job.id}`]);
+      return;
+    }
+    const retryStageId = retryStageIdForJob(job);
+    setRetryingJobId(job.id);
+    try {
+      appendTerminal([`[activity] retrying ${slash}${retryStageId ? ` from ${retryStageId}` : ''}`]);
+      const result = await api.retryNativeSkillJob({
+        slash,
+        matterName: job.matterName,
+        retryOfJobId: job.id,
+        ...(retryStageId ? { retryStageId } : {}),
+      });
+      const nextJobId = result.job?.id || result.runId || 'new job';
+      appendTerminal([`[activity] retry started: ${nextJobId}`]);
+      await loadActivityRuns();
+    } catch (e) {
+      appendTerminal([`[activity] retry failed: ${getErrorMessage(e)}`]);
+    } finally {
+      setRetryingJobId('');
     }
   }
 
@@ -259,7 +286,13 @@ export default function ActivityPage() {
           </p>
           <div className="activity-day-list quiet">
             {visibleJobs.map((job) => (
-              <JobCard key={job.id} job={job} onCopy={handleCopyJobReport} />
+              <JobCard
+                key={job.id}
+                job={job}
+                retrying={retryingJobId === job.id}
+                onCopy={handleCopyJobReport}
+                onRetry={handleRetryNativeJob}
+              />
             ))}
           </div>
         </section>
@@ -499,12 +532,23 @@ function formatMatterLogSource(sourceLedger: string): string {
   return humanizeJobKind(sourceLedger || 'ledger');
 }
 
-function JobCard({ job, onCopy }: { job: JobStatus; onCopy: (job: JobStatus) => void }) {
+function JobCard({
+  job,
+  retrying,
+  onCopy,
+  onRetry,
+}: {
+  job: JobStatus;
+  retrying: boolean;
+  onCopy: (job: JobStatus) => void;
+  onRetry: (job: JobStatus) => void;
+}) {
   const finishedTime = job.finishedAt ? formatTime(job.finishedAt) : null;
   const startedTime = formatTime(job.startedAt);
   const statusClass = jobStatusClass(job.status);
   const failureCode = jobFailureCode(job);
   const stages = Array.isArray(job.stages) ? job.stages : [];
+  const canRetry = canRetryNativeJob(job);
   return (
     <article className={`activity-card compact ${statusClass}`}>
       <div className="activity-card-main">
@@ -537,6 +581,11 @@ function JobCard({ job, onCopy }: { job: JobStatus; onCopy: (job: JobStatus) => 
         </time>
       </div>
       <div className="activity-card-actions">
+        {canRetry && (
+          <button className="run-skill-button secondary" type="button" onClick={() => onRetry(job)} disabled={retrying}>
+            {retrying ? 'Retrying…' : 'Retry failed stage'}
+          </button>
+        )}
         <button className="run-skill-button secondary" type="button" onClick={() => onCopy(job)}>
           Copy job report
         </button>
@@ -561,6 +610,30 @@ function JobCard({ job, onCopy }: { job: JobStatus; onCopy: (job: JobStatus) => 
       </div>
     </article>
   );
+}
+
+function canRetryNativeJob(job: JobStatus): boolean {
+  return job.status === 'failed' && Boolean(nativeSkillSlashForJob(job));
+}
+
+function nativeSkillSlashForJob(job: JobStatus): string {
+  const metadataSkill = job.metadata?.skill;
+  const fromMetadata = metadataSkill && typeof metadataSkill === 'object' && !Array.isArray(metadataSkill)
+    ? (metadataSkill as { slash?: unknown }).slash
+    : '';
+  const raw = typeof fromMetadata === 'string' && fromMetadata.trim()
+    ? fromMetadata
+    : (job.label && job.label.startsWith('/') ? job.label : '');
+  const slash = String(raw || '').trim();
+  if (!slash) return '';
+  const normalized = slash.startsWith('/') ? slash : `/${slash}`;
+  return /^\/[a-z0-9_/-]+$/i.test(normalized) ? normalized : '';
+}
+
+function retryStageIdForJob(job: JobStatus): string {
+  const failedStage = Array.isArray(job.stages) ? job.stages.find((stage) => stage?.status === 'failed') : null;
+  const stageId = String(failedStage?.id || '').trim().toLowerCase();
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(stageId) ? stageId : '';
 }
 
 function jobFailureCode(job: JobStatus): string {

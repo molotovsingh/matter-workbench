@@ -305,6 +305,21 @@ test("React Activity output opening is limited to the run matter", async () => {
   });
 });
 
+test("React Activity exposes native failed-stage retry through job cards", async () => {
+  const activitySource = await readFile(reactActivityPagePath, "utf8");
+  const apiSource = await readFile(new URL("../react-ui/src/api/client.ts", import.meta.url), "utf8");
+
+  assert.match(apiSource, /retryNativeSkillJob: \(body: NativeSkillRetryRequest\)/);
+  assert.match(apiSource, /\/api\/skill\/\$\{encodeURIComponent\(skill\)\}\/run/);
+  assert.match(activitySource, /async function handleRetryNativeJob\(job: JobStatus\)/);
+  assert.match(activitySource, /api\.retryNativeSkillJob\(\{/);
+  assert.match(activitySource, /retryOfJobId: job\.id/);
+  assert.match(activitySource, /retryStageIdForJob\(job\)/);
+  assert.match(activitySource, /Retry failed stage/);
+  assert.match(activitySource, /function canRetryNativeJob\(job: JobStatus\): boolean/);
+  assert.match(activitySource, /job\.status === 'failed' && Boolean\(nativeSkillSlashForJob\(job\)\)/);
+});
+
 test("React Activity groups custom skill attention from receipt state", async () => {
   const source = await readFile(reactActivityPagePath, "utf8");
 
