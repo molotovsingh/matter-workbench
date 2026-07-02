@@ -4,7 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createMatterCopilotService } from "../services/matter-copilot-service.mjs";
-import { createDefaultMatterCopilotProvider } from "../services/matter-copilot-providers.mjs";
+import {
+  COPILOT_ANSWER_SYSTEM_PROMPT,
+  copilotUserPayload,
+  createDefaultMatterCopilotProvider,
+} from "../services/matter-copilot-providers.mjs";
 import { toCsv } from "../shared/csv.mjs";
 
 const HASH_ONE = "1".repeat(64);
@@ -45,6 +49,19 @@ test("matter copilot answers from bounded context and validates citations", asyn
   assert.equal(answer.ai_run.task, "copilot_answer");
   assert.equal(answer.ai_run.policyPromptVersion, "legal-workbench-policy/v1");
   assert.deepEqual(answer.sources.map((source) => source.raw_citation), ["FILE-0001 p1.b2"]);
+});
+
+test("matter copilot prompt keeps procedural posture chat distinct from saved native artifacts", () => {
+  const payload = copilotUserPayload({
+    question: "procedural posture?",
+    matterContext: {},
+  });
+
+  assert.match(COPILOT_ANSWER_SYSTEM_PROMPT, /procedural posture, filing forum, current case stage/i);
+  assert.match(COPILOT_ANSWER_SYSTEM_PROMPT, /Do not imply that a Filing and Procedural Posture Diagnosis artifact was saved/i);
+  assert.match(COPILOT_ANSWER_SYSTEM_PROMPT, /\/procedural_posture_diagnosis creates the saved diagnosis artifact and receipt/i);
+  assert.ok(payload.strict_rules.some((rule) => /run \/procedural_posture_diagnosis to save/i.test(rule)));
+  assert.ok(payload.visible_answer_voice.some((rule) => /do not imply the answer was saved/i.test(rule)));
 });
 
 test("matter copilot passes bounded conversation context only as reference context", async () => {
