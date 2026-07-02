@@ -281,6 +281,10 @@ test("job detail route exposes a native run receipt without work product", async
     assert.deepEqual(detail.receipt.failure.salvageableStageIds, ["proposer"]);
     assert.equal(detail.receipt.recovery.action, "retry_stage");
     assert.doesNotMatch(JSON.stringify(detail), /sk-native-secret/);
+
+    const malformed = await getJsonWithHttp(baseUrl, "/api/jobs/%E0%A4%A");
+    assert.equal(malformed.response.status, 404);
+    assert.equal(malformed.payload.code, "job.not_found");
   } finally {
     app.server.close();
   }

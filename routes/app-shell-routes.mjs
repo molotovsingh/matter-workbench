@@ -120,7 +120,7 @@ export async function handleAppShellApiRequest({ request, requestUrl, response, 
         const detail = await readScopedJobDetail({
           jobStatusService,
           matterStore,
-          jobId: decodeURIComponent(params[0] || ""),
+          jobId: safeDecodePathParam(params[0]),
         });
         if (!detail) {
           sendJson(response, 404, { error: "Job not found", code: "job.not_found" });
@@ -821,6 +821,14 @@ async function readScopedJobDetail({ jobStatusService, matterStore, jobId }) {
     job,
     receipt: deriveNativeSkillRunReceipt(nativeReceiptInputForJob(job)),
   };
+}
+
+function safeDecodePathParam(value = "") {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return "";
+  }
 }
 
 function nativeReceiptInputForJob(job = {}) {
