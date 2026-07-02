@@ -513,8 +513,8 @@ As of the `feature/native-skill-runner-posture` implementation slice:
 - `/create_listofdates` now records `build_packet`, one-pass `generate`, two-pass
   `candidate_pass`/`editor_pass`, `validate`, and `persist` stages; stage retry is deliberately
   marked unsupported until candidate-ledger reuse semantics are promoted to the runner contract.
-- `/describe-sources` records route-level `label_pass` progress and total-batch failure attribution;
-  full runner migration remains a later phase.
+- `/describe_sources` runs through a native runner with `label_pass` progress and total-batch failure
+  attribution while preserving existing Source Index output semantics.
 - `POST /api/skill/:slash/run` exists as a thin native alias for the migrated skills, and Activity can
   copy metadata-only reports or retry failed native runs/stages according to runner capability.
 
