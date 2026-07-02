@@ -390,7 +390,6 @@ export default function MainContent({
           onNewMatter={onNewMatter}
           onOpenMatter={onOpenMatter}
           onViewAllMatters={onViewAllMatters}
-          onCommand={onCommand}
           onRunNeededPreparation={onRunNeededPreparation}
           onForceFullPreparation={onForceFullPreparation}
           showMatterBrowser={activeView === 'find-matter'}
@@ -402,7 +401,6 @@ export default function MainContent({
             onNewMatter={onNewMatter}
             onOpenMatter={onOpenMatter}
             onViewAllMatters={onViewAllMatters}
-            onCommand={onCommand}
             onRunNeededPreparation={onRunNeededPreparation}
             onForceFullPreparation={onForceFullPreparation}
             showMatterBrowser={activeView === 'find-matter'}

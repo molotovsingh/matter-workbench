@@ -5,7 +5,7 @@ import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
 import { CASE_TIMELINE_DEPENDENCY_STATES } from '../lib/caseTimelineDependencyState';
 import { formatMissingMatterDetails } from '../lib/matterDetails';
-import { cleanCommandLabel, commandPill, OVERVIEW_NATIVE_COMMANDS } from '../lib/nativeCommands';
+import { cleanCommandLabel } from '../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import { PREPARATION_STAGE_ACTIONS } from '../lib/preparationStageActions';
@@ -23,12 +23,11 @@ import type {
 } from '../types';
 
 interface Props {
-  onCommand: (command: string) => void;
   onRunNeededPreparation: (matterName: string, startStage?: string) => void;
   onForceFullPreparation: (matterName: string, reason: string) => void;
 }
 
-export default function MatterOverview({ onCommand, onRunNeededPreparation, onForceFullPreparation }: Props) {
+export default function MatterOverview({ onRunNeededPreparation, onForceFullPreparation }: Props) {
   const { state, refreshActiveMatterWorkspace, appendTerminal } = useApp();
   const matter = state.activeMatter!;
   const meta = matter.metadata ?? {};
@@ -60,7 +59,7 @@ export default function MatterOverview({ onCommand, onRunNeededPreparation, onFo
       </section>
 
       <MatterStoryCard meta={meta} />
-      <ProceduralPostureCard matterName={matter.name} refreshKey={preparationRefreshKey} onCommand={onCommand} />
+      <ProceduralPostureCard matterName={matter.name} refreshKey={preparationRefreshKey} />
 
       <dl className="matter-info-card">
         <dt>Client</dt>
@@ -91,18 +90,6 @@ export default function MatterOverview({ onCommand, onRunNeededPreparation, onFo
         onRunNeededPreparation={onRunNeededPreparation}
         onForceFullPreparation={onForceFullPreparation}
       />
-
-      <div className="form-actions matter-run-actions">
-        {OVERVIEW_NATIVE_COMMANDS.map((command) => (
-          <SkillButton
-            key={command.command}
-            command={command.command}
-            onClick={onCommand}
-            disabled={command.command === '/matter-init' && missingFields.length > 0}
-            secondary={command.overviewPlacement === 'secondary'}
-          />
-        ))}
-      </div>
 
       <AttentionCard matterName={matter.name} refreshKey={preparationRefreshKey} preparationRun={preparationRun} />
     </div>
@@ -157,11 +144,9 @@ function MatterStoryCard({ meta }: { meta: MatterMetadata }) {
 function ProceduralPostureCard({
   matterName,
   refreshKey,
-  onCommand,
 }: {
   matterName: string;
   refreshKey: string;
-  onCommand: (command: string) => void;
 }) {
   const [status, setStatus] = useState<ProceduralPostureDiagnosisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -256,24 +241,8 @@ function ProceduralPostureCard({
       </div>
       <PostureSummary status={status} />
       {state === 'blocked' && <p className="muted">{postureBlockedMessage(status)}</p>}
-      {state === 'missing' && <p className="muted">Diagnosis has not been generated yet. Run saved procedural diagnosis to create it without rebuilding current upstream preparation.</p>}
-      {state === 'stale' || state === 'needs_reconfirmation' ? <p className="form-error">Case Timeline or Matter Story changed. Refresh diagnosis before relying on it.</p> : null}
-      {canRunSavedPostureDiagnosis(state) && (
-        <div className="posture-action-panel">
-          <p className="muted">
-            {state === 'missing'
-              ? 'This runs only the saved Case Analysis diagnosis when Case Timeline and Matter Story are ready.'
-              : 'This refreshes the saved diagnosis and will ask before replacing the existing artifact.'}
-          </p>
-          <button
-            type="button"
-            className="run-skill-button"
-            onClick={() => onCommand('/procedural_posture_diagnosis')}
-          >
-            {state === 'missing' ? 'Run saved procedural diagnosis' : 'Refresh saved diagnosis'}
-          </button>
-        </div>
-      )}
+      {state === 'missing' && <p className="muted">Diagnosis has not been generated yet. Use the Procedural Diagnosis row below to run and save it.</p>}
+      {state === 'stale' || state === 'needs_reconfirmation' ? <p className="form-error">Case Timeline or Matter Story changed. Use the Procedural Diagnosis row below to refresh the saved diagnosis before relying on it.</p> : null}
       {readyForConfirmation && (
         <div className="posture-confirmation-panel">
           <p className="muted">
@@ -301,10 +270,6 @@ function ProceduralPostureCard({
       )}
     </section>
   );
-}
-
-function canRunSavedPostureDiagnosis(state: string): boolean {
-  return state === 'missing' || state === 'stale' || state === 'needs_reconfirmation';
 }
 
 function postureStateLabel(state: string): string {
@@ -552,12 +517,12 @@ function StageRow({
       <StageArtifacts stage={stage} />
       <StageAiRun aiRun={stage.aiRun} />
       {stage.rerunAdvice && <StageRerunHint stage={stage} />}
-      <StageRunFromHereAction stage={stage} disabled={isPreparationRunning} onRunFromStage={onRunFromStage} />
+      <StagePrimaryAction stage={stage} disabled={isPreparationRunning} onRunFromStage={onRunFromStage} />
     </div>
   );
 }
 
-function StageRunFromHereAction({
+function StagePrimaryAction({
   stage,
   disabled,
   onRunFromStage,
@@ -566,27 +531,109 @@ function StageRunFromHereAction({
   disabled: boolean;
   onRunFromStage: (startStage: string) => void;
 }) {
-  if (!canRunPreparationFromStage(stage)) return null;
-  const startStage = stage.slash || stage.id || '';
-  if (!startStage) return null;
+  const action = stagePrimaryAction(stage);
+  if (!action) return null;
+  const startStage = action.startStage || stage.slash || stage.id || '';
+  if (!startStage && !action.disabled) return null;
   return (
     <div className="pipeline-stage-actions">
       <button
         type="button"
-        className="secondary-button"
-        onClick={() => onRunFromStage(startStage)}
-        disabled={disabled}
+        className={`run-skill-button${action.primary ? '' : ' secondary'}`}
+        onClick={() => { if (!action.disabled) onRunFromStage(startStage); }}
+        disabled={disabled || action.disabled}
       >
-        Run needed from here
+        {action.label}
       </button>
+      {action.hint && <span className="pipeline-stage-action-hint">{action.hint}</span>}
     </div>
   );
+}
+
+function stagePrimaryAction(stage: PreparationStage): { label: string; hint: string; disabled?: boolean; primary?: boolean; startStage?: string } | null {
+  const slash = stage.slash || '';
+  const state = String(stage.state || '').trim();
+
+  if (stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED) {
+    return {
+      label: blockedActionLabel(stage),
+      hint: stage.reason || 'Resolve the upstream dependency first.',
+      disabled: true,
+      startStage: slash,
+    };
+  }
+
+  if (slash === '/matter-init') {
+    if (stageIsCurrent(stage)) return null;
+    return { label: 'Set up matter', hint: 'Creates matter setup files before preparation can continue.', startStage: slash };
+  }
+
+  if (slash === '/extract') {
+    if (stageIsCurrent(stage)) return null;
+    return { label: 'Read documents', hint: 'Runs local document reading before source labels.', startStage: slash };
+  }
+
+  if (slash === '/describe_sources') {
+    return {
+      label: stageIsCurrent(stage) || state === 'stale' ? 'Refresh from Source Labels' : 'Run Source Labels',
+      hint: 'Checks source labels and downstream stages; skips current work.',
+      primary: !stageIsCurrent(stage),
+      startStage: slash,
+    };
+  }
+
+  if (slash === '/create_listofdates') {
+    return {
+      label: stageIsCurrent(stage) || state === 'stale' ? 'Refresh from Case Timeline' : 'Build Case Timeline',
+      hint: 'Starts at Case Timeline; does not re-read documents when upstream is current.',
+      primary: !stageIsCurrent(stage),
+      startStage: slash,
+    };
+  }
+
+  if (slash === '/the_story') {
+    return {
+      label: stageIsCurrent(stage) || state === 'stale' ? 'Refresh from Matter Story' : 'Write Matter Story',
+      hint: 'Starts at Story and continues to downstream diagnosis if needed.',
+      primary: !stageIsCurrent(stage),
+      startStage: slash,
+    };
+  }
+
+  if (slash === '/procedural_posture_diagnosis') {
+    if (state === 'current_unconfirmed') {
+      return {
+        label: 'Confirm in Case Analysis card',
+        hint: 'The diagnosis is saved; use the confirmation controls above before relying on it.',
+        disabled: true,
+        startStage: slash,
+      };
+    }
+    if (stageIsCurrent(stage)) return null;
+    return {
+      label: state === 'stale' ? 'Refresh saved Procedural Diagnosis' : 'Run saved Procedural Diagnosis',
+      hint: 'Creates the Case Analysis Markdown/JSON artifact, job, and receipt. Not chat.',
+      primary: true,
+      startStage: slash,
+    };
+  }
+
+  return null;
+}
+
+function blockedActionLabel(stage: PreparationStage): string {
+  if (stage.slash === '/describe_sources') return 'Needs documents first';
+  if (stage.slash === '/create_listofdates') return 'Needs Source Labels first';
+  if (stage.slash === '/the_story') return 'Needs Case Timeline first';
+  if (stage.slash === '/procedural_posture_diagnosis') return 'Needs Matter Story first';
+  if (stage.slash === '/extract') return 'Needs matter setup first';
+  if (stage.slash === '/matter-init') return 'Needs matter details';
+  return 'Blocked';
 }
 
 function StageReason({ stage }: { stage: PreparationStage }) {
   const reason = String(stage.reason || '').trim();
   if (!reason || stage.rerunAdvice) return null;
-  if (stageIsCurrent(stage) && stage.action === PREPARATION_STAGE_ACTIONS.SKIP_CURRENT) return null;
   return <p className="pipeline-stage-reason">{sentenceWithPeriod(reason)}</p>;
 }
 
@@ -796,33 +843,6 @@ function AttentionItemRow({ item }: { item: AttentionItem }) {
   );
 }
 
-// ─── Skill action buttons ─────────────────────────────────
-
-function SkillButton({
-  command,
-  onClick,
-  secondary = false,
-  disabled = false,
-}: {
-  command: string;
-  onClick: (cmd: string) => void;
-  secondary?: boolean;
-  disabled?: boolean;
-}) {
-  const label = cleanCommandLabel(command);
-  const pill = commandPill(command);
-  return (
-    <button
-      type="button"
-      className={`run-skill-button${secondary ? ' secondary' : ''}`}
-      disabled={disabled}
-      onClick={() => onClick(command)}
-    >
-      {label} {pill && <span>{pill}</span>}
-    </button>
-  );
-}
-
 // ─── Helper functions ─────────────────────────────────────
 
 function preparationHeadlineLabel({
@@ -865,7 +885,7 @@ function preparationSummaryText(preparationRun: PreparationRunStatus | null, sta
     return preparationRun.message || 'Automatic preparation is running. You can keep reviewing the matter while it works.';
   }
   if (stages?.some(stageIsRunnable)) {
-    return 'Run needed preparation to refresh the next required step; Matter Workbench will continue through downstream steps as they unblock.';
+    return 'Use the action on the relevant row. Matter Workbench will skip current upstream work and continue through downstream steps as they unblock.';
   }
   if (preparationRun?.state === 'blocked') {
     return 'Automatic preparation stopped. Review the advisory before drafting.';
@@ -879,13 +899,6 @@ function preparationSummaryText(preparationRun: PreparationRunStatus | null, sta
 function stageIsRunnable(stage: PreparationStage): boolean {
   return stage.action === PREPARATION_STAGE_ACTIONS.RUN
     || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN;
-}
-
-function canRunPreparationFromStage(stage: PreparationStage): boolean {
-  if (!stage.slash) return false;
-  if (stage.slash === '/matter-init' || stage.slash === '/extract') return false;
-  if (stage.action === PREPARATION_STAGE_ACTIONS.BLOCKED) return false;
-  return true;
 }
 
 function stageNeedsUpdate(stage: PreparationStage): boolean {

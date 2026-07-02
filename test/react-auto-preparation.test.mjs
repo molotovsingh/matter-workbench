@@ -77,7 +77,7 @@ test("React matter overview renders Matter Workbench story before original intak
   const postureSummary = await readFile(postureSummaryPath, "utf8");
 
   assert.match(overview, /<MatterStoryCard meta=\{meta\} \/>/);
-  assert.match(overview, /<ProceduralPostureCard matterName=\{matter\.name\} refreshKey=\{preparationRefreshKey\} onCommand=\{onCommand\} \/>/);
+  assert.match(overview, /<ProceduralPostureCard matterName=\{matter\.name\} refreshKey=\{preparationRefreshKey\} \/>/);
   assert.match(overview, /import \{ PostureSummary \} from '..\/components\/matters\/PostureSummary'/);
   assert.match(overview, /Matter Workbench story/);
   assert.match(overview, /Author: MW/);
@@ -89,9 +89,9 @@ test("React matter overview renders Matter Workbench story before original intak
   assert.match(postureSummary, /Recommended route:/);
   assert.match(postureSummary, /Next best actions/);
   assert.match(postureSummary, /Full legal routes are saved in/);
-  assert.match(overview, /Run saved procedural diagnosis/);
-  assert.match(overview, /Refresh saved diagnosis/);
-  assert.match(overview, /onCommand\('\/procedural_posture_diagnosis'\)/);
+  assert.match(overview, /Run saved Procedural Diagnosis/);
+  assert.match(overview, /Refresh saved Procedural Diagnosis/);
+  assert.match(overview, /Creates the Case Analysis Markdown\/JSON artifact, job, and receipt\. Not chat\./);
   assert.match(overview, /Confirm working posture/);
   assert.match(overview, /Disagree \/ correct/);
   assert.match(overview, /Not sure yet/);
@@ -128,7 +128,7 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.match(app, /onForceFullPreparation=\{handleForceFullPreparation\}/);
   assert.match(mainContent, /onRunNeededPreparation: \(matterName: string, startStage\?: string\) => void/);
   assert.match(mainContent, /onForceFullPreparation: \(matterName: string, reason: string\) => void/);
-  assert.match(homeLanding, /<MatterOverview onCommand=\{onCommand\} onRunNeededPreparation=\{onRunNeededPreparation\} onForceFullPreparation=\{onForceFullPreparation\} \/>/);
+  assert.match(homeLanding, /<MatterOverview onRunNeededPreparation=\{onRunNeededPreparation\} onForceFullPreparation=\{onForceFullPreparation\} \/>/);
   assert.match(overview, /Run needed preparation/);
   assert.match(overview, /Advanced: force full rebuild/);
   assert.match(overview, /Type REBUILD to confirm/);
@@ -141,11 +141,17 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.match(overview, /const isPreparationRunning = preparationRun\?\.state === 'running'/);
   assert.match(overview, /disabled=\{isPreparationRunning\}/);
   assert.match(overview, /onRunNeededPreparation\(matterName\)/);
-  assert.match(overview, /Run needed from here/);
+  assert.doesNotMatch(overview, /Run needed from here/);
+  assert.match(overview, /Refresh from Source Labels/);
+  assert.match(overview, /Refresh from Case Timeline/);
+  assert.match(overview, /Refresh from Matter Story/);
+  assert.match(overview, /Run saved Procedural Diagnosis/);
+  assert.match(overview, /Needs Case Timeline first/);
+  assert.match(overview, /Needs Matter Story first/);
   assert.match(overview, /onRunNeededPreparation\(matterName, startStage\)/);
   assert.match(overview, /stages\.some\(stageIsBlocked\)/);
   assert.match(overview, /stage\.state === 'current_unconfirmed'\) return false/);
-  assert.match(overview, /Diagnosis has not been generated yet\. Run saved procedural diagnosis to create it without rebuilding current upstream preparation\./);
+  assert.match(overview, /Diagnosis has not been generated yet\. Use the Procedural Diagnosis row below to run and save it\./);
 });
 
 test("React automatic preparation does not report prepared when workspace refresh fails", async () => {
