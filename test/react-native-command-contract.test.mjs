@@ -10,6 +10,7 @@ import {
 const nativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const nativeAliasesPath = new URL("../react-ui/src/lib/nativeCommandAliases.ts", import.meta.url);
 const reactAppPath = new URL("../react-ui/src/App.tsx", import.meta.url);
+const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
 
 test("React native commands mirror shared slash commands and aliases", async () => {
   const [commandsSource, aliasesSource] = await Promise.all([
@@ -68,4 +69,13 @@ test("React app shell runs procedural posture diagnosis as a native skill", asyn
   assert.match(appSource, /window\.confirm\(/);
   assert.match(appSource, /api\.runProceduralPostureDiagnosis\(\{ matterName, overwrite \}\)/);
   assert.match(appSource, /20_Workshop\/Case Analysis\/Filing and Procedural Posture Diagnosis\.md/);
+});
+
+test("React command panel offers durable posture diagnosis after chat-only answers", async () => {
+  const commandPanelSource = await readFile(commandPanelPath, "utf8");
+
+  assert.match(commandPanelSource, /shouldShowSavedPostureDiagnosisCta/);
+  assert.match(commandPanelSource, /This Assistant answer is chat-only/);
+  assert.match(commandPanelSource, /Run saved procedural diagnosis/);
+  assert.match(commandPanelSource, /onCommand\('\/procedural_posture_diagnosis'\)/);
 });

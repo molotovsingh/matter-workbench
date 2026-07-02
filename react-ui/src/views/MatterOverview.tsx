@@ -60,7 +60,7 @@ export default function MatterOverview({ onCommand, onRunNeededPreparation, onFo
       </section>
 
       <MatterStoryCard meta={meta} />
-      <ProceduralPostureCard matterName={matter.name} refreshKey={preparationRefreshKey} />
+      <ProceduralPostureCard matterName={matter.name} refreshKey={preparationRefreshKey} onCommand={onCommand} />
 
       <dl className="matter-info-card">
         <dt>Client</dt>
@@ -154,7 +154,15 @@ function MatterStoryCard({ meta }: { meta: MatterMetadata }) {
   );
 }
 
-function ProceduralPostureCard({ matterName, refreshKey }: { matterName: string; refreshKey: string }) {
+function ProceduralPostureCard({
+  matterName,
+  refreshKey,
+  onCommand,
+}: {
+  matterName: string;
+  refreshKey: string;
+  onCommand: (command: string) => void;
+}) {
   const [status, setStatus] = useState<ProceduralPostureDiagnosisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -248,8 +256,24 @@ function ProceduralPostureCard({ matterName, refreshKey }: { matterName: string;
       </div>
       <PostureSummary status={status} />
       {state === 'blocked' && <p className="muted">{postureBlockedMessage(status)}</p>}
-      {state === 'missing' && <p className="muted">Diagnosis has not been generated yet. Run needed preparation to create it.</p>}
+      {state === 'missing' && <p className="muted">Diagnosis has not been generated yet. Run saved procedural diagnosis to create it without rebuilding current upstream preparation.</p>}
       {state === 'stale' || state === 'needs_reconfirmation' ? <p className="form-error">Case Timeline or Matter Story changed. Refresh diagnosis before relying on it.</p> : null}
+      {canRunSavedPostureDiagnosis(state) && (
+        <div className="posture-action-panel">
+          <p className="muted">
+            {state === 'missing'
+              ? 'This runs only the saved Case Analysis diagnosis when Case Timeline and Matter Story are ready.'
+              : 'This refreshes the saved diagnosis and will ask before replacing the existing artifact.'}
+          </p>
+          <button
+            type="button"
+            className="run-skill-button"
+            onClick={() => onCommand('/procedural_posture_diagnosis')}
+          >
+            {state === 'missing' ? 'Run saved procedural diagnosis' : 'Refresh saved diagnosis'}
+          </button>
+        </div>
+      )}
       {readyForConfirmation && (
         <div className="posture-confirmation-panel">
           <p className="muted">
@@ -277,6 +301,10 @@ function ProceduralPostureCard({ matterName, refreshKey }: { matterName: string;
       )}
     </section>
   );
+}
+
+function canRunSavedPostureDiagnosis(state: string): boolean {
+  return state === 'missing' || state === 'stale' || state === 'needs_reconfirmation';
 }
 
 function postureStateLabel(state: string): string {

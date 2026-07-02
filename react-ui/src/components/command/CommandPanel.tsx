@@ -85,6 +85,7 @@ export default function CommandPanel({
   const canManageCopilotSettings = canSeeOperatorSurface(state.authEnabled, state.authUser);
   const canUseResearch = Boolean(state.config?.copilotWebResearchEnabled);
   const copilotQuickSwitch = useCopilotQuickSwitch(canManageCopilotSettings);
+  const showSavedPostureDiagnosisCta = shouldShowSavedPostureDiagnosisCta(copilotThread);
   const choiceLabels = pendingIntentChoice ? intentChoiceLabels(pendingIntentChoice.decision) : null;
   const primaryChoiceNeedsCopilot = pendingIntentChoice
     ? !isExistingSkillChoice(pendingIntentChoice.decision)
@@ -365,6 +366,24 @@ export default function CommandPanel({
         </div>
       )}
 
+      {showSavedPostureDiagnosisCta && (
+        <div className="intent-choice-panel saved-posture-diagnosis-panel" style={{ order: 3 }}>
+          <div className="intent-choice-title">Save the procedural diagnosis?</div>
+          <p>
+            This Assistant answer is chat-only. To create the matter artifact, run the saved native diagnosis.
+          </p>
+          <div className="intent-choice-actions">
+            <button
+              type="button"
+              onClick={() => onCommand('/procedural_posture_diagnosis')}
+              disabled={state.isCommandRunning}
+            >
+              Run saved procedural diagnosis
+            </button>
+          </div>
+        </div>
+      )}
+
       {pendingResearchChoice && (
         <div className="intent-choice-panel research-choice-panel" style={{ order: 3 }}>
           <div className="intent-choice-title">This may need public legal research</div>
@@ -561,6 +580,15 @@ export default function CommandPanel({
       />
     </aside>
   );
+}
+
+function shouldShowSavedPostureDiagnosisCta(copilotThread: CopilotThreadTurn[]): boolean {
+  const latestAnswer = [...copilotThread]
+    .reverse()
+    .find((turn) => turn.role === 'assistant' && turn.mode === 'ask');
+  const text = latestAnswer?.text || '';
+  return /\/procedural_posture_diagnosis/.test(text)
+    && /(chat-only|not saved|saved diagnosis artifact|Filing and Procedural Posture Diagnosis)/i.test(text);
 }
 
 function commandForMode(mode: CommandMode, command: string): string {
