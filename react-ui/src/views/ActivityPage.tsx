@@ -115,7 +115,7 @@ export default function ActivityPage() {
       appendTerminal([`[activity] retry unavailable for job ${job.id}`]);
       return;
     }
-    const retryStageId = retryStageIdForJob(job);
+    const retryStageId = stageRetrySupportedForJob(job) ? retryStageIdForJob(job) : '';
     setRetryingJobId(job.id);
     try {
       appendTerminal([`[activity] retrying ${slash}${retryStageId ? ` from ${retryStageId}` : ''}`]);
@@ -549,6 +549,7 @@ function JobCard({
   const failureCode = jobFailureCode(job);
   const stages = Array.isArray(job.stages) ? job.stages : [];
   const canRetry = canRetryNativeJob(job);
+  const stageRetrySupported = stageRetrySupportedForJob(job);
   return (
     <article className={`activity-card compact ${statusClass}`}>
       <div className="activity-card-main">
@@ -583,7 +584,7 @@ function JobCard({
       <div className="activity-card-actions">
         {canRetry && (
           <button className="run-skill-button secondary" type="button" onClick={() => onRetry(job)} disabled={retrying}>
-            {retrying ? 'Retrying…' : 'Retry failed stage'}
+            {retrying ? 'Retrying…' : (stageRetrySupported ? 'Retry failed stage' : 'Retry run')}
           </button>
         )}
         <button className="run-skill-button secondary" type="button" onClick={() => onCopy(job)}>
@@ -628,6 +629,12 @@ function nativeSkillSlashForJob(job: JobStatus): string {
   if (!slash) return '';
   const normalized = slash.startsWith('/') ? slash : `/${slash}`;
   return /^\/[a-z0-9_/-]+$/i.test(normalized) ? normalized : '';
+}
+
+function stageRetrySupportedForJob(job: JobStatus): boolean {
+  const metadataSkill = job.metadata?.skill;
+  if (!metadataSkill || typeof metadataSkill !== 'object' || Array.isArray(metadataSkill)) return false;
+  return (metadataSkill as { stageRetrySupported?: unknown }).stageRetrySupported === true;
 }
 
 function retryStageIdForJob(job: JobStatus): string {

@@ -314,8 +314,9 @@ test("React Activity exposes native failed-stage retry through job cards", async
   assert.match(activitySource, /async function handleRetryNativeJob\(job: JobStatus\)/);
   assert.match(activitySource, /api\.retryNativeSkillJob\(\{/);
   assert.match(activitySource, /retryOfJobId: job\.id/);
-  assert.match(activitySource, /retryStageIdForJob\(job\)/);
+  assert.match(activitySource, /stageRetrySupportedForJob\(job\) \? retryStageIdForJob\(job\) : ''/);
   assert.match(activitySource, /Retry failed stage/);
+  assert.match(activitySource, /Retry run/);
   assert.match(activitySource, /function canRetryNativeJob\(job: JobStatus\): boolean/);
   assert.match(activitySource, /job\.status === 'failed' && Boolean\(nativeSkillSlashForJob\(job\)\)/);
 });

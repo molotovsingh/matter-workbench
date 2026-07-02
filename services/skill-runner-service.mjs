@@ -47,6 +47,7 @@ export function createSkillRunnerService({
           slash: key,
           skillId: runner.id || kindFromSlash(key),
           idempotencyKey: String(idempotencyKey || "").trim(),
+          stageRetrySupported: Boolean(runner.supportsStageRetry),
         },
       },
     });
@@ -106,7 +107,9 @@ export function createSkillRunnerService({
     }
     if (failedJob.status !== "failed") throw retrySourceNotFailedError(failedJob);
     const key = normalizeSlash(slash || failedJob.metadata?.skill?.slash || failedJob.slash || "");
-    const stageId = normalizeStageId(retryStageId || recoveryRetryStageId(failedJob));
+    const { runner } = resolveRunner(key);
+    const stageRetrySupported = Boolean(runner.supportsStageRetry || failedJob.metadata?.skill?.stageRetrySupported === true);
+    const stageId = stageRetrySupported ? normalizeStageId(retryStageId || recoveryRetryStageId(failedJob)) : "";
     return start({
       slash: key,
       request: {

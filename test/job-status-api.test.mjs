@@ -464,7 +464,7 @@ test("unified native skill alias can retry a failed native job", async () => {
 
     assert.equal(result.job.status, "succeeded");
     assert.equal(result.job.metadata.retry.ofRunId, "job_failed_story_retry_source");
-    assert.equal(result.job.metadata.retry.retryStageId, "generate");
+    assert.equal(result.job.metadata.retry.retryStageId, undefined);
     assert.equal(result.receipt.slash, "/the_story");
     const jobs = await getJson(baseUrl, "/api/jobs?kind=custom_skill");
     assert.equal(jobs.jobs.length, 2);

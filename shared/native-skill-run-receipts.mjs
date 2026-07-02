@@ -25,6 +25,7 @@ export function deriveNativeSkillRunReceipt(input = {}) {
   const failedStage = stages.find((stage) => stage.status === "failed") || null;
   const receiptState = deriveReceiptState({ job, input, outputPaths, outputAvailability });
   const failure = deriveFailure({ job, failedStage, stages });
+  const stageRetrySupported = job.metadata?.skill?.stageRetrySupported !== false;
 
   return {
     schema_version: NATIVE_SKILL_RUN_RECEIPT_SCHEMA_VERSION,
@@ -47,7 +48,7 @@ export function deriveNativeSkillRunReceipt(input = {}) {
     outputFileStatusLabel: formatConfigurableSkillRunOutputAvailability(outputAvailability.markdown),
     warnings: normalizeWarnings(input.warnings || job.warnings || []),
     ...(failure ? { failure } : {}),
-    recovery: deriveRecovery({ receiptState, failure, failedStage }),
+    recovery: deriveRecovery({ receiptState, failure, failedStage, stageRetrySupported }),
   };
 }
 
@@ -95,7 +96,7 @@ function salvageableStageIdsBeforeFailure(stages = [], failedStage = null) {
   return ids;
 }
 
-function deriveRecovery({ receiptState, failure, failedStage }) {
+function deriveRecovery({ receiptState, failure, failedStage, stageRetrySupported = true }) {
   if (receiptState === NATIVE_SKILL_RUN_RECEIPT_STATES.RUNNING) {
     return { action: "observe", reason: "run_in_progress" };
   }
@@ -106,7 +107,7 @@ function deriveRecovery({ receiptState, failure, failedStage }) {
     return { action: "approve_overwrite", reason: "output_exists" };
   }
   if (!failure) return { action: "none", reason: "terminal_without_failure" };
-  if (failure.retryable && failedStage?.id) {
+  if (failure.retryable && failedStage?.id && stageRetrySupported) {
     return { action: "retry_stage", retryStageId: failedStage.id, reason: failure.code || failure.class };
   }
   if (failure.retryable) return { action: "retry_run", reason: failure.code || failure.class };

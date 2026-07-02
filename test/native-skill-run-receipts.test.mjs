@@ -58,6 +58,31 @@ test("native skill receipt attributes provider failures to the failed stage", ()
   assert.deepEqual(receipt.stages.map((stage) => stage.id), ["build_packet", "proposer", "critic", "finalizer"]);
 });
 
+test("native skill receipt uses whole-run recovery when stage retry is unsupported", () => {
+  const receipt = deriveNativeSkillRunReceipt({
+    slash: "/the_story",
+    skillId: "builtin_the_story",
+    job: {
+      id: "job_story_failed",
+      kind: "custom_skill",
+      status: "failed",
+      errorCode: "provider.invalid_json",
+      failureClass: "provider",
+      errorMessage: "Unexpected end of JSON input",
+      metadata: { skill: { slash: "/the_story", stageRetrySupported: false } },
+      stages: [
+        { id: "generate", status: "failed", failureCode: "provider.invalid_json", failureClass: "provider" },
+      ],
+    },
+  });
+
+  assert.equal(receipt.failure.stageId, "generate");
+  assert.deepEqual(receipt.recovery, {
+    action: "retry_run",
+    reason: "provider.invalid_json",
+  });
+});
+
 test("native skill receipt treats insufficient record as successful review work", () => {
   const receipt = deriveNativeSkillRunReceipt({
     slash: "/procedural_posture_diagnosis",

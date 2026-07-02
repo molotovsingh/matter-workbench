@@ -25,6 +25,7 @@ export function createProceduralPostureDiagnosisRunner({
     version: 1,
     kind: "posture_diagnosis",
     label: "Diagnose Procedural Posture",
+    supportsStageRetry: true,
     async run({ request = {}, job, stages, runState }) {
       const stageRecorder = stages && job?.id ? bindStageRecorder({ jobId: job.id, stages }) : null;
       return service.runDiagnosis({
