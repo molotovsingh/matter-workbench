@@ -150,6 +150,30 @@ It should:
 4. run only the minimum downstream work needed to restore currentness;
 5. preserve old generated artifacts through latest-plus-archive behavior where applicable.
 
+### Procedural Diagnosis Trigger Contract
+
+Filing and Procedural Posture Diagnosis is downstream of Case Timeline and Matter Story, but it must be independently runnable whenever those dependencies are ready. The UX should not force a full matter rebuild when the user only needs the diagnosis.
+
+| Situation | Trigger | What should run | What should not rerun unnecessarily | Output behavior |
+| --- | --- | --- | --- | --- |
+| New matter preparation | User creates/imports a new matter and runs preparation | Full first-run chain: documents -> source labels / Document Index -> Case Timeline -> Matter Story -> Procedural Diagnosis | Nothing, because this is first preparation | Save diagnosis under `20_Workshop/Case Analysis/` after the upstream artifacts exist. |
+| New file added | User uploads/adds documents to an existing matter | Only affected stages: process new/changed files -> update labels/index -> refresh Case Timeline if needed -> refresh Matter Story if needed -> refresh Procedural Diagnosis if needed | Existing extraction, labels, timeline, story, and diagnosis should not rebuild if their input basis is still current | Mark existing diagnosis stale/needs refresh when its basis changed; refresh it through normal overwrite/archive policy. |
+| Ad hoc diagnosis | User runs `/procedural_posture_diagnosis` or clicks a dedicated action | Procedural Diagnosis only, if Case Timeline and Matter Story are current | Extraction, source labels, Case Timeline, and Matter Story | Save a durable diagnosis artifact and job/receipt; if one already exists, ask before overwrite/refresh. |
+| Chat/Copilot procedural answer | User asks a procedural question in chat | Chat answer only | No preparation stages | Do not save automatically. Show that the answer is chat-only/not saved and offer a durable `Run saved procedural diagnosis` action. |
+
+Expected saved diagnosis artifacts:
+
+```text
+20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md
+20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json
+```
+
+Confirmation/correction ledger:
+
+```text
+20_Workshop/Case Analysis/Case Analysis Q&A.md
+```
+
 ### Run Needed Preparation
 
 Default behavior should be:
