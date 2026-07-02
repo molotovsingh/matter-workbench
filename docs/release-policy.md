@@ -75,7 +75,7 @@ Requirements:
   [`docs/releases/maintenance-checkpoints.md`](releases/maintenance-checkpoints.md)
   with date, base official release, deployed commit, reason, validation, live
   evidence, and rollback target;
-- do **not** update current-release pointers;
+- do **not** update the current-release pointer;
 - do **not** create or move a `v1.0.0-beta.N` tag;
 - if the change is later found to affect tester behavior, promote it by cutting
   the next Tier 1 beta release.
@@ -108,7 +108,7 @@ Requirements:
 - no beta tag;
 - no VM deploy;
 - focused docs/tests only;
-- do not update current-release pointers unless recording a Tier 1 release;
+- do not update the current-release pointer unless recording a Tier 1 release;
 - if correcting a release note, keep the tag target immutable and explain the
   correction in the docs commit when necessary.
 
@@ -158,7 +158,7 @@ If product code changes after the tag target, classify the new commit:
 
 - Tier 1: deploy and tag the next beta;
 - Tier 2: deploy by commit and record a maintenance checkpoint without changing
-  current-release pointers;
+  the current-release pointer;
 - Tier 3: leave on main as unreleased;
 - Tier 4: clearly label it as documentation-only.
 
@@ -212,30 +212,25 @@ Use this shape:
 If a maintenance deploy accumulates tester-visible changes, stop using Tier 2
 and cut a Tier 1 release.
 
-## Current Release Pointers
+## Current Release Pointer
 
-When a Tier 1 release becomes current, update:
+When a Tier 1 release becomes current, update exactly one current-release pointer:
 
-- `README.md`;
-- `docs/README.md`;
-- `docs/beta-operator-checklist.md`;
-- the default release in `scripts/private-beta-rc-closure-pack.mjs`;
-- related tests that assert the current release pointer.
-
-Tier 2, Tier 3, and Tier 4 changes do not update these pointers unless they are
-part of a Tier 1 release documentation commit.
-
-Then run a stale-pointer scan for the previous release number in release-current
-contexts.
-
-Example:
-
-```bash
-rg -n 'Current release notes|Current checklist|git checkout v1\.0\.0-beta\.OLD|DEFAULT_RELEASE = "v1\.0\.0-beta\.OLD"' README.md docs scripts test
+```text
+docs/releases/current.md
 ```
 
+General docs (`README.md`, `docs/README.md`, the operator checklist, and related
+runbooks) should link to that file instead of repeating the beta number. The RC
+closure pack derives its default release from that same pointer. Do not add new
+hardcoded "current beta" copies unless there is a strong operational reason.
+
+Tier 2, Tier 3, and Tier 4 changes do not update this pointer unless they are
+part of a Tier 1 release documentation commit.
+
 Historical release tables may still mention older tags. Do not delete useful
-history merely to make a grep empty.
+history merely to make a grep empty. Versioned release-history rows should not
+be prefixed with "Current"; currentness belongs in `docs/releases/current.md`.
 
 This pointer agreement is checked mechanically for Tier 1 releases. Run:
 
@@ -243,12 +238,16 @@ This pointer agreement is checked mechanically for Tier 1 releases. Run:
 npm run release:position-check
 ```
 
-It verifies, for the current official release, that the annotated tag, the
-release note's `Tag target / deployed commit`, and every current-release pointer
-(`README.md`, `docs/README.md`, `docs/beta-operator-checklist.md`, and the
-closure pack `DEFAULT_RELEASE`) name the same `v1.0.0-beta.N`, and that no older
-history row still carries the current marker. Pass `--release v1.0.0-beta.N` to
-check a specific release. A non-zero exit means a pointer drifted.
+It verifies, for the current official release, that:
+
+- `docs/releases/current.md` names the release;
+- the release note exists and has the required sections;
+- the annotated tag exists;
+- the tag target matches the release note's `Tag target / deployed commit`; and
+- versioned docs history rows are not carrying stale `Current` markers.
+
+Pass `--release v1.0.0-beta.N` to check a specific release against the current
+pointer. A non-zero exit means the release record drifted.
 
 Do not use `release:position-check` as a Tier 2 checker; Tier 2 is recorded by
 commit and maintenance-checkpoint evidence.

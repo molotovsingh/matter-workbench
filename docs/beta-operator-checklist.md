@@ -1,6 +1,6 @@
 # Matter Workbench Beta Operator Checklist
 
-Status: Current checklist for `v1.0.0-beta.114` official supervised private beta release
+Status: Current checklist for the official supervised private beta release
 
 This is the practical runbook for operating Matter Workbench as a private local
 or local/private runtime-DB beta. It is written for one trusted operator, not
@@ -23,11 +23,11 @@ final dispatch.
 
 ## Before Starting
 
-Confirm the repo is on the release checkpoint. Once the tag has been cut:
+Confirm the repo is on the release checkpoint shown in [Current Matter Workbench Release](releases/current.md). Once the tag has been cut:
 
 ```bash
 git fetch origin --tags
-git checkout v1.0.0-beta.114
+git checkout <release from docs/releases/current.md>
 ```
 
 The official release tag exists. If you need fresh release confidence evidence before a handoff, rerun:
@@ -419,7 +419,7 @@ unacceptable.
 
 Current accepted local/private beta:
 
-[Matter Workbench v1.0.0-beta.114](releases/v1.0.0-beta.114.md)
+[Current Matter Workbench Release](releases/current.md)
 
 Official release decision:
 

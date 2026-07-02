@@ -8,12 +8,10 @@ import process from "node:process";
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "release-position-check/v1";
 
-// Files that must agree on the current release. Kept as repo-relative paths so
-// the checker reads the same sources the release policy names by hand.
-const CLOSURE_PACK_PATH = "scripts/private-beta-rc-closure-pack.mjs";
+// The release policy intentionally keeps one current-release pointer. Other
+// docs should link to this file instead of hardcoding the active beta number.
+const CURRENT_RELEASE_PATH = "docs/releases/current.md";
 const DOCS_README_PATH = "docs/README.md";
-const ROOT_README_PATH = "README.md";
-const CHECKLIST_PATH = "docs/beta-operator-checklist.md";
 
 // Structural markers the policy's "Required Release Note" section calls for.
 // Each is a tolerant presence test against the note body, not an exact format.
@@ -57,28 +55,27 @@ export async function runReleasePositionCheck({
   readFileFn = (relPath) => readFile(path.join(repoRoot, relPath), "utf8"),
   gitRunner = runGit,
 } = {}) {
-  const closurePackSource = await safeRead(readFileFn, CLOSURE_PACK_PATH);
-  const defaultRelease = firstCapture(closurePackSource, /DEFAULT_RELEASE\s*=\s*"(v1\.0\.0-beta\.\d+)"/);
-  const targetRelease = release || defaultRelease;
+  const currentSource = await safeRead(readFileFn, CURRENT_RELEASE_PATH);
+  const currentRelease = parseCurrentRelease(currentSource);
+  const targetRelease = release || currentRelease;
 
   if (!isReleaseTag(targetRelease)) {
     const fatal = normalizeCheck(
       "release_resolved",
       false,
-      `Could not resolve a release. Pass --release or set DEFAULT_RELEASE in ${CLOSURE_PACK_PATH}.`,
+      `Could not resolve a release. Pass --release or set Release in ${CURRENT_RELEASE_PATH}.`,
     );
     return finalize(targetRelease, [fatal]);
   }
 
-  const releaseNumber = Number(targetRelease.match(/beta\.(\d+)$/)[1]);
   const noteSource = await safeRead(readFileFn, releaseNotePath(targetRelease));
 
   const checks = [
+    await runCheck("current_pointer", () => checkCurrentPointer(targetRelease, currentSource)),
     await runCheck("note_present_and_complete", () => checkNoteComplete(targetRelease, noteSource)),
     await runCheck("tag_annotated", () => checkTagAnnotated(targetRelease, gitRunner)),
     await runCheck("tag_matches_note", () => checkTagMatchesNote(targetRelease, noteSource, gitRunner)),
-    await runCheck("pointers_agree", () => checkPointersAgree(targetRelease, defaultRelease, readFileFn)),
-    await runCheck("no_stale_current_marker", () => checkNoStaleCurrentMarker(targetRelease, releaseNumber, readFileFn)),
+    await runCheck("no_versioned_current_marker", () => checkNoVersionedCurrentMarker(readFileFn)),
   ];
 
   return finalize(targetRelease, checks);
@@ -105,6 +102,27 @@ function finalize(release, checks) {
     ok: failedChecks.length === 0,
     failedChecks,
     checks,
+  };
+}
+
+async function checkCurrentPointer(release, currentSource) {
+  if (!currentSource) {
+    return { ok: false, summary: `missing current release pointer ${CURRENT_RELEASE_PATH}` };
+  }
+  const currentRelease = parseCurrentRelease(currentSource);
+  const currentNotePath = firstCapture(currentSource, /Release:\s*\[v1\.0\.0-beta\.\d+\]\(([^)]+)\)/);
+  const currentTagTarget = parseTagTargetHash(currentSource);
+  const mismatches = [];
+  if (currentRelease !== release) mismatches.push(`release=${currentRelease || "(not found)"}`);
+  if (currentNotePath && currentNotePath !== `${release}.md`) mismatches.push(`release_note=${currentNotePath}`);
+  return {
+    ok: mismatches.length === 0,
+    summary: mismatches.length
+      ? mismatches.join(", ")
+      : `current pointer names ${release}${currentTagTarget ? ` at ${currentTagTarget}` : ""}`,
+    currentRelease,
+    currentNotePath,
+    currentTagTarget,
   };
 }
 
@@ -157,60 +175,20 @@ async function checkTagMatchesNote(release, noteSource, gitRunner) {
   };
 }
 
-async function checkPointersAgree(release, defaultRelease, readFileFn) {
+async function checkNoVersionedCurrentMarker(readFileFn) {
   const docsReadme = await safeRead(readFileFn, DOCS_README_PATH);
-  const rootReadme = await safeRead(readFileFn, ROOT_README_PATH);
-  const checklist = await safeRead(readFileFn, CHECKLIST_PATH);
-
-  const pointers = [
-    { id: "closure_pack_default_release", value: defaultRelease },
-    {
-      id: "docs_readme_current_row",
-      value: firstCapture(docsReadme, /Current release notes \|\s*\[(v1\.0\.0-beta\.\d+)\]/),
-    },
-    {
-      id: "root_readme_release_marker",
-      value: firstCapture(rootReadme, /\[(v1\.0\.0-beta\.\d+) release marker\]\(docs\/releases/),
-    },
-    {
-      id: "checklist_status",
-      value: firstCapture(checklist, /Status:\s*Current checklist for\s*`(v1\.0\.0-beta\.\d+)`/),
-    },
-    {
-      id: "checklist_checkout",
-      value: firstCapture(checklist, /git checkout\s+(v1\.0\.0-beta\.\d+)/),
-    },
-  ];
-
-  const disagreements = pointers.filter((pointer) => pointer.value !== release);
-  return {
-    ok: disagreements.length === 0,
-    summary: disagreements.length === 0
-      ? `all ${pointers.length} current-release pointers name ${release}`
-      : disagreements.map((pointer) => `${pointer.id}=${pointer.value || "(not found)"}`).join(", "),
-    pointers,
-  };
-}
-
-async function checkNoStaleCurrentMarker(release, releaseNumber, readFileFn) {
-  const docsReadme = await safeRead(readFileFn, DOCS_README_PATH);
-  // History rows whose description is prefixed "Current" must only ever mark the
-  // live release. A leftover "Current" prefix on an older row is the classic
-  // stale-pointer mistake the policy's grep is meant to catch.
+  // Current status should live in docs/releases/current.md. Versioned release
+  // history rows should not carry a "Current" prefix that can go stale.
   const currentRowRe = /\|\s*\[(v1\.0\.0-beta\.\d+)\][^|]*\|\s*Current\b[^|]*\|/g;
   const marked = [];
   let match;
   while ((match = currentRowRe.exec(docsReadme)) !== null) marked.push(match[1]);
 
-  const stale = marked.filter((version) => version !== release);
-  const prevRelease = `v1.0.0-beta.${releaseNumber - 1}`;
   return {
-    ok: stale.length === 0 && marked.includes(release),
-    summary: stale.length
-      ? `stale "Current" history rows: ${stale.join(", ")} (previous release is ${prevRelease})`
-      : marked.includes(release)
-        ? `only ${release} is marked current in the release history`
-        : `no "Current" history row found for ${release}`,
+    ok: marked.length === 0,
+    summary: marked.length
+      ? `versioned history rows still marked current: ${marked.join(", ")}`
+      : "no versioned release-history rows are marked Current",
     marked,
   };
 }
@@ -221,10 +199,15 @@ async function resolveCommit(gitRunner, ref) {
   return String(result.stdout || "").trim();
 }
 
-function parseTagTargetHash(noteSource) {
-  if (!noteSource) return "";
+function parseCurrentRelease(currentSource) {
+  return firstCapture(currentSource, /Release:\s*\[(v1\.0\.0-beta\.\d+)\]\([^)]+\)/)
+    || firstCapture(currentSource, /^Release:\s*(v1\.0\.0-beta\.\d+)\s*$/m);
+}
+
+function parseTagTargetHash(source) {
+  if (!source) return "";
   const block = firstCapture(
-    noteSource,
+    source,
     /Tag target \/ deployed commit:\s*```text\s*\n([\s\S]*?)```/,
   );
   const firstLine = String(block || "").split("\n").map((line) => line.trim()).find(Boolean) || "";
@@ -261,43 +244,40 @@ async function runCheck(id, fn) {
   }
 }
 
-function normalizeCheck(id, ok, summary = "", detail = {}) {
-  const { ok: _ok, summary: _summary, ...rest } = detail;
-  return { id, ok: Boolean(ok), summary, ...rest };
+function normalizeCheck(id, ok, summary = "", extra = {}) {
+  return { id, ok: Boolean(ok), summary, ...extra };
 }
 
-function requiredValue(argv, index, flag) {
+async function runGit({ args, cwd = process.cwd() }) {
+  return await new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    const child = spawn("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("close", (code) => resolve({ ok: code === 0, code, stdout, stderr }));
+    child.on("error", (error) => resolve({ ok: false, code: null, stdout, stderr: error.message }));
+  });
+}
+
+function requiredValue(argv, index, arg) {
   const value = argv[index + 1];
-  if (!value) throw new Error(`${flag} requires a value`);
+  if (!value) throw new Error(`${arg} requires a value`);
   return value;
 }
 
-function runGit({ args = [] }) {
-  return new Promise((resolve) => {
-    const child = spawn("git", args, { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk.toString("utf8"); });
-    child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8"); });
-    child.on("error", (error) => resolve({ ok: false, stdout, stderr: error.message, exitCode: 1 }));
-    child.on("close", (code) => resolve({ ok: code === 0, stdout, stderr, exitCode: code }));
-  });
-}
-
-async function main() {
-  const args = parseReleasePositionCheckArgs(process.argv.slice(2));
-  const result = await runReleasePositionCheck(args);
-  if (args.json) {
-    console.log(JSON.stringify(result, null, 2));
-  } else {
-    for (const line of renderReleasePositionCheckResult(result)) console.log(line);
-  }
-  if (!result.ok) process.exitCode = 1;
-}
-
 if (process.argv[1] === __filename) {
-  main().catch((error) => {
-    console.error(error.stack || error.message);
+  try {
+    const args = parseReleasePositionCheckArgs(process.argv.slice(2));
+    const result = await runReleasePositionCheck(args);
+    if (args.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(renderReleasePositionCheckResult(result).join("\n"));
+    }
+    process.exitCode = result.ok ? 0 : 1;
+  } catch (error) {
+    console.error(error.message);
     process.exitCode = 1;
-  });
+  }
 }

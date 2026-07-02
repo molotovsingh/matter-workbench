@@ -103,9 +103,9 @@ Beta feedback, job traces, system health, and operator reports are being shaped 
 
 ## Official Private Beta Release State
 
-The current official supervised private beta release is `v1.0.0-beta.114`,
-codename **Artifact Compass**. It is feature-frozen unless a blocker,
-regression, security/custody issue, or deployment failure appears.
+The current official supervised private beta release is recorded in the
+[Current release pointer](docs/releases/current.md). It is feature-frozen unless
+a blocker, regression, security/custody issue, or deployment failure appears.
 
 All actionable tester feedback that could reasonably be solved in this release
 window has been fixed, deployed, validated, or intentionally parked for a future
@@ -153,7 +153,7 @@ Completed release checks include:
 
 Current release and repo-state docs:
 
-- [v1.0.0-beta.114 release marker](docs/releases/v1.0.0-beta.114.md)
+- [Current release pointer](docs/releases/current.md)
 - [Official private beta release decision](docs/private-beta-official-release.md)
 - [Docs map](docs/README.md)
 - [Release codenames](docs/release-codenames.md)

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +18,7 @@ import { runPrivateBetaAuthPreflight } from "./private-beta-auth-preflight.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "private-beta-rc-closure-pack/v1";
-const DEFAULT_RELEASE = "v1.0.0-beta.114";
+const CURRENT_RELEASE_POINTER = new URL("../docs/releases/current.md", import.meta.url);
 
 const DEFAULT_LOCAL_GATES = [
   { label: "ui_typecheck", command: "npm", args: ["run", "ui:typecheck", "--silent"] },
@@ -25,11 +26,21 @@ const DEFAULT_LOCAL_GATES = [
   { label: "full_test_suite", command: "node", args: ["scripts/node-test-file-runner.mjs"] },
 ];
 
+export function defaultRcRelease() {
+  try {
+    const source = readFileSync(CURRENT_RELEASE_POINTER, "utf8");
+    const match = source.match(/Release:\s*\[(v1\.0\.0-beta\.\d+)\]\([^)]+\)/);
+    return match?.[1] || "";
+  } catch {
+    return "";
+  }
+}
+
 export function parseRcClosurePackArgs(argv = [], env = process.env) {
   const parsed = {
     outDir: path.resolve(".local", "private-beta-rc-closure-packs"),
     timestamp: "",
-    release: env.MWB_PRIVATE_BETA_RC_RELEASE || DEFAULT_RELEASE,
+    release: env.MWB_PRIVATE_BETA_RC_RELEASE || defaultRcRelease(),
     baseUrl: env.MWB_PRIVATE_VM_BASE_URL || "http://127.0.0.1:4191",
     deploymentRoot: env.MWB_PRIVATE_VM_DEPLOYMENT_ROOT || "",
     runtimeEnvPath: env.MWB_PRIVATE_VM_RUNTIME_ENV || "",
@@ -138,7 +149,7 @@ export function parseRcClosurePackArgs(argv = [], env = process.env) {
 export async function runPrivateBetaRcClosurePack({
   outDir = path.resolve(".local", "private-beta-rc-closure-packs"),
   timestamp = new Date().toISOString(),
-  release = DEFAULT_RELEASE,
+  release = defaultRcRelease(),
   baseUrl = "http://127.0.0.1:4191",
   deploymentRoot = "",
   runtimeEnvPath = "",

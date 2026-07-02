@@ -41,14 +41,31 @@ function defaultNote(release, hash) {
   ].join("\n");
 }
 
+function defaultCurrentPointer(release, hash = "abc1234") {
+  return [
+    "# Current Matter Workbench Release",
+    "",
+    "Status: Current release pointer",
+    "",
+    `Release: [${release}](${release}.md)`,
+    "",
+    "Tag target / deployed commit:",
+    "",
+    "```text",
+    `${hash} Some commit subject`,
+    "```",
+    "",
+  ].join("\n");
+}
+
 function defaultDocsReadme(release, prev) {
   return [
-    `| Current release notes | [${release}](releases/${release}.md) |`,
+    "| Current release pointer | [Current Matter Workbench Release](releases/current.md) |",
     "",
     "## Release History",
     "",
     `| [${prev}](releases/${prev}.md) | Beta 3 prior release marker. |`,
-    `| [${release}](releases/${release}.md) | Current Beta 3 release marker. |`,
+    `| [${release}](releases/${release}.md) | Beta 3 release marker. |`,
     "",
   ].join("\n");
 }
@@ -62,14 +79,9 @@ function buildFixture(overrides = {}) {
   const noteSha = overrides.noteSha || tagSha;
 
   const files = {
-    "scripts/private-beta-rc-closure-pack.mjs":
-      overrides.closurePack ?? `const DEFAULT_RELEASE = "${overrides.defaultRelease || release}";`,
+    "docs/releases/current.md": overrides.currentPointer ?? defaultCurrentPointer(overrides.currentRelease || release, noteHash),
     [`docs/releases/${release}.md`]: overrides.note ?? defaultNote(release, noteHash),
     "docs/README.md": overrides.docsReadme ?? defaultDocsReadme(release, prev),
-    "README.md": overrides.rootReadme ?? `- [${release} release marker](docs/releases/${release}.md)`,
-    "docs/beta-operator-checklist.md":
-      overrides.checklist
-      ?? `Status: Current checklist for \`${release}\` supervised beta\n\ngit checkout ${release}\n`,
   };
 
   const readFileFn = async (relPath) => {
@@ -99,7 +111,7 @@ function checkById(result, id) {
   return result.checks.find((check) => check.id === id);
 }
 
-test("passes clean when tag, note, and pointers all agree", async () => {
+test("passes clean when tag, note, and current pointer all agree", async () => {
   const { runReleasePositionCheck } = await load();
   const fixture = buildFixture();
   const result = await runReleasePositionCheck(fixture);
@@ -108,7 +120,7 @@ test("passes clean when tag, note, and pointers all agree", async () => {
   assert.equal(result.release, "v1.0.0-beta.7");
 });
 
-test("resolves the release from DEFAULT_RELEASE when none is passed", async () => {
+test("resolves the release from docs/releases/current.md when none is passed", async () => {
   const { runReleasePositionCheck } = await load();
   const fixture = buildFixture();
   const result = await runReleasePositionCheck({
@@ -130,7 +142,7 @@ test("fails when the tag points somewhere other than the note's tag target", asy
   assert.ok(result.failedChecks.includes("tag_matches_note"));
   assert.equal(checkById(result, "tag_matches_note").ok, false);
   // The other invariants are independent and should still pass.
-  assert.equal(checkById(result, "pointers_agree").ok, true);
+  assert.equal(checkById(result, "current_pointer").ok, true);
 });
 
 test("fails when a required release-note field is missing", async () => {
@@ -139,36 +151,36 @@ test("fails when a required release-note field is missing", async () => {
   const note = defaultNote(release, "abc1234").replace("## Not Promised\nnothing new promised\n", "");
   const result = await runReleasePositionCheck(buildFixture({ note }));
   assert.equal(result.ok, false);
-  const note_check = checkById(result, "note_present_and_complete");
-  assert.equal(note_check.ok, false);
-  assert.ok(note_check.missing.includes("not_promised"));
+  const noteCheck = checkById(result, "note_present_and_complete");
+  assert.equal(noteCheck.ok, false);
+  assert.ok(noteCheck.missing.includes("not_promised"));
 });
 
-test("fails when a current-release pointer disagrees", async () => {
+test("fails when the current release pointer disagrees", async () => {
   const { runReleasePositionCheck } = await load();
-  const result = await runReleasePositionCheck(buildFixture({ defaultRelease: "v1.0.0-beta.6" }));
+  const result = await runReleasePositionCheck(buildFixture({ currentRelease: "v1.0.0-beta.6" }));
   assert.equal(result.ok, false);
-  const pointers = checkById(result, "pointers_agree");
-  assert.equal(pointers.ok, false);
-  assert.ok(pointers.summary.includes("closure_pack_default_release=v1.0.0-beta.6"));
+  const pointer = checkById(result, "current_pointer");
+  assert.equal(pointer.ok, false);
+  assert.ok(pointer.summary.includes("release=v1.0.0-beta.6"));
 });
 
-test("fails when an older history row still carries the Current marker", async () => {
+test("fails when a versioned history row still carries the Current marker", async () => {
   const { runReleasePositionCheck } = await load();
   const release = "v1.0.0-beta.7";
   const prev = "v1.0.0-beta.6";
   const staleDocsReadme = [
-    `| Current release notes | [${release}](releases/${release}.md) |`,
+    "| Current release pointer | [Current Matter Workbench Release](releases/current.md) |",
     "",
     "## Release History",
     "",
     `| [${prev}](releases/${prev}.md) | Current Beta 3 stale release marker. |`,
-    `| [${release}](releases/${release}.md) | Current Beta 3 release marker. |`,
+    `| [${release}](releases/${release}.md) | Beta 3 release marker. |`,
     "",
   ].join("\n");
   const result = await runReleasePositionCheck(buildFixture({ docsReadme: staleDocsReadme }));
   assert.equal(result.ok, false);
-  const stale = checkById(result, "no_stale_current_marker");
+  const stale = checkById(result, "no_versioned_current_marker");
   assert.equal(stale.ok, false);
   assert.ok(stale.summary.includes("v1.0.0-beta.6"));
 });

@@ -2,15 +2,13 @@
 
 Status: Official supervised private beta release checkpoint
 
-Release: [`v1.0.0-beta.114`](releases/v1.0.0-beta.114.md)
+Release: [Current Matter Workbench Release](releases/current.md)
 
-Codename: **Artifact Compass**
-
-Date: 2026-07-02
+Date: see current release pointer
 
 ## Release Decision
 
-`v1.0.0-beta.114` is the official private beta release checkpoint.
+The release named in [Current Matter Workbench Release](releases/current.md) is the official private beta release checkpoint.
 
 All actionable tester feedback that could reasonably be solved in the current release window has been fixed, deployed, validated, and recorded. Remaining larger product requests are intentionally parked for future roadmap work rather than being added to this release.
 
@@ -107,20 +105,9 @@ Google Drive import remains parked because it needs a separate custody, OAuth, r
 
 ## Current Live Release
 
-```text
-release: v1.0.0-beta.114
-codename: Artifact Compass
-deployed_commit: 39f939f
-release_doc_commit: this documentation commit
-live_url: https://mwb-beta.139.59.74.9.sslip.io
-rollback_candidate: 2269a61 / v1.0.0-beta.113
-```
+See [Current Matter Workbench Release](releases/current.md) for the current beta number, release note, deployed commit, and live URL.
 
-Latest evidence:
-
-```text
-/home/aks/matter-workbench-backups/ui-hardening/private-beta-ui-hardening-2026-07-02T07-09-22-309Z/ui-hardening-report.md
-```
+Latest deployment evidence is recorded in the release note linked from the current release pointer.
 
 ## Operator Rule
 
