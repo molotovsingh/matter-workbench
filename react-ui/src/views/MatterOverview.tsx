@@ -155,11 +155,16 @@ function ProceduralPostureCard({
   const [correction, setCorrection] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  const loadStatus = () => {
+  const loadStatus = async () => {
     setError(null);
-    api.getProceduralPostureDiagnosis(matterName)
-      .then(setStatus)
-      .catch((e) => setError(getErrorMessage(e)));
+    try {
+      const payload = await api.getProceduralPostureDiagnosis(matterName);
+      setStatus(payload);
+      return payload;
+    } catch (e) {
+      setError(getErrorMessage(e));
+      throw e;
+    }
   };
 
   useEffect(() => {
@@ -188,7 +193,7 @@ function ProceduralPostureCard({
         actor: 'lawyer',
       });
       setCorrection('');
-      loadStatus();
+      await loadStatus();
     } catch (e) {
       setFormError(getErrorMessage(e));
     } finally {
@@ -226,7 +231,8 @@ function ProceduralPostureCard({
 
   const state = status.state || 'missing';
   const confirmationState = status.confirmation?.state || 'unconfirmed';
-  const readyForConfirmation = state === 'current_unconfirmed' || state === 'current_confirmed' || state === 'current_corrected';
+  const hasRecordedConfirmation = confirmationState !== 'unconfirmed';
+  const readyForConfirmation = state === 'current_unconfirmed' && !hasRecordedConfirmation;
 
   return (
     <section className="matter-story-card matter-posture-card">
@@ -244,6 +250,9 @@ function ProceduralPostureCard({
       {state === 'blocked' && <p className="muted">{postureBlockedMessage(status)}</p>}
       {state === 'missing' && <p className="muted">Diagnosis has not been generated yet. Use the Procedural Diagnosis row below to run and save it.</p>}
       {state === 'stale' || state === 'needs_reconfirmation' ? <p className="form-error">Case Timeline or Matter Story changed. Use the Procedural Diagnosis row below to refresh the saved diagnosis before relying on it.</p> : null}
+      {hasRecordedConfirmation && postureDecisionStillCurrent(state) && (
+        <p className="muted">{postureConfirmationRecordedMessage(confirmationState)}</p>
+      )}
       {readyForConfirmation && (
         <div className="posture-confirmation-panel">
           <p className="muted">
@@ -280,6 +289,17 @@ function postureStateLabel(state: string): string {
   if (state === 'stale' || state === 'needs_reconfirmation') return 'Needs refresh';
   if (state === 'blocked') return 'Waiting on Case Timeline / Story';
   return 'Not started';
+}
+
+function postureDecisionStillCurrent(state: string): boolean {
+  return state === 'current_confirmed' || state === 'current_corrected' || state === 'current_unconfirmed';
+}
+
+function postureConfirmationRecordedMessage(state: string): string {
+  if (state === 'confirmed') return 'Working posture confirmed. This record will be rechecked if Case Timeline or Matter Story changes.';
+  if (state === 'corrected') return 'Correction recorded. Downstream analysis should use the saved correction note.';
+  if (state === 'not_sure') return 'Not-sure response recorded. Revisit this diagnosis before relying on it.';
+  return 'Response recorded.';
 }
 
 function confirmationStateLabel(state: string): string {

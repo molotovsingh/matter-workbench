@@ -90,10 +90,13 @@ test("React matter overview renders Matter Workbench story before original intak
   assert.match(postureSummary, /Simple view:/);
   assert.match(postureSummary, /Recommended route:/);
   assert.match(postureSummary, /Next best actions/);
-  assert.match(postureSummary, /Full legal routes are saved in/);
+  assert.match(postureSummary, /Full legal routes are saved in the Filing and Procedural Posture Diagnosis document/);
+  assert.doesNotMatch(postureSummary, /Full legal routes are saved in \{status\.artifactPath\}/);
   assert.match(preparationRowActions, /Run saved Procedural Diagnosis/);
   assert.match(preparationRowActions, /Refresh saved Procedural Diagnosis/);
   assert.match(preparationRowActions, /Creates the Case Analysis Markdown\/JSON artifact, job, and receipt\. Not chat\./);
+  assert.match(overview, /const readyForConfirmation = state === 'current_unconfirmed' && !hasRecordedConfirmation/);
+  assert.match(overview, /postureConfirmationRecordedMessage/);
   assert.match(overview, /Confirm working posture/);
   assert.match(overview, /Disagree \/ correct/);
   assert.match(overview, /Not sure yet/);

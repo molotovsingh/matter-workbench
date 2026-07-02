@@ -362,6 +362,7 @@ function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
   const ext = isDir ? undefined : node.name.split('.').pop()?.toLowerCase();
   const laneLabel = depth === 0 && isDir ? workspaceLaneLabel(node.name) : undefined;
   const isTechnical = depth === 0 && TECHNICAL_PREFIXES.some((p) => node.name.startsWith(p));
+  const displayChildren = isDir ? displayWorkspaceChildren(node, depth, laneLabel) : [];
   return {
     name: laneLabel || node.name,
     path: node.path,
@@ -369,12 +370,22 @@ function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
     ext,
     canonical: laneLabel ? node.name : undefined,
     lane: laneLabel,
-    children: isDir && node.children ? node.children.map((c) => adaptTreeNode(c, depth + 1)) : undefined,
+    children: isDir && displayChildren.length ? displayChildren.map((c) => adaptTreeNode(c, depth + 1)) : undefined,
     isTechnical,
     size: node.size,
     previewable: node.previewable,
     previewKind: node.previewKind,
   };
+}
+
+function displayWorkspaceChildren(node: WorkspaceApiNode, depth: number, laneLabel?: string): WorkspaceApiNode[] {
+  if (!node.children?.length) return [];
+  if (depth !== 0 || !laneLabel) return node.children;
+  return node.children.flatMap((child) => (
+    child.kind === 'directory' && child.name === laneLabel && child.children?.length
+      ? child.children
+      : [child]
+  ));
 }
 
 export function adaptTree(raw: WorkspaceApiNode): { name: string; path: string; children: AdaptedFile[] } {

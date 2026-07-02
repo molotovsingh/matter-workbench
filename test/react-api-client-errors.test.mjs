@@ -240,6 +240,41 @@ test("React API client uses shared workspace lane labels", async () => {
   assert.equal(tree.children[0].canonical, "00_Inbox");
 });
 
+test("React API client flattens duplicate lane-named grouping folders", async () => {
+  const { adaptTree } = await importReactApiClient();
+  const tree = adaptTree({
+    kind: "directory",
+    name: "Demo Matter",
+    path: "",
+    children: [{
+      kind: "directory",
+      name: "20_Workshop",
+      path: "20_Workshop",
+      children: [{
+        kind: "directory",
+        name: "Case Analysis",
+        path: "20_Workshop/Case Analysis",
+        children: [{
+          kind: "file",
+          name: "Filing and Procedural Posture Diagnosis.md",
+          path: "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
+        }],
+      }, {
+        kind: "file",
+        name: "The Story.md",
+        path: "20_Workshop/The Story.md",
+      }],
+    }],
+  });
+
+  assert.equal(tree.children[0].name, "Case Analysis");
+  assert.deepEqual(tree.children[0].children.map((child) => child.name), [
+    "Filing and Procedural Posture Diagnosis.md",
+    "The Story.md",
+  ]);
+  assert.equal(tree.children[0].children[0].path, "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md");
+});
+
 test("React API client turns upload network failures into user-safe messages", async () => {
   const { api } = await importReactApiClient();
   const restoreFetch = mockFetch(async () => {

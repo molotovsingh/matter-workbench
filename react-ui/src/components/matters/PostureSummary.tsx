@@ -30,7 +30,7 @@ export function PostureSummary({ status }: { status: ProceduralPostureDiagnosisR
             </ol>
           </div>
         )}
-        {status.artifactPath && <p className="muted">Full legal routes are saved in {status.artifactPath}.</p>}
+        {status.artifactPath && <p className="muted">Full legal routes are saved in the Filing and Procedural Posture Diagnosis document.</p>}
       </div>
     );
   }
