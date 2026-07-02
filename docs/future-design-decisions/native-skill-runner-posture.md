@@ -500,6 +500,24 @@ For a local first slice, the route may still execute inline and return the termi
 compatibility. That is migration scaffolding only; the contract should assume long-running native
 skills become background operation jobs.
 
+## Current Slice Status
+
+As of the `feature/native-skill-runner-posture` implementation slice:
+
+- `job-status-service` records durable staged jobs, stage durations, stale-stage failures, and scoped
+  native receipts.
+- `/procedural_posture_diagnosis` runs through a script-style native runner with durable stage state
+  and actual retry-from-`finalizer` reuse of proposer/critic outputs.
+- `/the_story` and `/create_listofdates` run through native runner wrappers while preserving legacy
+  route response shapes and runtime-DB custody.
+- `/create_listofdates` now records `build_packet`, one-pass `generate`, two-pass
+  `candidate_pass`/`editor_pass`, `validate`, and `persist` stages; stage retry is deliberately
+  marked unsupported until candidate-ledger reuse semantics are promoted to the runner contract.
+- `/describe-sources` records route-level `label_pass` progress and total-batch failure attribution;
+  full runner migration remains a later phase.
+- `POST /api/skill/:slash/run` exists as a thin native alias for the migrated skills, and Activity can
+  copy metadata-only reports or retry failed native runs/stages according to runner capability.
+
 ## Implementation Plan
 
 ### Phase 0 — Accept, bound, and protect the invariants
