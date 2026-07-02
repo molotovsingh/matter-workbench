@@ -121,3 +121,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.115](releases/v1.0.0-beta.115.md) | **Stage Beacon** | Release note present. |
 | [v1.0.0-beta.116](releases/v1.0.0-beta.116.md) | **Posture Latch** | Release note present. |
 | [v1.0.0-beta.117](releases/v1.0.0-beta.117.md) | **Posture Fold** | Release note present. |
+| [v1.0.0-beta.118](releases/v1.0.0-beta.118.md) | **Markdown Glass** | Release note present. |
