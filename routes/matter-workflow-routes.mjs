@@ -21,7 +21,7 @@ import {
   safeRuntimePreparationChainId,
 } from "../shared/runtime-preparation-jobs.mjs";
 import { readRequestJson, sendJson } from "./http-utils.mjs";
-import { dispatchRoutes, exactRoute } from "./route-dispatcher.mjs";
+import { dispatchRoutes, exactRoute, patternRoute } from "./route-dispatcher.mjs";
 import {
   isPrivateBetaScopedUser,
   matterRootForBody,
@@ -59,6 +59,16 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     requestUrl,
     response,
     routes: [
+      patternRoute("POST", /^\/api\/skill\/([^/]+)\/run$/, async ({ params }) => {
+        const body = await readRequestJson(request);
+        sendJson(response, 200, await runNativeSkillAlias({
+          slash: params[0],
+          body,
+          matterStore,
+          runtimeDbStorageService,
+          skillRunnerService,
+        }));
+      }),
       exactRoute("POST", "/api/matter-init", async () => {
         const body = await readRequestJson(request);
         sendJson(response, 200, await runTrackedWorkflow({
@@ -835,6 +845,34 @@ async function runTrackedWorkflow({
     operation,
   });
   return attachJobStatus(result, job);
+}
+
+async function runNativeSkillAlias({ slash = "", body = {}, matterStore, runtimeDbStorageService, skillRunnerService } = {}) {
+  const normalizedSlash = normalizeNativeSkillAliasSlash(slash);
+  if (!skillRunnerService?.start) {
+    throw httpError("Native skill runner is not available.", 503, "native_skill.runner_unavailable");
+  }
+  if (normalizedSlash === "/the_story") {
+    return runMatterStorySkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
+  }
+  if (normalizedSlash === "/procedural_posture_diagnosis") {
+    return runProceduralPostureDiagnosisSkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
+  }
+  throw httpError("Native skill is not available.", 404, "native_skill.not_found");
+}
+
+function normalizeNativeSkillAliasSlash(value = "") {
+  const text = safeDecodeText(value).trim();
+  const slash = text.startsWith("/") ? text : `/${text}`;
+  return slash.toLowerCase();
+}
+
+function safeDecodeText(value = "") {
+  try {
+    return decodeURIComponent(String(value || ""));
+  } catch {
+    return "";
+  }
 }
 
 async function runMatterStorySkill({

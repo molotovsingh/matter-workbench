@@ -360,6 +360,48 @@ test("job detail route hides other matter jobs from scoped private beta testers"
   }
 });
 
+test("unified native skill alias runs Matter Story through the native runner", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-native-skill-alias-story-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Skill Job Matter");
+  await mkdir(appDir, { recursive: true });
+  await writeExtractedTextMatter(matterRoot);
+  const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
+  await writeFile(configurableSkillsPath, `${JSON.stringify(storySkillCatalog(), null, 2)}\n`);
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    configurableSkillsPath,
+    configurableSkillRunsPath: path.join(appDir, "configurable-skill-runs.json"),
+    configurableSkillRunProvider: async () => "# The Story\n\nSkill client signed the agreement. (FILE-0001 p1.b1)\n",
+    jobStatusPath: path.join(tmp, "job-status-ledger.json"),
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    await postJson(baseUrl, "/api/switch-matter", { name: "Skill Job Matter" });
+
+    const result = await postJson(baseUrl, "/api/skill/the_story/run", {
+      matterName: "Skill Job Matter",
+      overwrite: true,
+    });
+
+    assert.equal(result.slash, "/the_story");
+    assert.equal(result.job.kind, "custom_skill");
+    assert.equal(result.job.metadata.skill.slash, "/the_story");
+    assert.equal(result.receipt.slash, "/the_story");
+    assert.equal(result.receipt.outputPaths.markdown, "20_Workshop/The Story.md");
+    assert.deepEqual(result.job.stages.map((stage) => stage.id), ["sync_matter_summary"]);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("custom skill run route records durable job evidence", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-api-skill-"));
   const appDir = path.join(tmp, "app");
@@ -432,6 +474,39 @@ test("custom skill run route records durable job evidence", async () => {
     app.server.close();
   }
 });
+
+function storySkillCatalog() {
+  return {
+    schema_version: "configurable-skills/v1",
+    skills: [{
+      id: "skill_story",
+      slash: "/the_story",
+      title: "The Story",
+      description: "Tell the matter story for internal lawyer review.",
+      status: "active",
+      version: 1,
+      familyId: "skill_story",
+      targetLane: "20_Workshop",
+      outputArtifact: "20_Workshop/The Story.md",
+      matterRequired: true,
+      paidProviderCall: true,
+      sourceBacked: "required",
+      promptConfig: {
+        prompt: "Tell the story from the matter record.",
+        citationPolicy: "Use raw FILE citations.",
+      },
+      modelPolicy: {
+        task: "configurable_skill_run",
+        provider: "openai-direct",
+        model: "gpt-5.4",
+        policyPromptVersion: "legal-workbench-policy/v1",
+      },
+      validation: { status: "passed", messages: [], validatedAt: "2026-06-06T00:00:00.000Z" },
+      createdAt: "2026-06-06T00:00:00.000Z",
+      updatedAt: "2026-06-06T00:00:00.000Z",
+    }],
+  };
+}
 
 async function writeExtractedTextMatter(matterRoot) {
   const intakeDir = path.join(matterRoot, "00_Inbox", "Intake 01 - Initial");
