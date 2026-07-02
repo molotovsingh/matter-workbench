@@ -1,6 +1,3 @@
-import { CASE_TIMELINE_MARKDOWN_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
-import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
-
 export const POSTURE_DIAGNOSIS_CONFIDENCE_VALUES = ["low", "medium", "high", "unknown"];
 export const POSTURE_DIAGNOSIS_PRIORITY_VALUES = ["primary", "secondary", "parked", "not_advised_yet", "unknown"];
 export const POSTURE_DIAGNOSIS_DISPOSITION_VALUES = ["accepted", "rejected", "partly_accepted"];
@@ -163,7 +160,6 @@ function sourcedTextSchema() {
 
 export function renderProceduralPostureDiagnosisMarkdown(diagnosis = {}) {
   const generated = diagnosis.generated_at || "";
-  const basedOn = diagnosis.based_on || {};
   const legalRoutes = normalizeLegalRoutes(diagnosis.legal_routes);
   const recommendedRoute = normalizeRecommendedRoute(diagnosis.recommended_route);
   return [
@@ -171,7 +167,7 @@ export function renderProceduralPostureDiagnosisMarkdown(diagnosis = {}) {
     "",
     "Status: Provisional — lawyer confirmation required",
     "Author: MW (Matter Workbench)",
-    `Based on: Case Timeline (${basedOn.case_timeline_path || CASE_TIMELINE_MARKDOWN_RELATIVE}), Matter Story (${basedOn.matter_story_path || DISPUTE_STORY_OUTPUT_RELATIVE}), Source Index (${basedOn.source_index_path || SOURCE_INDEX_RELATIVE})`,
+    "Based on: current Case Timeline, Matter Story, and Source Index for this matter.",
     generated ? `Generated: ${generated}` : "",
     "",
     "## Simple case view",
@@ -213,10 +209,6 @@ export function renderProceduralPostureDiagnosisMarkdown(diagnosis = {}) {
     "## Missing information / documents",
     "",
     ...bulletStrings(diagnosis.missing_information),
-    "",
-    "## Internal source handles",
-    "",
-    ...bulletStrings(diagnosis.internal_source_handles),
   ].filter((line) => line !== null && line !== undefined).join("\n").trimEnd();
 }
 

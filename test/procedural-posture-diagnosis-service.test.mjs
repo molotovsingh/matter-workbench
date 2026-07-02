@@ -159,6 +159,7 @@ test("procedural posture prompts require provisional, adverse-fact-aware diagnos
   assert.match(prompts.proposerSystem, /multiple procedural tracks/i);
   assert.match(prompts.proposerSystem, /what cannot be confirmed/i);
   assert.match(prompts.proposerSystem, /Deduplicate repeated source labels/i);
+  assert.match(prompts.proposerSystem, /Do not put raw FILE handles, hashes, storage paths/i);
   assert.match(prompts.criticSystem, /unsupported leaps/i);
   assert.match(prompts.criticSystem, /conflated proceedings\/forums/i);
   assert.match(prompts.finalizerSystem, /prose-like legal routes section/i);
@@ -238,6 +239,11 @@ test("procedural posture diagnosis writes markdown and JSON sidecar", async () =
   assert.match(markdown, /### Route 1: Confirm live status and complete record/);
   assert.match(markdown, /Statutory references to check: Verify limitation, forum, and applicable civil procedure before filing\./);
   assert.match(markdown, /## Recommended route/);
+  assert.doesNotMatch(markdown, /FILE-0001/);
+  assert.doesNotMatch(markdown, /20_Workshop\//);
+  assert.doesNotMatch(markdown, /10_Library\//);
+  assert.doesNotMatch(markdown, /Internal source handles/i);
+  assert.deepEqual(json.internal_source_handles, ["FILE-0001 p1.b1"]);
   assert.equal(json.simple_case_view, "This looks like a notice-led civil matter. The record does not yet show a filed court case, so the legal team should first confirm whether any proceeding already exists.");
   assert.equal(json.legal_routes.length, 2);
   assert.equal(json.recommended_route.route_title, "Confirm live status and complete record");

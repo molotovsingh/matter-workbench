@@ -707,7 +707,7 @@ export function buildPostureDiagnosisPrompts() {
     "For interlocutory orders, state their apparent limited scope from the record; do not expand a status quo or restraint order beyond the asset, party, or issue it expressly covers.",
     "If transfer, filing, or remedy steps are conditional on another forum's order or proceeding, state the condition and the current known-unknowns.",
     "Deduplicate repeated source labels in visible prose where they appear to refer to the same document.",
-    "Use readable source labels in prose when possible. Keep raw FILE handles only in source_refs and internal_source_handles.",
+    "Do not put raw FILE handles, hashes, storage paths, provider traces, prompt traces, candidate ledgers, or raw model responses in visible prose. Keep raw FILE handles only in structured source_refs and internal_source_handles for internal audit.",
     "If CrPC/IPC and BNSS/BNS may both be relevant, mention the known section and say to verify the applicable equivalent before filing.",
   ];
   return {
