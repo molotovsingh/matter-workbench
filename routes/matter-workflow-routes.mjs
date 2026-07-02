@@ -142,6 +142,15 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
       }),
       exactRoute("POST", "/api/describe-sources", async () => {
         const body = await readRequestJson(request);
+        if (skillRunnerService?.start) {
+          sendJson(response, 200, await runDescribeSourcesSkill({
+            body,
+            matterStore,
+            runtimeDbStorageService,
+            skillRunnerService,
+          }));
+          return;
+        }
         sendJson(response, 200, await runTrackedWorkflow({
           jobStatusService,
           kind: "source_labels",
@@ -150,24 +159,12 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           matterName: matterNameForBody(matterStore, body),
           operation: async ({ job } = {}) => {
             const onProgress = sourceLabelJobProgressReporter(jobStatusService, job);
-            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-              const matter = await runtimeDbMatterForBody(matterStore, body);
-              assertRuntimeDbSourceDescriptorsAvailable({ runtimeDbStorageService });
-              const result = await runtimeDbStorageService.describeSources(matter, {
-                dryRun: Boolean(body.dryRun),
-                env: services.env || {},
-                sourceDescriptorProvider: services.sourceDescriptorProvider,
-                onProgress,
-              });
-              return runtimeDbWorkflowResponse(result, matter);
-            }
-            assertFilesystemWorkflowAvailable(matterStore, "Label sources");
-            const root = await matterRootForBody(matterStore, body);
-            return runSourceDescriptors({
-              matterRoot: root,
-              dryRun: Boolean(body.dryRun),
-              env: services.env || {},
+            return runDescribeSourcesLegacy({
+              body,
+              matterStore,
+              runtimeDbStorageService,
               sourceDescriptorProvider: services.sourceDescriptorProvider,
+              env: services.env || {},
               onProgress,
             });
           },
@@ -837,6 +834,9 @@ async function runNativeSkillAlias({ slash = "", body = {}, matterStore, runtime
   if (!skillRunnerService?.start) {
     throw httpError("Native skill runner is not available.", 503, "native_skill.runner_unavailable");
   }
+  if (normalizedSlash === "/describe_sources") {
+    return runDescribeSourcesSkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
+  }
   if (normalizedSlash === "/create_listofdates") {
     return runListOfDatesSkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
   }
@@ -861,6 +861,98 @@ function safeDecodeText(value = "") {
   } catch {
     return "";
   }
+}
+
+async function runDescribeSourcesSkill({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  skillRunnerService,
+} = {}) {
+  const { request } = await describeSourcesRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const workflowMetadata = workflowJobMetadata({
+    kind: "source_labels",
+    route: "/api/describe-sources",
+    label: "Label Sources",
+  });
+  const retryOfJobId = typeof body.retryOfJobId === "string" ? body.retryOfJobId.trim() : "";
+  const run = retryOfJobId
+    ? await skillRunnerService.retry({
+      failedRunId: retryOfJobId,
+      retryStageId: typeof body.retryStageId === "string" ? body.retryStageId.trim() : "",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    })
+    : await skillRunnerService.start({
+      slash: "/describe_sources",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    });
+  if (!run?.accepted) {
+    throw httpError(run?.reason || "Source labels are not ready to run.", 409, "native_skill.preflight_failed");
+  }
+  if (run.error) throw run.error;
+  return attachJobStatusWithReceipt(run.result, run.job, run.receipt);
+}
+
+async function runDescribeSourcesLegacy({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  sourceDescriptorProvider = null,
+  env = {},
+  onProgress = null,
+} = {}) {
+  if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+    const matter = await runtimeDbMatterForBody(matterStore, body);
+    assertRuntimeDbSourceDescriptorsAvailable({ runtimeDbStorageService });
+    return runtimeDbWorkflowResponse(await runtimeDbStorageService.describeSources(matter, {
+      dryRun: Boolean(body.dryRun),
+      env,
+      sourceDescriptorProvider,
+      onProgress,
+    }), matter);
+  }
+  assertFilesystemWorkflowAvailable(matterStore, "Label sources");
+  const root = await matterRootForBody(matterStore, body);
+  return runSourceDescriptors({
+    matterRoot: root,
+    dryRun: Boolean(body.dryRun),
+    env,
+    sourceDescriptorProvider,
+    onProgress,
+  });
+}
+
+async function describeSourcesRunnerRequest({ body = {}, matterStore, runtimeDbStorageService } = {}) {
+  if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+    const matter = await runtimeDbMatterForBody(matterStore, body);
+    assertRuntimeDbSourceDescriptorsAvailable({ runtimeDbStorageService });
+    return {
+      runtimeDb: true,
+      request: {
+        matterName: matter.name,
+        dryRun: Boolean(body.dryRun),
+        runtimeDbMatter: matter,
+        runtimeDbDescribeSources: (options) => runtimeDbStorageService.describeSources(matter, options),
+      },
+    };
+  }
+  assertFilesystemWorkflowAvailable(matterStore, "Label sources");
+  return {
+    runtimeDb: false,
+    request: {
+      matterName: matterNameForBody(matterStore, body),
+      matterRoot: await matterRootForBody(matterStore, body),
+      dryRun: Boolean(body.dryRun),
+    },
+  };
 }
 
 async function runListOfDatesSkill({

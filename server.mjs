@@ -66,6 +66,7 @@ import { sendJson } from "./routes/http-utils.mjs";
 import { handlePrivateBetaAuthApiRequest, requirePrivateBetaAuth } from "./routes/private-beta-auth-routes.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
 import { createListOfDatesRunner } from "./skills/builtins/create_listofdates/runner.mjs";
+import { createDescribeSourcesRunner } from "./skills/builtins/describe_sources/runner.mjs";
 import { createProceduralPostureDiagnosisRunner } from "./skills/builtins/procedural_posture_diagnosis/runner.mjs";
 import { createMatterStoryRunner } from "./skills/builtins/the_story/runner.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
@@ -334,6 +335,10 @@ export async function createWorkbenchServer(options = {}) {
     aiProvider: options.aiProvider || null,
     env,
   });
+  const describeSourcesRunner = createDescribeSourcesRunner({
+    env,
+    sourceDescriptorProvider: options.sourceDescriptorProvider || null,
+  });
   const matterStoryRunner = createMatterStoryRunner({
     matterStore,
     configurableSkillsService,
@@ -348,6 +353,7 @@ export async function createWorkbenchServer(options = {}) {
       jobStatusService,
       nativeRunStateService,
       runners: {
+        [describeSourcesRunner.slash]: describeSourcesRunner,
         [listOfDatesRunner.slash]: listOfDatesRunner,
         [matterStoryRunner.slash]: matterStoryRunner,
         [postureDiagnosisRunner.slash]: postureDiagnosisRunner,

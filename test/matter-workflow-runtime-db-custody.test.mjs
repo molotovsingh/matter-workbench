@@ -37,6 +37,10 @@ test("runtime DB setup and analysis write routes stay DB-native", async () => {
     'exactRoute("POST", "/api/matter-story"',
   );
   const fullSource = await readFile(matterWorkflowRoutesPath, "utf8");
+  const labelsHelperSource = fullSource.slice(
+    fullSource.indexOf("async function runDescribeSourcesSkill"),
+    fullSource.indexOf("async function runListOfDatesSkill"),
+  );
   const listHelperSource = fullSource.slice(
     fullSource.indexOf("async function runListOfDatesSkill"),
     fullSource.indexOf("async function runMatterStorySkill"),
@@ -52,8 +56,9 @@ test("runtime DB setup and analysis write routes stay DB-native", async () => {
   assert.doesNotMatch(extractSource, /runRuntimeDbMaterializedWorkflow/);
   assert.doesNotMatch(extractSource, /runMaterializedMatterWrite/);
 
-  assert.match(labelsSource, /assertRuntimeDbSourceDescriptorsAvailable/);
-  assert.match(labelsSource, /describeSources/);
+  assert.match(labelsSource, /runDescribeSourcesSkill/);
+  assert.match(labelsHelperSource, /assertRuntimeDbSourceDescriptorsAvailable/);
+  assert.match(labelsHelperSource, /describeSources/);
   assert.doesNotMatch(labelsSource, /runRuntimeDbMaterializedWorkflow/);
   assert.doesNotMatch(labelsSource, /runMaterializedMatterWrite/);
 

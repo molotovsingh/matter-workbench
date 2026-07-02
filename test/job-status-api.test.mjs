@@ -165,6 +165,8 @@ test("source labels route exposes running batch progress through job status", as
 
       const result = await sourceLabels;
       assert.equal(result.job.status, "succeeded");
+      assert.equal(result.job.metadata.skill.slash, "/describe_sources");
+      assert.equal(result.receipt.slash, "/describe_sources");
       assert.equal(result.job.stages[0].id, "label_pass");
       assert.equal(result.job.stages[0].status, "succeeded");
       assert.match(result.job.stages[0].summary, /Source Labels batch 1\/1 complete/);
