@@ -886,16 +886,26 @@ async function runMatterStorySkill({
     matterStore,
     runtimeDbStorageService,
   });
-  const run = await skillRunnerService.start({
-    slash: "/the_story",
-    request,
-    mode: "inline",
-    metadata: workflowJobMetadata({
-      kind: "custom_skill",
-      route: "/api/matter-story",
-      label: "The Story",
-    }),
+  const workflowMetadata = workflowJobMetadata({
+    kind: "custom_skill",
+    route: "/api/matter-story",
+    label: "The Story",
   });
+  const retryOfJobId = typeof body.retryOfJobId === "string" ? body.retryOfJobId.trim() : "";
+  const run = retryOfJobId
+    ? await skillRunnerService.retry({
+      failedRunId: retryOfJobId,
+      retryStageId: typeof body.retryStageId === "string" ? body.retryStageId.trim() : "",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    })
+    : await skillRunnerService.start({
+      slash: "/the_story",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    });
   if (!run?.accepted) {
     throw httpError(run?.reason || "Matter Story is not ready to run.", 409, "native_skill.preflight_failed");
   }

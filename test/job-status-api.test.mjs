@@ -402,6 +402,77 @@ test("unified native skill alias runs Matter Story through the native runner", a
   }
 });
 
+test("unified native skill alias can retry a failed native job", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-native-skill-alias-retry-"));
+  const appDir = path.join(tmp, "app");
+  const mattersHome = path.join(tmp, "matters");
+  const matterRoot = path.join(mattersHome, "Skill Job Matter");
+  await mkdir(appDir, { recursive: true });
+  await writeExtractedTextMatter(matterRoot);
+  const configurableSkillsPath = path.join(appDir, "configurable-skills.json");
+  await writeFile(configurableSkillsPath, `${JSON.stringify(storySkillCatalog(), null, 2)}\n`);
+  const jobStatusPath = path.join(tmp, "job-status-ledger.json");
+  await writeFile(jobStatusPath, `${JSON.stringify({
+    schema_version: "job-status-ledger/v1",
+    jobs: [{
+      schema_version: "job-status/v1",
+      id: "job_failed_story_retry_source",
+      kind: "custom_skill",
+      label: "The Story",
+      matterName: "Skill Job Matter",
+      status: "failed",
+      startedAt: "2026-06-06T00:00:00.000Z",
+      updatedAt: "2026-06-06T00:01:00.000Z",
+      finishedAt: "2026-06-06T00:01:00.000Z",
+      errorMessage: "Provider returned malformed JSON.",
+      errorCode: "provider.invalid_json",
+      failureClass: "provider",
+      stages: [{
+        id: "generate",
+        label: "Generate matter story",
+        status: "failed",
+        startedAt: "2026-06-06T00:00:10.000Z",
+        finishedAt: "2026-06-06T00:01:00.000Z",
+        failureCode: "provider.invalid_json",
+      }],
+      metadata: { skill: { slash: "/the_story", skillId: "the_story" } },
+    }],
+  }, null, 2)}\n`);
+
+  const app = await createWorkbenchServer({
+    appDir,
+    env: { MATTERS_HOME: mattersHome },
+    host: "127.0.0.1",
+    port: 0,
+    configurableSkillsPath,
+    configurableSkillRunsPath: path.join(appDir, "configurable-skill-runs.json"),
+    configurableSkillRunProvider: async () => "# The Story\n\nRetried story output. (FILE-0001 p1.b1)\n",
+    jobStatusPath,
+  });
+
+  await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+  try {
+    const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
+    await postJson(baseUrl, "/api/switch-matter", { name: "Skill Job Matter" });
+
+    const result = await postJson(baseUrl, "/api/skill/the_story/run", {
+      matterName: "Skill Job Matter",
+      retryOfJobId: "job_failed_story_retry_source",
+      retryStageId: "generate",
+      overwrite: true,
+    });
+
+    assert.equal(result.job.status, "succeeded");
+    assert.equal(result.job.metadata.retry.ofRunId, "job_failed_story_retry_source");
+    assert.equal(result.job.metadata.retry.retryStageId, "generate");
+    assert.equal(result.receipt.slash, "/the_story");
+    const jobs = await getJson(baseUrl, "/api/jobs?kind=custom_skill");
+    assert.equal(jobs.jobs.length, 2);
+  } finally {
+    app.server.close();
+  }
+});
+
 test("custom skill run route records durable job evidence", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-job-api-skill-"));
   const appDir = path.join(tmp, "app");
