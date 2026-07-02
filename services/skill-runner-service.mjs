@@ -104,6 +104,7 @@ export function createSkillRunnerService({
     } catch {
       throw retrySourceNotFoundError(failedRunId);
     }
+    if (failedJob.status !== "failed") throw retrySourceNotFailedError(failedJob);
     const key = normalizeSlash(slash || failedJob.metadata?.skill?.slash || failedJob.slash || "");
     const stageId = normalizeStageId(retryStageId || recoveryRetryStageId(failedJob));
     return start({
@@ -212,6 +213,14 @@ function retrySourceNotFoundError(runId = "") {
   const error = new Error(`Retry source job not found: ${String(runId || "").trim() || "unknown"}`);
   error.statusCode = 404;
   error.code = "native_skill.retry_source_not_found";
+  return error;
+}
+
+function retrySourceNotFailedError(job = {}) {
+  const error = new Error("Only failed native skill jobs can be retried from a stage.");
+  error.statusCode = 409;
+  error.code = "native_skill.retry_source_not_failed";
+  error.jobId = job.id;
   return error;
 }
 

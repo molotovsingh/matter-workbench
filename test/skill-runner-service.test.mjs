@@ -73,6 +73,28 @@ test("skill runner service can execute an operation inline and return a terminal
   assert.equal(result.receipt.outputFileStatus, "present");
 });
 
+test("skill runner service refuses stage retry for non-failed jobs", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-retry-nonfailed-"));
+  const jobStatusService = createJobStatusService({
+    jobsPath: path.join(tmp, "jobs.json"),
+    idFactory: () => "job_succeeded_retry_source",
+  });
+  const runnerService = createSkillRunnerService({
+    jobStatusService,
+    runners: { "/demo_skill": DEMO_RUNNER },
+  });
+  const run = await runnerService.start({
+    slash: "/demo_skill",
+    request: { matterName: "Matter C" },
+    mode: "inline",
+  });
+
+  await assert.rejects(
+    () => runnerService.retry({ failedRunId: run.runId, retryStageId: "build_packet", mode: "inline" }),
+    (error) => error?.statusCode === 409 && error?.code === "native_skill.retry_source_not_failed",
+  );
+});
+
 test("skill runner service reports missing retry source jobs as stable 404s", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-retry-missing-"));
   const runnerService = createSkillRunnerService({
