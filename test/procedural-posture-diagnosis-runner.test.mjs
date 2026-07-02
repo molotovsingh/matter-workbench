@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createJobStatusService } from "../services/job-status-service.mjs";
+import { createNativeSkillRunStateService } from "../services/native-skill-run-state-service.mjs";
 import { createSkillRunnerService } from "../services/skill-runner-service.mjs";
 import { createProceduralPostureDiagnosisRunner } from "../skills/builtins/procedural_posture_diagnosis/runner.mjs";
 
@@ -139,6 +140,142 @@ test("procedural posture runner attributes provider JSON failure to finalizer st
   assert.equal(result.job.stages.find((stage) => stage.id === "proposer").salvageable, true);
   assert.equal(result.job.stages.find((stage) => stage.id === "critic").salvageable, true);
 });
+
+test("procedural posture runner can retry finalizer from durable stage state", async () => {
+  const root = await matterRoot();
+  let finalizerAttempts = 0;
+  const calls = [];
+  const aiProviderService = {
+    resolveTask: () => ({ providerConfig: { provider: "openai-direct" } }),
+    invoke: async ({ label }) => {
+      calls.push(label);
+      if (label.includes("finalizer")) {
+        finalizerAttempts += 1;
+        if (finalizerAttempts === 1) {
+          const error = new Error("Unexpected end of JSON input");
+          error.code = "provider.invalid_json";
+          throw error;
+        }
+        return {
+          parsed: finalDiagnosisFixture(),
+          aiRun: { provider: "openai-direct", model: "gpt-5.5" },
+        };
+      }
+      return {
+        parsed: label.includes("critic")
+          ? { verdict: "usable_with_revisions", risk_level: "medium", critique_points: ["Keep forum provisional."] }
+          : { short_diagnosis: "Draft diagnosis", possible_filings: [] },
+        aiRun: { provider: "openai-direct", model: label.includes("critic") ? "o3" : "gpt-5.5" },
+      };
+    },
+  };
+  let jobNumber = 0;
+  const jobStatusService = createJobStatusService({
+    jobsPath: path.join(root, ".jobs-retry.json"),
+    idFactory: () => `job_posture_retry_${++jobNumber}`,
+  });
+  const runState = createNativeSkillRunStateService({
+    statePath: path.join(root, ".native-run-state.json"),
+  });
+  const postureRunner = createProceduralPostureDiagnosisRunner({
+    matterStore: store(root),
+    aiProviderService,
+  });
+  const runnerService = createSkillRunnerService({
+    jobStatusService,
+    nativeRunStateService: runState,
+    runners: { "/procedural_posture_diagnosis": postureRunner },
+  });
+
+  const failed = await runnerService.start({
+    slash: "/procedural_posture_diagnosis",
+    request: {
+      overwrite: true,
+      matterContextPacketOverride: contextPacket,
+    },
+    mode: "inline",
+  });
+  assert.equal(failed.job.status, "failed");
+  assert.equal(failed.receipt.recovery.retryStageId, "finalizer");
+
+  const retried = await runnerService.retry({
+    failedRunId: failed.runId,
+    retryStageId: "finalizer",
+    request: {
+      overwrite: true,
+      matterContextPacketOverride: contextPacket,
+    },
+    mode: "inline",
+  });
+
+  assert.equal(retried.job.status, "succeeded");
+  assert.equal(retried.receipt.state, "succeeded");
+  assert.deepEqual(calls, [
+    "posture diagnosis proposer",
+    "posture diagnosis critic",
+    "posture diagnosis finalizer",
+    "posture diagnosis finalizer",
+  ]);
+  assert.equal(retried.job.metadata.retry.ofRunId, failed.runId);
+  assert.equal(retried.job.metadata.retry.retryStageId, "finalizer");
+  assert.deepEqual(retried.job.stages.map((stage) => [stage.id, stage.status]), [
+    ["build_packet", "succeeded"],
+    ["proposer", "skipped"],
+    ["critic", "skipped"],
+    ["finalizer", "succeeded"],
+    ["validate", "succeeded"],
+    ["persist", "succeeded"],
+  ]);
+  assert.deepEqual(
+    (await runState.listRunStageStates(retried.runId)).map((entry) => entry.stageId).sort(),
+    ["build_packet", "critic", "finalizer", "proposer"],
+  );
+});
+
+function finalDiagnosisFixture() {
+  return {
+    schema_version: "posture_diagnosis_final/v1",
+    status: "provisional_mw_inferred",
+    short_diagnosis: "The record suggests a pre-filing notice-response posture, subject to lawyer confirmation.",
+    simple_case_view: "This looks like a notice-led civil matter and needs lawyer confirmation before filing.",
+    court_forum: {
+      value: "Civil court / appropriate forum to be confirmed",
+      confidence: "medium",
+      why: "The supplied record shows a notice but no filed proceeding.",
+      source_refs: ["FILE-0001 p1.b1"],
+      lawyer_to_confirm: "Confirm forum and jurisdiction.",
+    },
+    procedural_posture: {
+      value: "Pre-filing / response to notice",
+      confidence: "high",
+      why: "The record shows notice but no proceeding number or order.",
+      source_refs: ["FILE-0001 p1.b1"],
+      lawyer_to_confirm: "Confirm no proceeding has already been filed.",
+    },
+    possible_filings: [{
+      priority: "primary",
+      filing_or_remedy: "Notice response or pre-filing strategy note",
+      reason: "The visible record is notice-led and does not show an existing case.",
+      key_facts: ["Notice issued on 1 January 2026"],
+      caveats: ["Forum and limitation require lawyer review"],
+      source_refs: ["FILE-0001 p1.b1"],
+    }],
+    recommended_working_path: {
+      priority: "primary",
+      filing_or_remedy: "Confirm posture before drafting a notice response",
+      reason: "The next step depends on whether a proceeding exists outside the supplied record.",
+      key_facts: ["No proceeding is visible"],
+      caveats: ["Lawyer must confirm"],
+      source_refs: ["FILE-0001 p1.b1"],
+    },
+    governing_law: ["Civil procedure and limitation to be confirmed by counsel."],
+    central_facts: ["Notice issued on 1 January 2026."],
+    adverse_or_difficult_facts: ["No filed proceeding is visible in the supplied record."],
+    missing_information: ["Forum, limitation, and live filing status."],
+    lawyer_to_confirm: ["Confirm live case status before filing."],
+    internal_source_handles: ["FILE-0001 p1.b1"],
+  };
+}
 
 function fixedClock(values) {
   let index = 0;

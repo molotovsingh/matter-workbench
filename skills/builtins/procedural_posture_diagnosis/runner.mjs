@@ -25,7 +25,7 @@ export function createProceduralPostureDiagnosisRunner({
     version: 1,
     kind: "posture_diagnosis",
     label: "Diagnose Procedural Posture",
-    async run({ request = {}, job, stages }) {
+    async run({ request = {}, job, stages, runState }) {
       const stageRecorder = stages && job?.id ? bindStageRecorder({ jobId: job.id, stages }) : null;
       return service.runDiagnosis({
         matterName: request.matterName,
@@ -38,6 +38,10 @@ export function createProceduralPostureDiagnosisRunner({
         artifactReader: request.artifactReader,
         artifactStatReader: request.artifactStatReader,
         artifactWriter: request.artifactWriter,
+        runId: job?.id,
+        resumeFromRunId: request.resumeFromRunId,
+        resumeFromStage: request.resumeFromStage,
+        runState,
         stageRecorder,
       });
     },
@@ -49,5 +53,6 @@ function bindStageRecorder({ jobId, stages }) {
     startStage: (stage) => stages.startStage(jobId, stage),
     succeedStage: (stage) => stages.succeedStage(jobId, stage),
     failStage: (stage, error) => stages.failStage(jobId, stage, error),
+    skipStage: (stage) => stages.skipStage(jobId, stage),
   };
 }

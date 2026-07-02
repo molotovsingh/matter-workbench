@@ -3,6 +3,7 @@ import { createSkillStageService } from "./skill-stage-service.mjs";
 
 export function createSkillRunnerService({
   jobStatusService,
+  nativeRunStateService = null,
   runners = {},
   dispatch = null,
   now = () => new Date(),
@@ -70,7 +71,7 @@ export function createSkillRunnerService({
     const job = await jobStatusService.getJob(runId);
     try {
       const result = typeof runner.run === "function"
-        ? await runner.run({ request, job, stages: stageService, jobStatusService })
+        ? await runner.run({ request, job, stages: stageService, jobStatusService, runState: nativeRunStateService })
         : {};
       const completed = await jobStatusService.completeJob(runId, resultJobPatch(result));
       const receipt = deriveNativeSkillRunReceipt({
@@ -96,6 +97,30 @@ export function createSkillRunnerService({
     }
   }
 
+  async function retry({ failedRunId, retryStageId = "", request = {}, slash = "", mode = "auto", metadata = {} } = {}) {
+    const failedJob = await jobStatusService.getJob(failedRunId);
+    const key = normalizeSlash(slash || failedJob.metadata?.skill?.slash || failedJob.slash || "");
+    const stageId = normalizeStageId(retryStageId || recoveryRetryStageId(failedJob));
+    return start({
+      slash: key,
+      request: {
+        matterName: failedJob.matterName || request.matterName,
+        matterId: failedJob.matterId || request.matterId,
+        ...request,
+        resumeFromRunId: failedJob.id,
+        resumeFromStage: stageId,
+      },
+      mode,
+      metadata: {
+        ...normalizeJobMetadata(metadata),
+        retry: {
+          ofRunId: failedJob.id,
+          ...(stageId ? { retryStageId: stageId } : {}),
+        },
+      },
+    });
+  }
+
   async function getReceipt({ runId, slash = "" } = {}) {
     const job = await jobStatusService.getJob(runId);
     const key = slash || job.metadata?.skill?.slash || job.slash || "";
@@ -112,6 +137,7 @@ export function createSkillRunnerService({
     start,
     execute,
     getReceipt,
+    retry,
     resolveRunner,
   };
 }
@@ -175,6 +201,16 @@ function sanitizeWarnings(warnings = []) {
     .filter((warning) => typeof warning === "string" && warning.trim())
     .map((warning) => warning.trim())
     .slice(0, 10);
+}
+
+function recoveryRetryStageId(job = {}) {
+  const failed = Array.isArray(job.stages) ? job.stages.find((stage) => stage?.status === "failed") : null;
+  return failed?.id || "";
+}
+
+function normalizeStageId(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/.test(text) ? text : "";
 }
 
 function normalizeSlash(value) {

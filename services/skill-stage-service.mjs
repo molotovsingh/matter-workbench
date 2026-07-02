@@ -62,6 +62,7 @@ export function createSkillStageService({
       status: "skipped",
       finishedAt: isoNow(now),
       ...(stage.summary ? { summary: stage.summary } : {}),
+      ...(stage.salvageable !== undefined ? { salvageable: Boolean(stage.salvageable) } : {}),
     });
   }
 

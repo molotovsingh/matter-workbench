@@ -70,6 +70,10 @@ export function createProceduralPostureDiagnosisService({
     artifactReader = null,
     artifactStatReader = null,
     artifactWriter = null,
+    runId = "",
+    resumeFromRunId = "",
+    resumeFromStage = "",
+    runState = null,
     stageRecorder = null,
   } = {}) {
     const matterRoot = await matterRootForName({ matterName, matterRootOverride });
@@ -108,7 +112,19 @@ export function createProceduralPostureDiagnosisService({
       successPatch: () => ({ salvageable: true }),
     });
 
-    const loop = await runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, env, stageRecorder });
+    await writeRunStageState(runState, { runId, stageId: "build_packet", value: packet, summary: "Procedural posture evidence packet" });
+
+    const loop = await runDiagnosisLoop({
+      packet,
+      aiProviderService,
+      diagnosisProvider,
+      env,
+      runId,
+      resumeFromRunId,
+      resumeFromStage,
+      runState,
+      stageRecorder,
+    });
     const generatedAt = now().toISOString();
     const sidecar = buildDiagnosisSidecar({
       finalDiagnosis: loop.finalDiagnosis,
@@ -394,7 +410,17 @@ async function buildNativeMatterContextPacket(matterRoot) {
   return buildConfigurableSkillMatterContextPacket(matterRoot);
 }
 
-async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, env = process.env, stageRecorder = null }) {
+async function runDiagnosisLoop({
+  packet,
+  aiProviderService,
+  diagnosisProvider,
+  env = process.env,
+  runId = "",
+  resumeFromRunId = "",
+  resumeFromStage = "",
+  runState = null,
+  stageRecorder = null,
+}) {
   if (typeof diagnosisProvider === "function") {
     const supplied = await diagnosisProvider({ packet, prompts: buildPostureDiagnosisPrompts(), schemas: postureDiagnosisSchemas() });
     return normalizeInjectedDiagnosisLoop(supplied);
@@ -411,59 +437,77 @@ async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, 
   const proposerModel = modelForProvider(env.POSTURE_DIAGNOSIS_PROPOSER_MODEL || DEFAULT_PROPOSER_MODEL, provider);
   const criticModel = modelForProvider(env.POSTURE_DIAGNOSIS_CRITIC_MODEL || DEFAULT_CRITIC_MODEL, provider);
   const finalizerModel = modelForProvider(env.POSTURE_DIAGNOSIS_FINALIZER_MODEL || DEFAULT_FINALIZER_MODEL, provider);
-  const proposer = await runRecordedStage(stageRecorder, {
-    id: "proposer",
-    label: "Posture diagnosis proposer",
-    provider,
-    model: proposerModel,
-  }, () => aiProviderService.invoke({
-    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
-    systemPrompt: prompts.proposerSystem,
-    userPayload: { matterPacket: packet },
-    schema: diagnosisSchema("posture_diagnosis_draft"),
-    schemaName: "posture_diagnosis_draft",
-    schemaDescription: "Provisional filing and procedural posture diagnosis draft.",
-    responseMode: "json",
-    label: "posture diagnosis proposer",
-    overrides: providerOverrides(proposerModel, env),
-  }), {
-    successPatch: (result) => ({ aiRun: result?.aiRun, salvageable: true }),
+  const proposer = await runReusableProviderStage({
+    stage: {
+      id: "proposer",
+      label: "Posture diagnosis proposer",
+      provider,
+      model: proposerModel,
+    },
+    runId,
+    resumeFromRunId,
+    resumeFromStage,
+    runState,
+    stageRecorder,
+    operation: () => aiProviderService.invoke({
+      task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+      systemPrompt: prompts.proposerSystem,
+      userPayload: { matterPacket: packet },
+      schema: diagnosisSchema("posture_diagnosis_draft"),
+      schemaName: "posture_diagnosis_draft",
+      schemaDescription: "Provisional filing and procedural posture diagnosis draft.",
+      responseMode: "json",
+      label: "posture diagnosis proposer",
+      overrides: providerOverrides(proposerModel, env),
+    }),
   });
-  const critique = await runRecordedStage(stageRecorder, {
-    id: "critic",
-    label: "Posture diagnosis critic",
-    provider,
-    model: criticModel,
-  }, () => aiProviderService.invoke({
-    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
-    systemPrompt: prompts.criticSystem,
-    userPayload: { matterPacket: packet, proposerDraft: proposer.parsed },
-    schema: critiqueSchema(),
-    schemaName: "posture_diagnosis_critique",
-    schemaDescription: "Critique of provisional filing and procedural posture diagnosis.",
-    responseMode: "json",
-    label: "posture diagnosis critic",
-    overrides: providerOverrides(criticModel, env),
-  }), {
-    successPatch: (result) => ({ aiRun: result?.aiRun, salvageable: true }),
+  const critique = await runReusableProviderStage({
+    stage: {
+      id: "critic",
+      label: "Posture diagnosis critic",
+      provider,
+      model: criticModel,
+    },
+    runId,
+    resumeFromRunId,
+    resumeFromStage,
+    runState,
+    stageRecorder,
+    operation: () => aiProviderService.invoke({
+      task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+      systemPrompt: prompts.criticSystem,
+      userPayload: { matterPacket: packet, proposerDraft: proposer.parsed },
+      schema: critiqueSchema(),
+      schemaName: "posture_diagnosis_critique",
+      schemaDescription: "Critique of provisional filing and procedural posture diagnosis.",
+      responseMode: "json",
+      label: "posture diagnosis critic",
+      overrides: providerOverrides(criticModel, env),
+    }),
   });
-  const finalizer = await runRecordedStage(stageRecorder, {
-    id: "finalizer",
-    label: "Posture diagnosis finalizer",
-    provider,
-    model: finalizerModel,
-  }, () => aiProviderService.invoke({
-    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
-    systemPrompt: prompts.finalizerSystem,
-    userPayload: { matterPacket: packet, proposerDraft: proposer.parsed, critique: critique.parsed },
-    schema: finalDiagnosisSchema(),
-    schemaName: "posture_diagnosis_final",
-    schemaDescription: "Final provisional filing and procedural posture diagnosis after critique.",
-    responseMode: "json",
-    label: "posture diagnosis finalizer",
-    overrides: providerOverrides(finalizerModel, env),
-  }), {
-    successPatch: (result) => ({ aiRun: result?.aiRun, salvageable: true }),
+  const finalizer = await runReusableProviderStage({
+    stage: {
+      id: "finalizer",
+      label: "Posture diagnosis finalizer",
+      provider,
+      model: finalizerModel,
+    },
+    runId,
+    resumeFromRunId,
+    resumeFromStage,
+    runState,
+    stageRecorder,
+    operation: () => aiProviderService.invoke({
+      task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+      systemPrompt: prompts.finalizerSystem,
+      userPayload: { matterPacket: packet, proposerDraft: proposer.parsed, critique: critique.parsed },
+      schema: finalDiagnosisSchema(),
+      schemaName: "posture_diagnosis_final",
+      schemaDescription: "Final provisional filing and procedural posture diagnosis after critique.",
+      responseMode: "json",
+      label: "posture diagnosis finalizer",
+      overrides: providerOverrides(finalizerModel, env),
+    }),
   });
   await runRecordedStage(stageRecorder, {
     id: "validate",
@@ -479,6 +523,70 @@ async function runDiagnosisLoop({ packet, aiProviderService, diagnosisProvider, 
       finalizer: finalizer.aiRun,
     },
   };
+}
+
+async function runReusableProviderStage({
+  stage,
+  operation,
+  runId = "",
+  resumeFromRunId = "",
+  resumeFromStage = "",
+  runState = null,
+  stageRecorder = null,
+} = {}) {
+  if (shouldReuseStage(stage.id, resumeFromStage)) {
+    const prior = await readRunStageValue(runState, { runId: resumeFromRunId, stageId: stage.id });
+    if (prior?.parsed) {
+      if (stageRecorder?.skipStage) {
+        await stageRecorder.skipStage({
+          ...stage,
+          summary: `Reused from ${resumeFromRunId}`,
+          salvageable: true,
+        });
+      }
+      await writeRunStageState(runState, {
+        runId,
+        stageId: stage.id,
+        value: prior,
+        summary: `Reused from ${resumeFromRunId}`,
+      });
+      return prior;
+    }
+  }
+  const result = await runRecordedStage(stageRecorder, stage, operation, {
+    successPatch: (stageResult) => ({ aiRun: stageResult?.aiRun, salvageable: true }),
+  });
+  await writeRunStageState(runState, {
+    runId,
+    stageId: stage.id,
+    value: providerStageState(result),
+    summary: stage.label,
+  });
+  return result;
+}
+
+function shouldReuseStage(stageId = "", resumeFromStage = "") {
+  const order = ["proposer", "critic", "finalizer", "validate", "persist"];
+  const stageIndex = order.indexOf(stageId);
+  const resumeIndex = order.indexOf(String(resumeFromStage || "").trim().toLowerCase());
+  return stageIndex >= 0 && resumeIndex > stageIndex;
+}
+
+function providerStageState(result = {}) {
+  return {
+    parsed: result?.parsed,
+    aiRun: result?.aiRun,
+  };
+}
+
+async function writeRunStageState(runState, { runId, stageId, value, summary = "" } = {}) {
+  if (!runState?.writeStageState || !runId || !stageId) return null;
+  return runState.writeStageState({ runId, stageId, value, summary });
+}
+
+async function readRunStageValue(runState, { runId, stageId } = {}) {
+  if (!runState?.readStageValue || !runId || !stageId) return null;
+  return runState.readStageValue({ runId, stageId });
 }
 
 function normalizeInjectedDiagnosisLoop(value = {}) {

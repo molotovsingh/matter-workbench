@@ -21,6 +21,7 @@ import { createJobStatusService } from "./services/job-status-service.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
 import { createMatterLogService } from "./services/matter-log-service.mjs";
 import { createMatterStatusService } from "./services/matter-status-service.mjs";
+import { createNativeSkillRunStateService } from "./services/native-skill-run-state-service.mjs";
 import { createPrepareMatterService } from "./services/prepare-matter-service.mjs";
 import { createProceduralPostureDiagnosisService } from "./services/procedural-posture-diagnosis-service.mjs";
 import { createPrivateBetaAuthService } from "./services/private-beta-auth-service.mjs";
@@ -324,6 +325,10 @@ export async function createWorkbenchServer(options = {}) {
     appDir,
     jobsPath: options.jobStatusPath,
   });
+  const nativeRunStateService = options.nativeRunStateService || createNativeSkillRunStateService({
+    appDir,
+    statePath: options.nativeRunStatePath || env.MWB_NATIVE_SKILL_RUN_STATE_PATH,
+  });
   const matterStoryRunner = createMatterStoryRunner({
     matterStore,
     configurableSkillsService,
@@ -336,6 +341,7 @@ export async function createWorkbenchServer(options = {}) {
   const skillRunnerService = options.skillRunnerService || (jobStatusService?.createJob && jobStatusService?.getJob && jobStatusService?.updateJobStage
     ? createSkillRunnerService({
       jobStatusService,
+      nativeRunStateService,
       runners: {
         [matterStoryRunner.slash]: matterStoryRunner,
         [postureDiagnosisRunner.slash]: postureDiagnosisRunner,
@@ -433,6 +439,7 @@ export async function createWorkbenchServer(options = {}) {
     privateBetaAuthService,
     privateBetaFeedbackService,
     privateBetaHeartbeatService,
+    nativeRunStateService,
     privateBetaMetricsService,
     privateBetaObservabilityService,
     privateBetaSignalService,
