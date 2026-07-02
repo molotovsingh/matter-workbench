@@ -155,8 +155,14 @@ test("procedural posture prompts require provisional, adverse-fact-aware diagnos
   assert.match(prompts.proposerSystem, /all probable legal routes supported by the current record/i);
   assert.match(prompts.proposerSystem, /statutory references/i);
   assert.match(prompts.proposerSystem, /Material adverse or inconvenient facts must be surfaced/i);
+  assert.match(prompts.proposerSystem, /overlapping proceedings, forums, or tracks/i);
+  assert.match(prompts.proposerSystem, /multiple procedural tracks/i);
+  assert.match(prompts.proposerSystem, /what cannot be confirmed/i);
+  assert.match(prompts.proposerSystem, /Deduplicate repeated source labels/i);
   assert.match(prompts.criticSystem, /unsupported leaps/i);
+  assert.match(prompts.criticSystem, /conflated proceedings\/forums/i);
   assert.match(prompts.finalizerSystem, /prose-like legal routes section/i);
+  assert.match(prompts.finalizerSystem, /conservative current-posture paragraph/i);
   assert.match(prompts.finalizerSystem, /recommended route and next best actions/i);
 });
 
