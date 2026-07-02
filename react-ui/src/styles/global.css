@@ -788,7 +788,8 @@ padding: 0 2px;
 .pipeline-state.pending { color: var(--muted); }
 .pipeline-state.warning { border-color: var(--warning-border); color: var(--warning-text); }
 
-.pipeline-stage-reason { grid-column: 1; margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.pipeline-stage-reason, .pipeline-stage-progress { grid-column: 1; margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.pipeline-stage-progress { color: var(--warning-text); }
 .pipeline-stage-actions { align-self: start; display: grid; gap: 6px; grid-column: 2; grid-row: 1 / span 5; justify-items: end; margin-top: 0; text-align: right; }
 .pipeline-stage-actions .run-skill-button { font-size: 12px; padding: 7px 11px; }
 .pipeline-stage-action-hint { color: var(--muted); font-size: 12px; line-height: 1.4; max-width: 260px; }

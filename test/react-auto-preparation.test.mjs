@@ -152,6 +152,9 @@ test("React matter overview runs needed preparation by default", async () => {
   assert.match(preparationRowActions, /Needs Case Timeline first/);
   assert.match(preparationRowActions, /Needs Matter Story first/);
   assert.match(overview, /getPreparationRowAction\(stage\)/);
+  assert.match(overview, /preparationProgressStepForStage\(stage, preparationRun\)/);
+  assert.match(overview, /progressStep\?\.state === 'running'\) return 'Running'/);
+  assert.match(overview, /'\/procedural_posture_diagnosis'\) return 'procedural-posture-diagnosis'/);
   assert.match(overview, /onRunNeededPreparation\(matterName, startStage\)/);
   assert.match(overview, /stages\.some\(stageIsBlocked\)/);
   assert.match(overview, /isPreparationStageCurrent/);

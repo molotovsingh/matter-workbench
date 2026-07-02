@@ -463,6 +463,7 @@ function PipelineCard({
               <StageRow
                 key={stage.slash || stage.label}
                 stage={stage}
+                preparationRun={preparationRun}
                 isPreparationRunning={isPreparationRunning}
                 onRunFromStage={(startStage) => onRunNeededPreparation(matterName, startStage)}
               />
@@ -492,14 +493,17 @@ function PreparationProgress({ run }: { run: PreparationRunStatus }) {
 
 function StageRow({
   stage,
+  preparationRun,
   isPreparationRunning,
   onRunFromStage,
 }: {
   stage: PreparationStage;
+  preparationRun: PreparationRunStatus | null;
   isPreparationRunning: boolean;
   onRunFromStage: (startStage: string) => void;
 }) {
-  const stateClass = pipelineStageStateClass(stage);
+  const progressStep = preparationProgressStepForStage(stage, preparationRun);
+  const stateClass = pipelineStageStateClass(stage, progressStep);
   const label = stageDisplayLabel(stage);
   const pill = stagePill(stage);
 
@@ -511,9 +515,10 @@ function StageRow({
           {pill && <span className="pipeline-stage-label">{pill}</span>}
         </div>
         <span className={`pipeline-state ${stateClass}`}>
-          {pipelineStageStateLabel(stage)}
+          {pipelineStageStateLabel(stage, progressStep)}
         </span>
       </div>
+      <StageProgressDetail step={progressStep} />
       <StageReason stage={stage} />
       <StageArtifacts stage={stage} />
       <StageAiRun aiRun={stage.aiRun} />
@@ -521,6 +526,12 @@ function StageRow({
       <StagePrimaryAction stage={stage} disabled={isPreparationRunning} onRunFromStage={onRunFromStage} />
     </div>
   );
+}
+
+function StageProgressDetail({ step }: { step: PreparationRunStatus['steps'][number] | null }) {
+  if (!step || (step.state !== 'running' && step.state !== 'failed')) return null;
+  const detail = step.detail || (step.state === 'running' ? 'This preparation step is running.' : 'This preparation step stopped before finishing.');
+  return <p className="pipeline-stage-progress">{detail}</p>;
 }
 
 function StagePrimaryAction({
@@ -832,20 +843,41 @@ function stageIsBlocked(stage: PreparationStage): boolean {
     || stage.rerunAdvice?.state === RERUN_ADVICE_STATES.MISSING_UPSTREAM;
 }
 
-function pipelineStageStateClass(stage: PreparationStage): string {
+function pipelineStageStateClass(stage: PreparationStage, progressStep: PreparationRunStatus['steps'][number] | null = null): string {
+  if (progressStep?.state === 'running') return 'warning';
+  if (progressStep?.state === 'failed') return 'failed';
   if (stageIsBlocked(stage)) return 'failed';
   if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE || stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN || stage.state === 'current_unconfirmed') return 'warning';
   if (isPreparationStageCurrent(stage)) return 'present';
   return 'not-run';
 }
 
-function pipelineStageStateLabel(stage: PreparationStage): string {
+function pipelineStageStateLabel(stage: PreparationStage, progressStep: PreparationRunStatus['steps'][number] | null = null): string {
+  if (progressStep?.state === 'running') return 'Running';
+  if (progressStep?.state === 'failed') return 'Failed';
   if (stageIsBlocked(stage)) return 'Blocked';
   if (stage.state === 'current_unconfirmed') return 'Needs confirmation';
   if (stage.rerunAdvice?.state === RERUN_ADVICE_STATES.STALE || stage.state === 'stale') return 'Needs update';
   if (stage.action === PREPARATION_STAGE_ACTIONS.CONFIRM_PAID_RUN) return stage.state === 'missing' ? 'Not started' : 'Needs review';
   if (stage.action === PREPARATION_STAGE_ACTIONS.RUN) return stage.state === 'missing' ? 'Not started' : 'Ready to run';
   return isPreparationStageCurrent(stage) ? 'Done' : 'Needs review';
+}
+
+function preparationProgressStepForStage(stage: PreparationStage, preparationRun: PreparationRunStatus | null): PreparationRunStatus['steps'][number] | null {
+  if (!preparationRun?.steps?.length) return null;
+  const stepId = preparationStepIdForStage(stage);
+  if (!stepId) return null;
+  return preparationRun.steps.find((step) => step.id === stepId) || null;
+}
+
+function preparationStepIdForStage(stage: PreparationStage): string {
+  if (stage.slash === '/matter-init') return 'matter-init';
+  if (stage.slash === '/extract') return 'extract';
+  if (stage.slash === '/describe_sources') return 'describe-sources';
+  if (stage.slash === '/create_listofdates') return 'create-listofdates';
+  if (stage.slash === '/the_story') return 'dispute-story';
+  if (stage.slash === '/procedural_posture_diagnosis') return 'procedural-posture-diagnosis';
+  return stage.id || '';
 }
 
 function postureBlockedMessage(status: ProceduralPostureDiagnosisResult): string {
