@@ -44,6 +44,47 @@ test("copilot web research availability requires flag, key, and answer provider"
     researchAnswerProvider: async () => ({ answer_status: "not_found" }),
   });
   assert.equal(ready.isEnabled(), true);
+
+  const sidecarReady = createCopilotWebResearchService({
+    env: {
+      COPILOT_WEB_RESEARCH_ENABLED: "1",
+      COPILOT_WEB_RESEARCH_PROVIDER: "legal_source_sidecar",
+      COPILOT_LEGAL_SOURCE_SERVICE_URL: "http://127.0.0.1:8790",
+    },
+    webResearchProvider: async () => ({ sources: [{ id: "STATUTE-0001", title: "Section 60, IBC" }] }),
+    researchAnswerProvider: async () => ({ answer_status: "not_found" }),
+  });
+  assert.equal(sidecarReady.readAvailability().provider, "legal_source_sidecar");
+  assert.equal(sidecarReady.readAvailability().providerConfigured, true);
+  assert.equal(sidecarReady.isEnabled(), true);
+});
+
+test("copilot web research sidecar config works without EXA and unknown providers fail closed", () => {
+  assert.deepEqual(readCopilotWebResearchConfig({
+    COPILOT_WEB_RESEARCH_ENABLED: "1",
+    COPILOT_WEB_RESEARCH_PROVIDER: "legal_source_sidecar",
+    COPILOT_LEGAL_SOURCE_SERVICE_URL: "http://127.0.0.1:8790",
+  }), {
+    enabled: true,
+    provider: "legal_source_sidecar",
+    apiKeyEnvKey: "",
+    providerConfigured: true,
+    maxResults: 6,
+    timeoutMs: 20_000,
+    maxResultChars: 9000,
+  });
+
+  const unknown = createCopilotWebResearchService({
+    env: {
+      COPILOT_WEB_RESEARCH_ENABLED: "1",
+      COPILOT_WEB_RESEARCH_PROVIDER: "bogus",
+      EXA_API_KEY: "exa-test",
+    },
+    researchAnswerProvider: async () => ({ answer_status: "not_found" }),
+  });
+  assert.equal(unknown.readAvailability().provider, "bogus");
+  assert.equal(unknown.readAvailability().providerConfigured, false);
+  assert.equal(unknown.isEnabled(), false);
 });
 
 test("copilot web research fails disabled and unconfigured states with stable codes", async () => {
@@ -126,11 +167,13 @@ test("copilot web research validates public source IDs in structured output and 
       sources: [
         { id: "WEB-0001", title: "IBC", url: "https://example.test/ibc", sourceType: "official", snippet: "Section 60(5)." },
         { id: "WEB-0002", title: "NCLT", url: "https://example.test/nclt", sourceType: "court", snippet: "NCLT direction." },
+        { id: "STATUTE-0001", title: "Section 60, IBC", url: "https://example.test/statute", sourceType: "official_statute", snippet: "NCLT jurisdiction." },
       ],
+      warnings: ["Statutes service used stored corpus; verify currency. token=sidecar-secret"],
     }),
     researchAnswerProvider: async () => ({
       answer_status: "answered",
-      answer_markdown: "Research answer from public sources. See WEB-0002 and WEB-9999.",
+      answer_markdown: "Research answer from public sources. See WEB-0002, STATUTE-0001, WEB-9999, and STATUTE-9999.",
       public_sources: [{ id: "WEB-9999", title: "Made-up source", url: "https://made-up.test" }],
     }),
   });
@@ -140,6 +183,11 @@ test("copilot web research validates public source IDs in structured output and 
     question: "Which NCLT sections apply?",
   });
 
-  assert.deepEqual(answer.public_sources.map((source) => source.id), ["WEB-0002"]);
+  assert.deepEqual(answer.public_sources.map((source) => source.id), ["WEB-0002", "STATUTE-0001"]);
+  assert.equal(answer.public_sources[1].source_type, "official_statute");
   assert.match(answer.warnings.join("\n"), /Dropped unsupported public source WEB-9999/);
+  assert.match(answer.warnings.join("\n"), /Dropped unsupported public source STATUTE-9999/);
+  assert.match(answer.warnings.join("\n"), /Statutes service used stored corpus/);
+  assert.match(answer.warnings.join("\n"), /token=\[redacted-secret\]/);
+  assert.doesNotMatch(answer.warnings.join("\n"), /sidecar-secret/);
 });

@@ -87,6 +87,45 @@ test("config exposes research enabled only when the service is ready", async () 
   });
 });
 
+test("research API supports legal source sidecar provider with STATUTE sources", async () => {
+  await withServer(async ({ baseUrl, mattersHome }) => {
+    const config = await getJson(baseUrl, "/api/config");
+    assert.equal(config.copilotWebResearchEnabled, true);
+
+    const matterRoot = path.join(mattersHome, "Research Matter");
+    await mkdir(matterRoot, { recursive: true });
+    await writeFile(path.join(matterRoot, "matter.json"), JSON.stringify({ matter_name: "Research Matter" }, null, 2));
+    const result = await postJsonRaw(baseUrl, "/api/matter-copilot/research", {
+      question: "What does section 60 IBC say?",
+      matterName: "Research Matter",
+    });
+
+    assert.equal(result.response.status, 200);
+    assert.equal(result.payload.research.provider, "legal_source_sidecar");
+    assert.deepEqual(result.payload.public_sources.map((source) => source.id), ["STATUTE-0001"]);
+    assert.equal(result.payload.public_sources[0].source_type, "official_statute");
+    assert.match(result.payload.warnings.join("\n"), /Stored corpus; verify currency/);
+  }, {
+    env: {
+      COPILOT_WEB_RESEARCH_ENABLED: "1",
+      COPILOT_WEB_RESEARCH_PROVIDER: "legal_source_sidecar",
+      COPILOT_LEGAL_SOURCE_SERVICE_URL: "http://127.0.0.1:8790",
+    },
+    serverOptions: {
+      copilotWebResearchAnswerProvider: async ({ publicSources }) => ({
+        answer_status: "answered",
+        answer_markdown: "Research answer from public sources. See STATUTE-0001.\n\n_Verify authorities before relying or filing._",
+        public_sources: [{ id: publicSources[0].id }],
+      }),
+      copilotWebResearchProvider: async () => ({
+        query: "section 60 IBC",
+        sources: [{ id: "STATUTE-0001", title: "Section 60, IBC", sourceType: "official_statute", snippet: "NCLT jurisdiction." }],
+        warnings: ["Stored corpus; verify currency."],
+      }),
+    },
+  });
+});
+
 test("research API can return a fake research answer and capture route signal", async () => {
   const capturedSignals = [];
   await withServer(async ({ baseUrl, mattersHome }) => {

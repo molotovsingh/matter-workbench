@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  COPILOT_WEB_RESEARCH_SYSTEM_PROMPT,
   createDefaultCopilotWebResearchAnswerProvider,
   createOpenAiCopilotWebResearchAnswerProvider,
   createOpenRouterCopilotWebResearchAnswerProvider,
   isCopilotWebResearchAnswerProviderConfigured,
+  researchUserPayload,
 } from "../services/copilot-web-research-answer-providers.mjs";
 
 const packet = Object.freeze({ schema_version: "matter-context-packet/v1", matter: { matter_name: "Matter" } });
@@ -97,6 +99,29 @@ test("OpenRouter Copilot web research answer sends strict source-ID schema reque
   const userPayload = JSON.parse(calls[0].body.messages[1].content);
   assert.equal(userPayload.public_sources[0].id, "WEB-0001");
   assert.match(userPayload.strict_rules.join("\n"), /Use only public_sources\[\]\.id values/);
+});
+
+test("Copilot web research prompt includes statute source rules", () => {
+  assert.match(COPILOT_WEB_RESEARCH_SYSTEM_PROMPT, /STATUTE-\*/);
+  assert.match(COPILOT_WEB_RESEARCH_SYSTEM_PROMPT, /official_statute/);
+  assert.match(COPILOT_WEB_RESEARCH_SYSTEM_PROMPT, /Do not invent cases, sections, provisos, explanations, commencement dates, amendments, currentness/);
+
+  const payload = researchUserPayload({
+    question: "What does section 60 IBC say?",
+    packet,
+    publicSources: [{
+      id: "STATUTE-0001",
+      title: "Section 60, Insolvency and Bankruptcy Code, 2016",
+      sourceType: "official_statute",
+      snippet: "The Adjudicating Authority...",
+    }],
+    searchQuery: "section 60 IBC",
+  });
+
+  assert.equal(payload.public_sources[0].id, "STATUTE-0001");
+  assert.equal(payload.public_sources[0].source_type, "official_statute");
+  assert.match(payload.strict_rules.join("\n"), /STATUTE-\* \/ official_statute/);
+  assert.match(payload.strict_rules.join("\n"), /Do not invent public source IDs, URLs, titles, cases, sections, provisos, explanations, commencement dates, amendments, or currentness/);
 });
 
 test("OpenAI Copilot web research answer sends Responses JSON schema request", async () => {

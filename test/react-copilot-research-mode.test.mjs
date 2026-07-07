@@ -39,14 +39,15 @@ test("React API client exposes Copilot Research contract", async () => {
   assert.match(types, /interface MatterCopilotResearchAnswer/);
 });
 
-test("React Research answer rendering separates public sources and verification caveat", async () => {
+test("React Research answer rendering separates statute/web sources and verification caveat", async () => {
   const source = await readFile(answerPath, "utf8");
 
   assert.match(source, /parseResearchCommand/);
   assert.match(source, /formatMatterCopilotResearchAnswer/);
   assert.match(source, /formatMatterCopilotResearchError/);
   assert.match(source, /Research answer from public sources/);
-  assert.match(source, /Public sources:/);
+  assert.match(source, /Statute sources:/);
+  assert.match(source, /Public web sources:/);
   assert.match(source, /Matter sources:/);
   assert.match(source, /\$\{id\} — \$\{labelText\}/);
   assert.match(source, /Partial research answer from public sources/);

@@ -3,11 +3,13 @@ import {
   isCopilotWebResearchAnswerProviderConfigured,
 } from "./copilot-web-research-answer-providers.mjs";
 import { buildMatterContextPacket } from "./matter-context-service.mjs";
+import { createLegalSourceSidecarProvider } from "./legal-source-sidecar-provider.mjs";
 import {
   buildCopilotWebSearchQueries,
   createExaWebResearchProvider,
 } from "./web-research-providers.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 export const COPILOT_WEB_RESEARCH_ANSWER_SCHEMA_VERSION = "matter-copilot-research-answer/v1";
 
@@ -79,6 +81,7 @@ export function createCopilotWebResearchService({
       config,
     });
     const publicSources = Array.isArray(research?.sources) ? research.sources : [];
+    const providerWarnings = normalizeWarnings(research?.warnings);
     if (!publicSources.length) {
       throw makeHttpError("I could not find useful public sources. I can still answer from the matter record.", 404, "copilot_research.no_results");
     }
@@ -94,6 +97,7 @@ export function createCopilotWebResearchService({
       question: normalizedQuestion,
       config,
       publicSources,
+      providerWarnings,
       searchQuery: research.query || queries[0] || normalizedQuestion,
     });
   }
@@ -114,7 +118,7 @@ export function readCopilotWebResearchConfig(env = process.env) {
     enabled: ENABLED_VALUES.has(String(env.COPILOT_WEB_RESEARCH_ENABLED || "").trim().toLowerCase()),
     provider,
     apiKeyEnvKey,
-    providerConfigured: Boolean(apiKeyEnvKey && String(env[apiKeyEnvKey] || "").trim()),
+    providerConfigured: isProviderConfigured({ provider, apiKeyEnvKey, env }),
     maxResults: parsePositiveInteger(env.COPILOT_WEB_RESEARCH_MAX_RESULTS) || DEFAULT_MAX_RESULTS,
     timeoutMs: parsePositiveInteger(env.COPILOT_WEB_RESEARCH_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
     maxResultChars: parsePositiveInteger(env.COPILOT_WEB_RESEARCH_MAX_RESULT_CHARS) || DEFAULT_MAX_RESULT_CHARS,
@@ -125,6 +129,16 @@ function createDefaultWebResearchProvider({ config, env, fetchImpl }) {
   if (config.provider === "exa") {
     return createExaWebResearchProvider({
       apiKey: env[config.apiKeyEnvKey],
+      fetchImpl,
+      timeoutMs: config.timeoutMs,
+      maxResults: config.maxResults,
+      maxResultChars: config.maxResultChars,
+    });
+  }
+  if (config.provider === "legal_source_sidecar") {
+    return createLegalSourceSidecarProvider({
+      baseUrl: env.COPILOT_LEGAL_SOURCE_SERVICE_URL,
+      token: env.COPILOT_LEGAL_SOURCE_SERVICE_TOKEN,
       fetchImpl,
       timeoutMs: config.timeoutMs,
       maxResults: config.maxResults,
@@ -149,12 +163,13 @@ function normalizeResearchQuestion(value) {
   return question;
 }
 
-function normalizeResearchAnswer({ answer, question, config, publicSources = [], searchQuery = "" }) {
+function normalizeResearchAnswer({ answer, question, config, publicSources = [], providerWarnings = [], searchQuery = "" }) {
   const raw = answer && typeof answer === "object" && !Array.isArray(answer) ? answer : {};
   const sourceValidation = validatePublicSources(raw.public_sources, publicSources, raw.answer_markdown);
   const warnings = [
     ...sourceValidation.warnings,
-    ...(Array.isArray(raw.warnings) ? raw.warnings.map((warning) => String(warning || "").trim()).filter(Boolean) : []),
+    ...normalizeWarnings(providerWarnings),
+    ...normalizeWarnings(raw.warnings),
   ];
   return {
     schema_version: COPILOT_WEB_RESEARCH_ANSWER_SCHEMA_VERSION,
@@ -212,7 +227,7 @@ function validatePublicSources(modelSources, publicSources, answerMarkdown = "")
 }
 
 function referencedPublicSourceIds(value = "") {
-  return [...String(value || "").matchAll(/\bWEB-\d{4}\b/gi)].map((match) => match[0].toUpperCase());
+  return [...String(value || "").matchAll(/\b(?:WEB|STATUTE)-\d{4}\b/gi)].map((match) => match[0].toUpperCase());
 }
 
 function normalizeAnswerStatus(value) {
@@ -228,6 +243,18 @@ function normalizeProvider(value) {
 function apiKeyEnvKeyForProvider(provider) {
   if (provider === "exa") return "EXA_API_KEY";
   return "";
+}
+
+function isProviderConfigured({ provider, apiKeyEnvKey, env }) {
+  if (provider === "exa") return Boolean(apiKeyEnvKey && String(env[apiKeyEnvKey] || "").trim());
+  if (provider === "legal_source_sidecar") return Boolean(String(env.COPILOT_LEGAL_SOURCE_SERVICE_URL || "").trim());
+  return false;
+}
+
+function normalizeWarnings(values) {
+  return (Array.isArray(values) ? values : [])
+    .map((warning) => redactSensitiveText(String(warning || "").replace(/\s+/g, " ").trim()).slice(0, 500))
+    .filter(Boolean);
 }
 
 function parsePositiveInteger(value) {

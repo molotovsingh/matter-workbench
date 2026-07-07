@@ -117,6 +117,48 @@ test("React matter copilot errors collapse provider and billing language", async
   assert.equal(containsUserFacingRestrictedAiLanguage(rendered), false);
 });
 
+test("React matter copilot research answer renders STATUTE public sources", async () => {
+  const { formatMatterCopilotResearchAnswer } = await loadMatterCopilotAnswerModule();
+
+  const rendered = formatMatterCopilotResearchAnswer({
+    question: "What does section 60 IBC say?",
+    answer_status: "answered",
+    answer_markdown: "Research answer from public sources\n\nSection 60 may be relevant.\n\n_Verify authorities before relying or filing._",
+    matter_sources: [],
+    public_sources: [{
+      id: "STATUTE-0001",
+      title: "Section 60, Insolvency and Bankruptcy Code, 2016",
+      source_type: "official_statute",
+      snippet: "NCLT jurisdiction.",
+    }],
+    warnings: [],
+  });
+
+  assert.match(rendered, /Statute sources: STATUTE-0001 — Section 60, Insolvency and Bankruptcy Code, 2016/);
+  assert.doesNotMatch(rendered, /Public sources: STATUTE-0001/);
+  assert.match(rendered, /Verify authorities before relying or filing/);
+});
+
+test("React matter copilot research answer groups statute and web sources separately", async () => {
+  const { formatMatterCopilotResearchAnswer } = await loadMatterCopilotAnswerModule();
+
+  const rendered = formatMatterCopilotResearchAnswer({
+    question: "Which authorities apply?",
+    answer_status: "answered",
+    answer_markdown: "Research answer from public sources\n\nSection and case sources may be relevant.",
+    matter_sources: [],
+    public_sources: [
+      { id: "STATUTE-0001", title: "Section 69A, Indian Partnership Act, 1932", source_type: "official_statute", snippet: "..." },
+      { id: "WEB-0001", title: "NCLT order", url: "https://nclt.gov.in/order", source_type: "court", snippet: "..." },
+    ],
+    warnings: ["Stored corpus; verify currency."],
+  });
+
+  assert.match(rendered, /Statute sources: STATUTE-0001 — Section 69A, Indian Partnership Act, 1932/);
+  assert.match(rendered, /Public web sources: WEB-0001 — NCLT order \(https:\/\/nclt\.gov\.in\/order\)/);
+  assert.match(rendered, /Research notes: Stored corpus; verify currency\./);
+});
+
 test("React matter copilot errors collapse provider account misses", async () => {
   const { formatMatterCopilotError, formatMatterCopilotTerminalError } = await loadMatterCopilotAnswerModule();
 

@@ -61,14 +61,19 @@ export function formatMatterCopilotResearchAnswer(answer: MatterCopilotResearchA
     parts.push(`Matter sources: ${matterLabels.join('; ')}`);
   }
 
-  const publicLabels = visiblePublicSourceLabels(answer).slice(0, 6);
+  const statuteLabels = visiblePublicSourceLabels(answer, 'official_statute').slice(0, 4);
+  if (statuteLabels.length) {
+    parts.push(`Statute sources: ${statuteLabels.join('; ')}`);
+  }
+
+  const publicLabels = visiblePublicSourceLabels(answer, 'non_statute').slice(0, Math.max(0, 6 - statuteLabels.length));
   if (publicLabels.length) {
-    parts.push(`Public sources: ${publicLabels.join('; ')}`);
+    parts.push(`Public web sources: ${publicLabels.join('; ')}`);
   }
 
   const warnings = visibleWarnings(answer.warnings || []).slice(0, 2);
   if (warnings.length) {
-    parts.push(`Limits: ${warnings.join(' ')}`);
+    parts.push(`Research notes: ${warnings.join(' ')}`);
   }
 
   if (!/verify authorities before relying or filing/i.test(parts.join('\n'))) {
@@ -140,10 +145,14 @@ function visibleSourceLabels(answer: MatterCopilotAnswer): string[] {
   return labels;
 }
 
-function visiblePublicSourceLabels(answer: MatterCopilotResearchAnswer): string[] {
+function visiblePublicSourceLabels(answer: MatterCopilotResearchAnswer, group: 'official_statute' | 'non_statute' | 'all' = 'all'): string[] {
   const labels = [];
   const seen = new Set<string>();
   for (const source of answer.public_sources || []) {
+    const sourceType = normalizeText(source.source_type).toLowerCase();
+    const isStatute = sourceType === 'official_statute' || /^STATUTE-\d{4}$/i.test(normalizeText(source.id));
+    if (group === 'official_statute' && !isStatute) continue;
+    if (group === 'non_statute' && isStatute) continue;
     const id = normalizeText(source.id);
     const title = normalizeText(source.title) || normalizeText(source.url) || id || 'Public source';
     const url = normalizeText(source.url);

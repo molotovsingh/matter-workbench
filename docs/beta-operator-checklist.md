@@ -81,6 +81,55 @@ http://127.0.0.1:4191/
 
 The root path serves the React shell. `/react/` is only a compatibility alias.
 
+## Optional: Research With Statutes
+
+Research mode can use the loopback Legal Source Sidecar for statute sources.
+This is optional; ordinary Ask remains matter-record-only.
+
+Start statutes first:
+
+```bash
+cd /Users/aksingh/statutes
+npm run build:corpus   # use npm run build only for the tiny fixture corpus
+node bin/statutes.mjs serve --host 127.0.0.1 --port 8787
+```
+
+Start the sidecar:
+
+```bash
+cd /Users/aksingh/legal-source-service
+LEGAL_SOURCE_STATUTES_ENABLED=1 \
+STATUTES_API_URL=http://127.0.0.1:8787 \
+LEGAL_SOURCE_WEB_ENABLED=0 \
+npm start
+```
+
+Enable Workbench Research through `.env`:
+
+```env
+COPILOT_WEB_RESEARCH_ENABLED=1
+COPILOT_WEB_RESEARCH_PROVIDER=legal_source_sidecar
+COPILOT_LEGAL_SOURCE_SERVICE_URL=http://127.0.0.1:8790
+```
+
+Then restart Workbench and use explicit Research mode, for example:
+
+```text
+/research section 69A Indian Partnership Act
+```
+
+Expected posture:
+
+- the answer is labelled `Research answer from public sources`;
+- statute sources appear as `STATUTE-0001`, `STATUTE-0002`, etc.;
+- public-web sources, if web mode is enabled in the sidecar, appear separately as
+  `WEB-0001`, `WEB-0002`, etc.;
+- the answer remains chat-only and does not write matter artifacts;
+- the answer keeps the verification caveat.
+
+Do not enable sidecar web/Exa mode unless the operator accepts that the Research
+query may leave the VM. Statutes-only sidecar mode does not need `EXA_API_KEY`.
+
 ## Pre-Flight Checks
 
 Run these before a serious test session:
