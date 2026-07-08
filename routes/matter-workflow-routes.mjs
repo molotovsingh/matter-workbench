@@ -12,6 +12,9 @@ import {
   normalizeCaseTimelineSkillSlash,
 } from "../shared/case-timeline-operation.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
+import {
+  MW_LIST_OF_DATES_SLASH,
+} from "../services/mw-list-of-dates-service.mjs";
 import { buildCopilotInteractionReceipt } from "../services/copilot-interaction-receipt-service.mjs";
 import { currentRequestContext } from "../services/request-context.mjs";
 import { runDoctorFix, runDoctorScan } from "../services/doctor-service.mjs";
@@ -54,6 +57,7 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     matterContextService,
     matterStore,
     matterStoryService,
+    mwListOfDatesService,
     proceduralPostureDiagnosisService,
     matterStatusService,
     prepareMatterService,
@@ -339,6 +343,51 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           decision: body.decision,
           reasonOrCorrection: body.reasonOrCorrection,
           actor: body.actor,
+        }));
+      }),
+      exactRoute("GET", "/api/mw-list-of-dates/status", async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
+          assertRuntimeDbMwListOfDatesAvailable({ runtimeDbStorageService });
+          sendJson(response, 200, runtimeDbReadResponse(await mwListOfDatesService.readStatus({
+            matterName: matter.name,
+            matterRootOverride: `postgres:${matter.name}`,
+            matterJsonOverride: await runtimeDbStorageService.readMatterJson(matter),
+            artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
+            artifactStatReader: (relativePath) => runtimeDbStorageService.artifactStat(matter, relativePath),
+          }), matter));
+          return;
+        }
+        assertFilesystemWorkflowAvailable(matterStore, "Read MW List of Dates status");
+        sendJson(response, 200, await mwListOfDatesService.readStatus({ matterRootOverride: await matterRootForQuery(matterStore, requestUrl) }));
+      }),
+      exactRoute("POST", "/api/mw-list-of-dates", async () => {
+        const body = await readRequestJson(request);
+        if (skillRunnerService?.start) {
+          sendJson(response, 200, await runMwListOfDatesSkill({
+            body,
+            matterStore,
+            runtimeDbStorageService,
+            skillRunnerService,
+          }));
+          return;
+        }
+        sendJson(response, 200, await runTrackedWorkflow({
+          jobStatusService,
+          kind: "mw_list_of_dates",
+          route: "/api/mw-list-of-dates",
+          label: "Create MW List of Dates",
+          matterName: matterNameForBody(matterStore, body),
+          operation: async ({ job } = {}) => {
+            const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
+            return runMwListOfDatesLegacy({
+              body,
+              matterStore,
+              runtimeDbStorageService,
+              mwListOfDatesService,
+              stageRecorder,
+            });
+          },
         }));
       }),
       exactRoute("POST", "/api/doctor/scan", async () => {
@@ -870,6 +919,15 @@ function assertRuntimeDbProceduralPostureConfirmationAvailable({ runtimeDbStorag
   }
 }
 
+function assertRuntimeDbMwListOfDatesAvailable({ runtimeDbStorageService } = {}) {
+  if (typeof runtimeDbStorageService?.readMatterJson !== "function"
+    || typeof runtimeDbStorageService?.artifactStat !== "function"
+    || typeof runtimeDbStorageService?.readFilePreview !== "function"
+    || typeof runtimeDbStorageService?.persistTextArtifacts !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.mw_list_of_dates_required");
+  }
+}
+
 async function runTrackedWorkflow({
   jobStatusService,
   kind,
@@ -1122,6 +1180,106 @@ async function listOfDatesRunnerRequest({ body = {}, matterStore, runtimeDbStora
       dryRun: Boolean(body.dryRun),
     },
   };
+}
+
+async function runMwListOfDatesSkill({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  skillRunnerService,
+} = {}) {
+  const { request, runtimeDb } = await mwListOfDatesRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const workflowMetadata = workflowJobMetadata({
+    kind: "mw_list_of_dates",
+    route: "/api/mw-list-of-dates",
+    label: "Create MW List of Dates",
+  });
+  const retryOfJobId = typeof body.retryOfJobId === "string" ? body.retryOfJobId.trim() : "";
+  const run = retryOfJobId
+    ? await skillRunnerService.retry({
+      failedRunId: retryOfJobId,
+      retryStageId: typeof body.retryStageId === "string" ? body.retryStageId.trim() : "",
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    })
+    : await skillRunnerService.start({
+      slash: MW_LIST_OF_DATES_SLASH,
+      request,
+      mode: "inline",
+      metadata: workflowMetadata,
+    });
+  if (!run?.accepted) {
+    throw httpError(run?.reason || "MW List of Dates is not ready to run.", 409, "native_skill.preflight_failed");
+  }
+  if (run.error) throw run.error;
+  const result = runtimeDb ? presentRuntimeDbMwListOfDatesResult(run.result) : run.result;
+  return attachJobStatusWithReceipt(result, run.job, run.receipt);
+}
+
+async function runMwListOfDatesLegacy({
+  body = {},
+  matterStore,
+  runtimeDbStorageService,
+  mwListOfDatesService,
+  stageRecorder = null,
+} = {}) {
+  const { request, runtimeDb } = await mwListOfDatesRunnerRequest({
+    body,
+    matterStore,
+    runtimeDbStorageService,
+  });
+  const result = await mwListOfDatesService.runMwListOfDates({
+    ...request,
+    stageRecorder,
+  });
+  return runtimeDb ? presentRuntimeDbMwListOfDatesResult(result) : result;
+}
+
+async function mwListOfDatesRunnerRequest({ body = {}, matterStore, runtimeDbStorageService } = {}) {
+  if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+    const matter = await runtimeDbMatterForBody(matterStore, body);
+    assertRuntimeDbMwListOfDatesAvailable({ runtimeDbStorageService });
+    return {
+      runtimeDb: true,
+      request: {
+        matterName: matter.name,
+        overwrite: Boolean(body.overwrite),
+        proceedUnconfirmed: Boolean(body.proceedUnconfirmed),
+        proceedUnconfirmedReason: typeof body.proceedUnconfirmedReason === "string" ? body.proceedUnconfirmedReason : "",
+        matterRootOverride: `postgres:${matter.name}`,
+        matterJsonOverride: await runtimeDbStorageService.readMatterJson(matter),
+        artifactReader: async (relativePath) => (await runtimeDbStorageService.readFilePreview(relativePath, matter)).content,
+        artifactStatReader: (relativePath) => runtimeDbStorageService.artifactStat(matter, relativePath),
+        artifactWriter: ({ files }) => runtimeDbStorageService.persistTextArtifacts(matter, files),
+      },
+    };
+  }
+  assertFilesystemWorkflowAvailable(matterStore, "Create MW List of Dates");
+  return {
+    runtimeDb: false,
+    request: {
+      matterName: matterNameForBody(matterStore, body),
+      overwrite: Boolean(body.overwrite),
+      proceedUnconfirmed: Boolean(body.proceedUnconfirmed),
+      proceedUnconfirmedReason: typeof body.proceedUnconfirmedReason === "string" ? body.proceedUnconfirmedReason : "",
+    },
+  };
+}
+
+function presentRuntimeDbMwListOfDatesResult(result = {}) {
+  const { artifactPersistence, ...payload } = result || {};
+  if (Array.isArray(artifactPersistence) && artifactPersistence.length) {
+    return { ...payload, dbPersistence: { persisted: artifactPersistence } };
+  }
+  if (artifactPersistence?.persisted) {
+    return { ...payload, dbPersistence: artifactPersistence };
+  }
+  return payload;
 }
 
 async function runMatterStorySkill({

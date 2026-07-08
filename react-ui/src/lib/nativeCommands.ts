@@ -102,6 +102,16 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     overviewPlacement: 'secondary',
   },
   {
+    command: '/create_mw_listofdates',
+    label: 'Create MW List of Dates',
+    description: 'Create the MW-authored working List of Dates',
+    view: 'home',
+    pill: 'Uses AI',
+    showInSidebar: true,
+    showInCommandPanel: true,
+    overviewPlacement: 'secondary',
+  },
+  {
     command: '/doctor',
     label: 'Check matter health',
     description: 'Run local diagnostics',

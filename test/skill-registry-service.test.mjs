@@ -24,6 +24,7 @@ test("skill registry reads all built-in skill stubs", async () => {
   const listOfDates = registry.skills.find((skill) => skill.slash === "/create_case_timeline");
   const matterStory = registry.skills.find((skill) => skill.slash === "/the_story");
   const proceduralPosture = registry.skills.find((skill) => skill.slash === "/procedural_posture_diagnosis");
+  const mwListOfDates = registry.skills.find((skill) => skill.slash === "/create_mw_listofdates");
   assert.equal(prepareMatter.category, "Prepare");
   assert.equal(prepareMatter.product_surface, "readiness");
   assert.equal(prepareMatter.paid_provider_call, true);
@@ -83,6 +84,16 @@ test("skill registry reads all built-in skill stubs", async () => {
     "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
     "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
     "20_Workshop/Case Analysis/Case Analysis Q&A.md",
+  ]);
+  assert.equal(mwListOfDates.category, "Analyze");
+  assert.equal(mwListOfDates.product_surface, "case_analysis");
+  assert.equal(mwListOfDates.display.action, "Create MW List of Dates");
+  assert.equal(mwListOfDates.display.artifact, "MW List of Dates");
+  assert.equal(mwListOfDates.default_lane, "20_Workshop");
+  assert.deepEqual(mwListOfDates.upstream, ["/create_case_timeline", "/the_story", "/procedural_posture_diagnosis"]);
+  assert.deepEqual(mwListOfDates.outputs, [
+    "20_Workshop/Case Analysis/MW List of Dates.md",
+    "20_Workshop/Case Analysis/MW List of Dates.json",
   ]);
 });
 

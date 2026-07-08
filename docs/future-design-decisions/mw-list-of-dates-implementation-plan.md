@@ -1,7 +1,7 @@
 # MW List of Dates Implementation Plan
 
 Date: 2026-07-08
-Status: Implementation contract draft — review before coding
+Status: First implementation slice completed on `feature/mw-list-of-dates` — keep as contract for follow-on export/UI hardening
 
 ## Purpose
 
@@ -29,6 +29,25 @@ Sources
 ```
 
 The existing neutral chronology should be canonicalized to `10_Library/Case Timeline.*` before this feature is implemented. The new MW List of Dates is a downstream Case Analysis artifact shaped by the diagnosed court/forum, procedural posture, client side, priority remedy, and working legal objective.
+
+## First Implementation Slice
+
+Implemented on branch `feature/mw-list-of-dates` after Case Timeline canonicalization. The slice adds:
+
+- service: `services/mw-list-of-dates-service.mjs`;
+- native skill: `/create_mw_listofdates` (`skills/builtins/create_mw_listofdates`);
+- API routes:
+  - `GET /api/mw-list-of-dates/status?matter=...`;
+  - `POST /api/mw-list-of-dates`;
+- current artifacts:
+  - `20_Workshop/Case Analysis/MW List of Dates.md`;
+  - `20_Workshop/Case Analysis/MW List of Dates.json`;
+- archive-on-overwrite under `20_Workshop/Case Analysis/archive/`;
+- Matter Overview Case Analysis card plus command-panel fallback;
+- runtime-DB-compatible reader/stat/writer injection;
+- tests for service, API route, registry/command contracts, and full repository validation.
+
+The first slice intentionally does **not** add MW List of Dates to automatic preparation and does **not** create a court-facing filing/export profile.
 
 ## Second-Pass Decision Summary
 

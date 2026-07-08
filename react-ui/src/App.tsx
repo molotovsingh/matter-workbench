@@ -601,6 +601,98 @@ function AppShell() {
     }
   }, [activeMatterNameRef, appendTerminal, dispatch, refreshActiveMatterWorkspace, state.activeMatter?.name]);
 
+  const runMwListOfDatesFromCommand = useCallback(async (
+    matterNameInput?: string | null,
+    { manageCommandRunning = true }: { manageCommandRunning?: boolean } = {},
+  ) => {
+    const matterName = String(matterNameInput || state.activeMatter?.name || '').trim();
+    if (!matterName) {
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Pick a matter before creating the MW List of Dates.' });
+      return;
+    }
+
+    if (manageCommandRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: true });
+    dispatch({ type: 'SET_COMMAND_COPY', payload: 'Checking MW List of Dates inputs…' });
+    appendTerminal([`[mw-list-of-dates] checking inputs for "${matterName}"`]);
+
+    try {
+      const current = await api.getMwListOfDatesStatus(matterName);
+      if (activeMatterNameRef.current !== matterName) return;
+      if (current.state?.startsWith('blocked_')) {
+        const reason = current.blockedReasons?.[0] || 'Refresh the required upstream preparation first.';
+        dispatch({ type: 'SET_COMMAND_COPY', payload: `MW List of Dates is blocked: ${reason}` });
+        appendTerminal([`[mw-list-of-dates] blocked: ${reason}`]);
+        return;
+      }
+
+      const hasExisting = Boolean(current.currentMarkdownPresent || current.currentJsonPresent);
+      let overwrite = false;
+      if (hasExisting) {
+        const ok = typeof window !== 'undefined' && window.confirm(
+          'Replace the existing MW List of Dates? The previous version will be archived. This may use paid Assistant capacity.',
+        );
+        if (!ok) {
+          dispatch({ type: 'SET_COMMAND_COPY', payload: 'Existing MW List of Dates kept. No rerun started.' });
+          appendTerminal([`[mw-list-of-dates] skipped: existing artifact kept for "${matterName}"`]);
+          return;
+        }
+        overwrite = true;
+      }
+
+      let proceedUnconfirmed = false;
+      let proceedUnconfirmedReason = '';
+      if (current.confirmation?.state && current.confirmation.state !== 'confirmed' && current.confirmation.state !== 'corrected') {
+        const reason = typeof window !== 'undefined'
+          ? window.prompt('The procedural diagnosis is not confirmed. Add a reason to proceed with a provisional MW List of Dates, or cancel.')
+          : '';
+        if (!reason?.trim()) {
+          dispatch({ type: 'SET_COMMAND_COPY', payload: 'MW List of Dates not created without a confirmed diagnosis or explicit reason.' });
+          appendTerminal([`[mw-list-of-dates] skipped: diagnosis unconfirmed for "${matterName}"`]);
+          return;
+        }
+        proceedUnconfirmed = true;
+        proceedUnconfirmedReason = reason.trim();
+      }
+
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'Creating MW List of Dates…' });
+      const result = await api.runMwListOfDates({ matterName, overwrite, proceedUnconfirmed, proceedUnconfirmedReason });
+      if (activeMatterNameRef.current !== matterName) return;
+      if (result.state === 'requires_overwrite') {
+        dispatch({ type: 'SET_COMMAND_COPY', payload: 'Existing MW List of Dates kept. Confirm replacement before rerunning.' });
+        appendTerminal([`[mw-list-of-dates] skipped: overwrite confirmation required for "${matterName}"`]);
+        return;
+      }
+
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after MW List of Dates',
+      });
+      if (activeMatterNameRef.current !== matterName) return;
+
+      const artifactPath = result.artifactPath || '20_Workshop/Case Analysis/MW List of Dates.md';
+      try {
+        const preview = await loadTextFilePreview(artifactPath, (filePath) => api.getFile(filePath, matterName));
+        if (activeMatterNameRef.current !== matterName) return;
+        dispatch({ type: 'SET_ACTIVE_FILE', payload: artifactPath });
+        dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(artifactPath) });
+        dispatch({ type: 'SET_FILE_PREVIEW', payload: preview });
+        dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
+      } catch {
+        if (activeMatterNameRef.current !== matterName) return;
+      }
+
+      dispatch({ type: 'SET_COMMAND_COPY', payload: 'MW List of Dates is ready for lawyer review.' });
+      appendTerminal([`[mw-list-of-dates] ready: ${artifactPath}`]);
+    } catch (e) {
+      if (activeMatterNameRef.current !== matterName) return;
+      const message = getErrorMessage(e);
+      dispatch({ type: 'SET_COMMAND_COPY', payload: `MW List of Dates could not be created: ${message}` });
+      appendTerminal([`[mw-list-of-dates] failed: ${message}`]);
+    } finally {
+      if (manageCommandRunning) dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
+    }
+  }, [activeMatterNameRef, appendTerminal, dispatch, refreshActiveMatterWorkspace, state.activeMatter?.name]);
+
   const handleCommand = useCallback(async (cmd: string) => {
     const lower = cmd.toLowerCase().trim();
     if (lower === '/whats_new' || lower === '/whatsnew' || lower === 'whats new' || lower === "what's new") {
@@ -639,6 +731,10 @@ function AppShell() {
       }
       if (nativeResolution.command === '/procedural_posture_diagnosis') {
         await runProceduralPostureDiagnosisFromCommand(state.activeMatter?.name ?? null);
+        return;
+      }
+      if (nativeResolution.command === '/create_mw_listofdates') {
+        await runMwListOfDatesFromCommand(state.activeMatter?.name ?? null);
         return;
       }
       const commandLabel = cleanCommandLabel(nativeResolution.command);
@@ -680,6 +776,10 @@ function AppShell() {
             await runProceduralPostureDiagnosisFromCommand(matterName, { manageCommandRunning: false });
             return;
           }
+          if (matchedResolution.command === '/create_mw_listofdates') {
+            await runMwListOfDatesFromCommand(matterName, { manageCommandRunning: false });
+            return;
+          }
           setActiveView(matchedResolution.view);
           dispatch({ type: 'SET_BREADCRUMBS', payload: cleanCommandLabel(matchedResolution.command) });
         } else if (result.matched_skill_card?.configurable) {
@@ -711,7 +811,7 @@ function AppShell() {
     } finally {
       dispatch({ type: 'SET_COMMAND_RUNNING', payload: false });
     }
-  }, [state.activeMatter, state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, researchMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand, runProceduralPostureDiagnosisFromCommand]);
+  }, [state.activeMatter, state.activeMatter?.name, state.resumeMatterName, activeMatterNameRef, dispatch, appendTerminal, setActiveView, answerMatterQuestion, researchMatterQuestion, openMatterFinder, runConfigurableSkillFromCommand, runMatterStoryFromCommand, runProceduralPostureDiagnosisFromCommand, runMwListOfDatesFromCommand]);
 
   function handleMatterCreated(name: string, opts: { autoPrepare?: boolean } = {}) {
     activeMatterNameRef.current = name;
@@ -751,6 +851,10 @@ function AppShell() {
         }
         if (nativeResolution?.command === '/procedural_posture_diagnosis') {
           void runProceduralPostureDiagnosisFromCommand(name);
+          return;
+        }
+        if (nativeResolution?.command === '/create_mw_listofdates') {
+          void runMwListOfDatesFromCommand(name);
           return;
         }
         if (nativeResolution) {

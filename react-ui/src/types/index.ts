@@ -1065,6 +1065,40 @@ export interface ProceduralPostureDiagnosisResult {
   lawyerToConfirmCount?: number;
 }
 
+export interface MwListOfDatesStatus {
+  schema_version?: string;
+  state?: string;
+  status?: string;
+  ready?: boolean;
+  artifactPath?: string;
+  jsonPath?: string;
+  outputPaths?: { markdown?: string; json?: string };
+  blockedReasons?: string[];
+  confirmation?: { state?: string; confirmed_at?: string; reason_or_correction?: string; actor?: string };
+  currentMarkdownPresent?: boolean;
+  currentJsonPresent?: boolean;
+  caseTimelinePresent?: boolean;
+  matterStoryPresent?: boolean;
+  diagnosisPresent?: boolean;
+  sourceIndexPresent?: boolean;
+  currentUpdatedAt?: string;
+  caseTimelineUpdatedAt?: string;
+  matterStoryUpdatedAt?: string;
+  diagnosisUpdatedAt?: string;
+  sourceIndexUpdatedAt?: string;
+}
+
+export interface MwListOfDatesRunResult extends MwListOfDatesStatus {
+  markdown?: string;
+  sidecar?: Record<string, unknown>;
+  receipt?: Record<string, unknown>;
+  archivePaths?: string[];
+  runId?: string;
+  job?: JobStatus;
+  receipt_id?: string;
+  dbPersistence?: Record<string, unknown>;
+}
+
 export interface DoctorIssue {
   id: string;
   severity: 'error' | 'warning' | 'info';

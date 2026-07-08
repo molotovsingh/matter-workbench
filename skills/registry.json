@@ -26,6 +26,7 @@
     "create_case_timeline",
     "the_story",
     "procedural_posture_diagnosis",
+    "create_mw_listofdates",
     "doctor"
   ]
 }

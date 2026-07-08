@@ -1,0 +1,45 @@
+{
+  "schema_version": "built-in-skill/v1",
+  "id": "create_mw_listofdates",
+  "slash": "/create_mw_listofdates",
+  "title": "Create MW List of Dates",
+  "display": {
+    "action": "Create MW List of Dates",
+    "artifact": "MW List of Dates",
+    "running": "Creating MW List of Dates",
+    "complete": "MW List of Dates ready",
+    "pill": "Uses AI"
+  },
+  "category": "Analyze",
+  "product_surface": "case_analysis",
+  "purpose": "Create an MW-authored, source-backed working List of Dates shaped by the current procedural diagnosis.",
+  "mode": "AI",
+  "matter_required": true,
+  "paid_provider_call": true,
+  "rerun_guarded": true,
+  "source_backed": "required",
+  "legal_setting_scope": "litigation",
+  "markdown_first": true,
+  "inputs": [
+    "10_Library/Case Timeline.md",
+    "10_Library/Case Timeline.json",
+    "10_Library/Source Index.json",
+    "20_Workshop/The Story.md",
+    "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
+    "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
+    "20_Workshop/Case Analysis/Case Analysis Q&A.md"
+  ],
+  "outputs": [
+    "20_Workshop/Case Analysis/MW List of Dates.md",
+    "20_Workshop/Case Analysis/MW List of Dates.json"
+  ],
+  "upstream": [
+    "/create_case_timeline",
+    "/the_story",
+    "/procedural_posture_diagnosis"
+  ],
+  "downstream": [],
+  "default_lane": "20_Workshop",
+  "runner_key": "/create_mw_listofdates",
+  "version": 1
+}

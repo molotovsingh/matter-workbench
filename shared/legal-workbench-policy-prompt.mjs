@@ -56,6 +56,16 @@ export const NATIVE_SKILL_POLICY_PROMPTS = Object.freeze({
     "describe legal relevance without unsupported argument;",
     "include limitations and follow-up needs when the source record is incomplete.",
   ].join(" "),
+  create_mw_listofdates: [
+    "Native skill policy for Create MW List of Dates:",
+    "transform only from the supplied Case Timeline rows and procedural diagnosis;",
+    "select and frame dates for the working legal objective without inventing facts;",
+    "preserve adverse or difficult facts or explain why they are parked for lawyer review;",
+    "use lawyer-facing source labels in rendered Markdown;",
+    "keep raw source handles and row fingerprints in JSON or audit views only;",
+    "state clearly that the artifact is MW-authored working material, not a court-facing filing copy;",
+    "require lawyer review before relying on it.",
+  ].join(" "),
 });
 
 export const COPILOT_DRAFT_POLICY_PROMPT = [

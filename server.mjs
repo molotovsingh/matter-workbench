@@ -17,6 +17,7 @@ import { createMatterContextService } from "./services/matter-context-service.mj
 import { createMatterEventsService } from "./services/matter-events-service.mjs";
 import { createMatterStore } from "./services/matter-store.mjs";
 import { createMatterStoryService } from "./services/matter-story-service.mjs";
+import { createMwListOfDatesService } from "./services/mw-list-of-dates-service.mjs";
 import { createJobStatusService } from "./services/job-status-service.mjs";
 import { createMatterAttentionService } from "./services/matter-attention-service.mjs";
 import { createMatterLogService } from "./services/matter-log-service.mjs";
@@ -66,6 +67,7 @@ import { sendJson } from "./routes/http-utils.mjs";
 import { handlePrivateBetaAuthApiRequest, requirePrivateBetaAuth } from "./routes/private-beta-auth-routes.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
 import { createListOfDatesRunner } from "./skills/builtins/create_case_timeline/runner.mjs";
+import { createMwListOfDatesRunner } from "./skills/builtins/create_mw_listofdates/runner.mjs";
 import { createDescribeSourcesRunner } from "./skills/builtins/describe_sources/runner.mjs";
 import { createProceduralPostureDiagnosisRunner } from "./skills/builtins/procedural_posture_diagnosis/runner.mjs";
 import { createMatterStoryRunner } from "./skills/builtins/the_story/runner.mjs";
@@ -323,6 +325,11 @@ export async function createWorkbenchServer(options = {}) {
     diagnosisProvider: options.proceduralPostureDiagnosisProvider || null,
     env,
   });
+  const mwListOfDatesService = options.mwListOfDatesService || createMwListOfDatesService({
+    matterStore,
+    aiProviderService,
+    mwListOfDatesProvider: options.mwListOfDatesProvider || null,
+  });
   const jobStatusService = options.jobStatusService || createJobStatusService({
     appDir,
     jobsPath: options.jobStatusPath,
@@ -348,6 +355,10 @@ export async function createWorkbenchServer(options = {}) {
     matterStore,
     service: proceduralPostureDiagnosisService,
   });
+  const mwListOfDatesRunner = createMwListOfDatesRunner({
+    matterStore,
+    service: mwListOfDatesService,
+  });
   const skillRunnerService = options.skillRunnerService || (jobStatusService?.createJob && jobStatusService?.getJob && jobStatusService?.updateJobStage
     ? createSkillRunnerService({
       jobStatusService,
@@ -358,6 +369,7 @@ export async function createWorkbenchServer(options = {}) {
         ["/create_listofdates"]: listOfDatesRunner,
         [matterStoryRunner.slash]: matterStoryRunner,
         [postureDiagnosisRunner.slash]: postureDiagnosisRunner,
+        [mwListOfDatesRunner.slash]: mwListOfDatesRunner,
       },
     })
     : null);
@@ -445,6 +457,7 @@ export async function createWorkbenchServer(options = {}) {
     matterContextService,
     matterStatusService,
     matterStoryService,
+    mwListOfDatesService,
     proceduralPostureDiagnosisService,
     maxUploadBytes,
     maxUploadFiles,
@@ -840,7 +853,7 @@ async function safeReadTelemetryLedger(reader) {
 }
 
 function isLikelySilentWaitPath(pathname = "") {
-  return /\/api\/(matter-copilot|configurable-skills\/run|extract|describe-sources|case-timeline|create-listofdates)/.test(pathname);
+  return /\/api\/(matter-copilot|configurable-skills\/run|extract|describe-sources|case-timeline|create-listofdates|mw-list-of-dates)/.test(pathname);
 }
 
 function safeErrorCode(value) {

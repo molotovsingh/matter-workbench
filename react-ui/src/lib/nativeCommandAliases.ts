@@ -23,6 +23,9 @@ export const NATIVE_COMMAND_ALIASES = [
   ['diagnose procedural posture', '/procedural_posture_diagnosis'],
   ['filing and procedural posture', '/procedural_posture_diagnosis'],
   ['posture diagnosis', '/procedural_posture_diagnosis'],
+  ['mw list of dates', '/create_mw_listofdates'],
+  ['create mw list of dates', '/create_mw_listofdates'],
+  ['working list of dates', '/create_mw_listofdates'],
   ['doctor', '/doctor'],
   ['check matter health', '/doctor'],
 ] as const;

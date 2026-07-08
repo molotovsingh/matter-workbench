@@ -11,6 +11,7 @@ test("builtin skill dispatch maps slash commands to injected runners", () => {
     runContextPreview: () => "preview",
     runContextSearch: () => "search",
     runCreateListOfDates: () => "dates",
+    runMwListOfDates: () => "mw-dates",
     runDoctor: () => "doctor",
   };
   const dispatch = createBuiltinSkillDispatch(runners);
@@ -21,5 +22,6 @@ test("builtin skill dispatch maps slash commands to injected runners", () => {
   assert.equal(dispatch["/context_preview"](), "preview");
   assert.equal(dispatch["/context_search"](), "search");
   assert.equal(dispatch["/create_case_timeline"](), "dates");
+  assert.equal(dispatch["/create_mw_listofdates"](), "mw-dates");
   assert.equal(dispatch["/doctor"](), "doctor");
 });

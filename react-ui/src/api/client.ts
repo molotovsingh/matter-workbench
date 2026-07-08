@@ -27,6 +27,8 @@ import type {
   MatterContextPreview,
   MatterContextSearchResponse,
   MatterLog,
+  MwListOfDatesRunResult,
+  MwListOfDatesStatus,
   NativeSkillRetryRequest,
   NativeSkillRunResult,
   MatterCopilotAnswer,
@@ -487,6 +489,9 @@ export const api = {
   runProceduralPostureDiagnosis: (body: MatterSkillRunRequest & { overwrite?: boolean }) => postJson<ProceduralPostureDiagnosisResult>('/api/procedural-posture-diagnosis', body),
   confirmProceduralPostureDiagnosis: (body: MatterSkillRunRequest & { decision: 'confirmed' | 'corrected' | 'not_sure' | string; reasonOrCorrection?: string; actor?: string }) =>
     postJson<ProceduralPostureDiagnosisResult>('/api/procedural-posture-diagnosis/confirmation', body),
+  getMwListOfDatesStatus: (matterName?: string) => getJson<MwListOfDatesStatus>(withQuery('/api/mw-list-of-dates/status', { matter: matterName })),
+  runMwListOfDates: (body: MatterSkillRunRequest & { overwrite?: boolean; proceedUnconfirmed?: boolean; proceedUnconfirmedReason?: string }) =>
+    postJson<MwListOfDatesRunResult>('/api/mw-list-of-dates', body),
   getRerunAdvice: (skill: string, matterName?: string) => getJson<RerunAdvice>(withQuery('/api/rerun-advice', { skill, matter: matterName })),
   runDoctorScan: (body: MatterSkillRunRequest) => postJson<DoctorScanResult>('/api/doctor/scan', body),
   runDoctorFix: (body: DoctorFixRequest) => postJson<DoctorFixResult>('/api/doctor/fix', body),

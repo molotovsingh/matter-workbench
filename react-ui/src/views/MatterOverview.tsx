@@ -5,6 +5,7 @@ import { getErrorMessage } from '../lib/errors';
 import { lookupString } from '../lib/lookup';
 import { CASE_TIMELINE_DEPENDENCY_STATES } from '../lib/caseTimelineDependencyState';
 import { formatMissingMatterDetails } from '../lib/matterDetails';
+import { filePreviewTitle, loadTextFilePreview } from '../lib/filePreview';
 import { cleanCommandLabel } from '../lib/nativeCommands';
 import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLabels';
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
@@ -20,6 +21,7 @@ import type {
   AttentionSummary,
   PreparationRunStatus,
   MatterMetadata,
+  MwListOfDatesStatus,
   ProceduralPostureDiagnosisResult,
 } from '../types';
 
@@ -29,7 +31,7 @@ interface Props {
 }
 
 export default function MatterOverview({ onRunNeededPreparation, onForceFullPreparation }: Props) {
-  const { state, refreshActiveMatterWorkspace, appendTerminal } = useApp();
+  const { state, dispatch, refreshActiveMatterWorkspace, appendTerminal } = useApp();
   const matter = state.activeMatter!;
   const meta = matter.metadata ?? {};
   const localPreparationRun = state.preparationRun?.matterName === matter.name ? state.preparationRun : null;
@@ -61,6 +63,13 @@ export default function MatterOverview({ onRunNeededPreparation, onForceFullPrep
 
       <MatterStoryCard meta={meta} />
       <ProceduralPostureCard matterName={matter.name} refreshKey={preparationRefreshKey} />
+      <MwListOfDatesCard
+        matterName={matter.name}
+        refreshKey={preparationRefreshKey}
+        dispatch={dispatch}
+        refreshActiveMatterWorkspace={refreshActiveMatterWorkspace}
+        appendTerminal={appendTerminal}
+      />
 
       <dl className="matter-info-card">
         <dt>Client</dt>
@@ -280,6 +289,195 @@ function ProceduralPostureCard({
       )}
     </section>
   );
+}
+
+function MwListOfDatesCard({
+  matterName,
+  refreshKey,
+  dispatch,
+  refreshActiveMatterWorkspace,
+  appendTerminal,
+}: {
+  matterName: string;
+  refreshKey: string;
+  dispatch: ReturnType<typeof useApp>['dispatch'];
+  refreshActiveMatterWorkspace: ReturnType<typeof useApp>['refreshActiveMatterWorkspace'];
+  appendTerminal: ReturnType<typeof useApp>['appendTerminal'];
+}) {
+  const [status, setStatus] = useState<MwListOfDatesStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [proceedReason, setProceedReason] = useState('');
+
+  const loadStatus = async () => {
+    setError(null);
+    try {
+      const payload = await api.getMwListOfDatesStatus(matterName);
+      setStatus(payload);
+      return payload;
+    } catch (e) {
+      setError(getErrorMessage(e));
+      throw e;
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus(null);
+    setError(null);
+    api.getMwListOfDatesStatus(matterName)
+      .then((payload) => { if (!cancelled) setStatus(payload); })
+      .catch((e) => { if (!cancelled) setError(getErrorMessage(e)); });
+    return () => { cancelled = true; };
+  }, [matterName, refreshKey]);
+
+  async function openArtifact(path = status?.artifactPath || '20_Workshop/Case Analysis/MW List of Dates.md') {
+    setBusy('open');
+    try {
+      const preview = await loadTextFilePreview(path, (filePath) => api.getFile(filePath, matterName));
+      dispatch({ type: 'SET_ACTIVE_FILE', payload: path });
+      dispatch({ type: 'SET_BREADCRUMBS', payload: filePreviewTitle(path) });
+      dispatch({ type: 'SET_FILE_PREVIEW', payload: preview });
+      dispatch({ type: 'SET_VIEW', payload: 'file-preview' });
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function createArtifact({ proceedUnconfirmed = false } = {}) {
+    if (!status) return;
+    const blocked = String(status.state || '').startsWith('blocked_');
+    if (blocked && status.state !== 'blocked_unconfirmed_diagnosis') return;
+    if (status.state === 'blocked_unconfirmed_diagnosis' && !proceedUnconfirmed) return;
+    const reason = proceedReason.trim();
+    if (proceedUnconfirmed && !reason) {
+      setError('Add a reason before proceeding with an unconfirmed procedural diagnosis.');
+      return;
+    }
+    const overwrite = Boolean(status.currentMarkdownPresent || status.currentJsonPresent);
+    if (overwrite && typeof window !== 'undefined') {
+      const ok = window.confirm('Replace the existing MW List of Dates? The previous version will be archived.');
+      if (!ok) return;
+    }
+    setBusy('run');
+    setError(null);
+    appendTerminal([`[mw-list-of-dates] creating for "${matterName}"`]);
+    try {
+      const result = await api.runMwListOfDates({
+        matterName,
+        overwrite,
+        proceedUnconfirmed,
+        proceedUnconfirmedReason: proceedUnconfirmed ? reason : '',
+      });
+      if (result.state === 'requires_overwrite') {
+        setError('Existing MW List of Dates kept. Confirm replacement before rerunning.');
+        return;
+      }
+      await refreshActiveMatterWorkspace({
+        expectedMatterName: matterName,
+        failurePrefix: '[workspace] refresh failed after MW List of Dates',
+      });
+      await loadStatus();
+      const artifactPath = result.artifactPath || '20_Workshop/Case Analysis/MW List of Dates.md';
+      await openArtifact(artifactPath);
+      appendTerminal([`[mw-list-of-dates] ready: ${artifactPath}`]);
+    } catch (e) {
+      const message = getErrorMessage(e);
+      setError(message);
+      appendTerminal([`[mw-list-of-dates] failed: ${message}`]);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (error && !status) {
+    return (
+      <section className="matter-story-card matter-posture-card">
+        <div className="matter-story-heading">
+          <div>
+            <p className="matter-story-kicker">Case Analysis</p>
+            <h2>MW List of Dates</h2>
+          </div>
+        </div>
+        <p className="muted">MW List of Dates status is unavailable: {error}</p>
+      </section>
+    );
+  }
+
+  if (!status) {
+    return (
+      <section className="matter-story-card matter-posture-card">
+        <div className="matter-story-heading">
+          <div>
+            <p className="matter-story-kicker">Case Analysis</p>
+            <h2>MW List of Dates</h2>
+          </div>
+        </div>
+        <p className="muted">Checking MW List of Dates readiness…</p>
+      </section>
+    );
+  }
+
+  const state = status.state || 'ready_to_generate';
+  const blocked = state.startsWith('blocked_');
+  const unconfirmedBlocked = state === 'blocked_unconfirmed_diagnosis';
+  const current = state.startsWith('current_');
+  const canRun = !blocked || unconfirmedBlocked;
+  const actionLabel = current ? 'Refresh MW List of Dates' : status.currentMarkdownPresent ? 'Replace MW List of Dates' : 'Create MW List of Dates';
+
+  return (
+    <section className="matter-story-card matter-posture-card">
+      <div className="matter-story-heading">
+        <div>
+          <p className="matter-story-kicker">Case Analysis</p>
+          <h2>MW List of Dates</h2>
+        </div>
+        <div className="matter-story-provenance" aria-label="MW List of Dates status">
+          <span>{mwListOfDatesStateLabel(state)}</span>
+          <span>Diagnosis: {confirmationStateLabel(status.confirmation?.state || 'unconfirmed')}</span>
+        </div>
+      </div>
+      <p className="muted">
+        Creates an MW-authored working List of Dates from the current Case Timeline and procedural diagnosis. It is for lawyer review, not a court-facing filing copy.
+      </p>
+      {blocked && !unconfirmedBlocked && <p className="form-error">{status.blockedReasons?.[0] || 'Refresh the required upstream preparation before creating this artifact.'}</p>}
+      {unconfirmedBlocked && (
+        <div className="posture-confirmation-panel">
+          <p className="muted">The procedural diagnosis is not confirmed. Add a reason only if you want a provisional MW List of Dates for internal beta review.</p>
+          <textarea
+            value={proceedReason}
+            onChange={(event) => setProceedReason(event.target.value)}
+            placeholder="Reason to proceed unconfirmed"
+            rows={2}
+          />
+        </div>
+      )}
+      {error && <p className="form-error">{error}</p>}
+      <div className="form-actions">
+        {status.currentMarkdownPresent && (
+          <button type="button" className="secondary-button" onClick={() => openArtifact()} disabled={Boolean(busy)}>
+            {busy === 'open' ? 'Opening…' : 'Open current'}
+          </button>
+        )}
+        <button type="button" className="run-skill-button" onClick={() => createArtifact({ proceedUnconfirmed: unconfirmedBlocked })} disabled={!canRun || Boolean(busy)}>
+          {busy === 'run' ? 'Creating…' : unconfirmedBlocked ? 'Proceed unconfirmed' : actionLabel}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function mwListOfDatesStateLabel(state: string): string {
+  if (state === 'ready_to_generate') return 'Ready to create';
+  if (state === 'stale') return 'Needs refresh';
+  if (state === 'current_confirmed_basis') return 'Current — confirmed posture';
+  if (state === 'current_corrected_basis') return 'Current — corrected posture';
+  if (state === 'current_provisional') return 'Current — provisional';
+  if (state === 'blocked_unconfirmed_diagnosis') return 'Waiting on posture confirmation';
+  if (state.startsWith('blocked_')) return 'Blocked';
+  return 'Not started';
 }
 
 function postureStateLabel(state: string): string {

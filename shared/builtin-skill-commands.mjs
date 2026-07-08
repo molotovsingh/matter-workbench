@@ -13,6 +13,7 @@ export const BUILTIN_SKILL_REGISTRY_COMMANDS = Object.freeze([
   CASE_TIMELINE_SKILL_SLASH,
   "/the_story",
   "/procedural_posture_diagnosis",
+  "/create_mw_listofdates",
   "/doctor",
 ]);
 
@@ -31,6 +32,7 @@ export const PROVIDER_BACKED_BUILTIN_SKILL_COMMANDS = Object.freeze([
   LEGACY_LIST_OF_DATES_SKILL_SLASH,
   "/the_story",
   "/procedural_posture_diagnosis",
+  "/create_mw_listofdates",
 ]);
 
 export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
@@ -71,6 +73,10 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
     description: "Create the provisional Filing and Procedural Posture Diagnosis. Paid AI actions ask first.",
   },
   {
+    command: "/create_mw_listofdates",
+    description: "Create the MW-authored working List of Dates from the Case Timeline and procedural diagnosis. Paid AI actions ask first.",
+  },
+  {
     command: "/doctor",
     description: "Check known matter workspace issues.",
   },
@@ -101,6 +107,9 @@ export const BUILTIN_SKILL_COMMAND_ALIASES = Object.freeze([
   ["diagnose procedural posture", "/procedural_posture_diagnosis"],
   ["filing and procedural posture", "/procedural_posture_diagnosis"],
   ["posture diagnosis", "/procedural_posture_diagnosis"],
+  ["mw list of dates", "/create_mw_listofdates"],
+  ["create mw list of dates", "/create_mw_listofdates"],
+  ["working list of dates", "/create_mw_listofdates"],
   ["doctor", "/doctor"],
   ["check matter health", "/doctor"],
 ]);

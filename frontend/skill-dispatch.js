@@ -8,6 +8,7 @@ export function createBuiltinSkillDispatch(skills = {}) {
     "/context_search": skills.runContextSearch,
     "/create_case_timeline": skills.runCreateListOfDates,
     "/create_listofdates": skills.runCreateListOfDates,
+    "/create_mw_listofdates": skills.runMwListOfDates,
     "/doctor": skills.runDoctor,
   };
 }

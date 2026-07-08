@@ -112,7 +112,7 @@ test("skill idea parser detects explicit proposal phrases only", () => {
 test("slash command suggestions are explicit and description-backed", () => {
   assert.deepEqual(
     listSlashCommandSuggestions("/").map((suggestion) => suggestion.command),
-    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_case_timeline", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
+    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_case_timeline", "/the_story", "/procedural_posture_diagnosis", "/create_mw_listofdates", "/doctor"],
   );
   assert.deepEqual(
     listSlashCommandSuggestions("/prep").map((suggestion) => suggestion.command),
