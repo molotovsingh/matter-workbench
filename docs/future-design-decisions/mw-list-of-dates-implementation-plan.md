@@ -34,11 +34,12 @@ The existing `/create_listofdates` remains the neutral source-backed Case Timeli
 This is the intended implementation reading:
 
 1. **Do not retrofit `/create_listofdates` into the advocacy artifact.** Keep it as the Case Timeline and preserve its existing internal paths.
-2. **Make MW LoD a Case Analysis operation, not a Core Preparation default.** In the first implementation, it should be manually triggered after diagnosis review. It can appear as a Case Analysis row/card, but automatic preparation should not silently spend another model run or generate advocacy-framed chronology before the lawyer has seen the diagnosis.
-3. **Gate on procedural diagnosis.** Missing/stale diagnosis blocks. Unconfirmed diagnosis blocks by default, with an explicit `proceed unconfirmed` escape hatch only if the owner accepts that beta behavior.
-4. **Transform from Case Timeline rows in V1.** Do not reopen the full source document set or run legal research inside MW LoD. This prevents a second, competing fact spine.
-5. **Show lawyer-facing source labels in Markdown.** Internal handles stay in JSON/receipts/operator detail, not in the default lawyer-visible Markdown.
-6. **Keep court-facing export separate.** The MW LoD is working analysis; an SLP/writ/court-facing List of Dates is a later export profile.
+2. **Make Case Timeline a row/system action, not a lawyer-facing slash-list item.** It should run automatically during preparation and remain refreshable from the Home / Matter Overview preparation row. The old slash can remain as a legacy/operator alias, but ordinary users should not see `create_listofdates` in the slash invoke list.
+3. **Make MW LoD a Case Analysis operation, not a Core Preparation default.** In the first implementation, it should be manually triggered after diagnosis review. It can appear as a Case Analysis row/card, but automatic preparation should not silently spend another model run or generate advocacy-framed chronology before the lawyer has seen the diagnosis.
+4. **Gate on procedural diagnosis.** Missing/stale diagnosis blocks. Unconfirmed diagnosis blocks by default, with an explicit `proceed unconfirmed` escape hatch only if the owner accepts that beta behavior.
+5. **Transform from Case Timeline rows in V1.** Do not reopen the full source document set or run legal research inside MW LoD. This prevents a second, competing fact spine.
+6. **Show lawyer-facing source labels in Markdown.** Internal handles stay in JSON/receipts/operator detail, not in the default lawyer-visible Markdown.
+7. **Keep court-facing export separate.** The MW LoD is working analysis; an SLP/writ/court-facing List of Dates is a later export profile.
 
 ## Correct Reading Of The Older Notes
 
@@ -201,7 +202,7 @@ Draft metadata:
 }
 ```
 
-Command naming is deliberately explicit. `/create_listofdates` remains the Case Timeline command; `/create_mw_listofdates` creates the Case Analysis derivative.
+User-facing invocation should be row-based, not slash-first. The app-system action can be named `create_timeline` conceptually while calling the existing `create_listofdates` runner/path until a migration contract exists. Keep `/create_listofdates` as a legacy/operator alias for compatibility, but do not advertise it in the ordinary slash invoke list. `/create_mw_listofdates`, if added, should also be secondary to a Case Analysis row action.
 
 ## Inputs
 
@@ -766,9 +767,9 @@ Confirm it before creating the MW List of Dates, or proceed unconfirmed with a r
 
 ### Command panel
 
-Expose `/create_mw_listofdates` only after the feature is coherent. During first local testing it can remain operator-only or hidden behind feature flag.
+Do not advertise `/create_listofdates` in the ordinary lawyer-facing slash invoke list. Case Timeline is automatic preparation plus a Home / Matter Overview row action (`Build / Refresh Case Timeline`). Keep the old slash parser path available as a hidden legacy/operator escape hatch until a migration contract removes it.
 
-Keep `/create_listofdates` available and labeled as Build Case Timeline.
+Expose `/create_mw_listofdates` only after the feature is coherent. During first local testing it can remain operator-only or hidden behind feature flag. Even then, the primary UX should be the Case Analysis row action, not slash invocation.
 
 ### Artifact preview
 
@@ -985,8 +986,9 @@ A first beta implementation should be judged on this rubric before adding court-
 
 | Decision | Default |
 | --- | --- |
-| Keep `/create_listofdates`? | Yes, as Case Timeline. |
-| New command? | `/create_mw_listofdates`, possibly hidden until ready. |
+| Keep `/create_listofdates`? | Yes as hidden legacy/operator alias; do not advertise to ordinary users. |
+| Case Timeline invocation? | Automatic preparation plus Home / Matter Overview row action (`Build / Refresh Case Timeline`). |
+| New command? | `/create_mw_listofdates` only as hidden/secondary path until ready; primary UX should be row-based. |
 | Where artifact lives? | `20_Workshop/Case Analysis/`. |
 | Stable current path? | Yes: `MW List of Dates.md/json`. |
 | Archive previous versions? | Yes, under `Case Analysis/archive/`. |
