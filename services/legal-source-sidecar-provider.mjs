@@ -1,5 +1,6 @@
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { normalizeLegalSourceMetadata } from "./legal-source-metadata.mjs";
 
 export const LEGAL_SOURCE_SEARCH_SCHEMA_VERSION = "legal-source-search-request/v1";
 
@@ -153,50 +154,6 @@ function normalizeLegalSource(source = {}, { maxResultChars }) {
   };
   if (Object.keys(metadata).length) normalizedSource.metadata = metadata;
   return { source: normalizedSource };
-}
-
-function normalizeLegalSourceMetadata(metadata = {}) {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
-  const normalized = {};
-  for (const key of [
-    "provider",
-    "slug",
-    "section",
-    "requested_section",
-    "act",
-    "act_number",
-    "heading",
-    "corpus_fingerprint",
-    "built_at",
-    "last_refreshed",
-    "published_at",
-  ]) {
-    const value = truncateText(redactSensitiveText(normalizeWhitespace(metadata[key] || "")), key === "corpus_fingerprint" ? 200 : 500);
-    if (value) normalized[key] = value;
-  }
-  const provenance = normalizeProvenanceMetadata(metadata.provenance);
-  if (Object.keys(provenance).length) normalized.provenance = provenance;
-  return normalized;
-}
-
-function normalizeProvenanceMetadata(provenance = {}) {
-  if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) return {};
-  const normalized = {};
-  const source = normalizePlainMetadataObject(provenance.source, ["name", "tier", "url", "retrieved_at"]);
-  if (Object.keys(source).length) normalized.source = source;
-  const authenticityAnchor = normalizePlainMetadataObject(provenance.authenticity_anchor, ["status", "archive_url"]);
-  if (Object.keys(authenticityAnchor).length) normalized.authenticity_anchor = authenticityAnchor;
-  return normalized;
-}
-
-function normalizePlainMetadataObject(value = {}, keys = []) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const normalized = {};
-  for (const key of keys) {
-    const text = truncateText(redactSensitiveText(normalizeWhitespace(value[key] || "")), 1000);
-    if (text) normalized[key] = text;
-  }
-  return normalized;
 }
 
 function normalizeWarnings(values) {

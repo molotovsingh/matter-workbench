@@ -10,6 +10,10 @@ import {
 } from "./web-research-providers.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import {
+  extractCorpusFingerprintsFromSources,
+  normalizeLegalSourceMetadata,
+} from "./legal-source-metadata.mjs";
 
 export const COPILOT_WEB_RESEARCH_ANSWER_SCHEMA_VERSION = "matter-copilot-research-answer/v1";
 
@@ -215,7 +219,7 @@ function validatePublicSources(modelSources, publicSources, answerMarkdown = "")
       warnings.push(`Dropped unsupported public source ${id}.`);
       continue;
     }
-    const metadata = normalizePublicSourceMetadata(validated.metadata);
+    const metadata = normalizeLegalSourceMetadata(validated.metadata);
     const source = {
       id: validated.id,
       title: validated.title || "Untitled public source",
@@ -240,56 +244,9 @@ function normalizeResearchMetadata({ provider, query, resultCount, sources = [] 
     query,
     result_count: resultCount,
   };
-  const corpusFingerprints = [...new Set(sources
-    .map((source) => source?.metadata?.corpus_fingerprint)
-    .map((value) => String(value || "").trim())
-    .filter(Boolean))];
+  const corpusFingerprints = extractCorpusFingerprintsFromSources(sources);
   if (corpusFingerprints.length) research.corpus_fingerprints = corpusFingerprints;
   return research;
-}
-
-function normalizePublicSourceMetadata(metadata = {}) {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
-  const normalized = {};
-  for (const key of [
-    "provider",
-    "slug",
-    "section",
-    "requested_section",
-    "act",
-    "act_number",
-    "heading",
-    "corpus_fingerprint",
-    "built_at",
-    "last_refreshed",
-    "published_at",
-  ]) {
-    const value = redactSensitiveText(String(metadata[key] || "").replace(/\s+/g, " ").trim()).slice(0, key === "corpus_fingerprint" ? 200 : 500);
-    if (value) normalized[key] = value;
-  }
-  const provenance = normalizePublicSourceProvenance(metadata.provenance);
-  if (Object.keys(provenance).length) normalized.provenance = provenance;
-  return normalized;
-}
-
-function normalizePublicSourceProvenance(provenance = {}) {
-  if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) return {};
-  const normalized = {};
-  const source = normalizePublicSourceMetadataObject(provenance.source, ["name", "tier", "url", "retrieved_at"]);
-  if (Object.keys(source).length) normalized.source = source;
-  const authenticityAnchor = normalizePublicSourceMetadataObject(provenance.authenticity_anchor, ["status", "archive_url"]);
-  if (Object.keys(authenticityAnchor).length) normalized.authenticity_anchor = authenticityAnchor;
-  return normalized;
-}
-
-function normalizePublicSourceMetadataObject(value = {}, keys = []) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const normalized = {};
-  for (const key of keys) {
-    const text = redactSensitiveText(String(value[key] || "").replace(/\s+/g, " ").trim()).slice(0, 1000);
-    if (text) normalized[key] = text;
-  }
-  return normalized;
 }
 
 function normalizeAnswerStatus(value) {
