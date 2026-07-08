@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
+import { BUILTIN_SKILL_REGISTRY_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 import { MATTER_WORKSPACE_LANES } from "../shared/matter-contract.mjs";
 
 const FALLBACK_CATEGORIES = [
@@ -98,8 +98,8 @@ function assertBuiltinManifestMatchesCommandList(builtins, { registryPath }) {
     return id ? `/${id}` : "";
   });
   if (
-    manifestSlashes.length === BUILTIN_SKILL_COMMANDS.length
-    && manifestSlashes.every((slash, index) => slash === BUILTIN_SKILL_COMMANDS[index])
+    manifestSlashes.length === BUILTIN_SKILL_REGISTRY_COMMANDS.length
+    && manifestSlashes.every((slash, index) => slash === BUILTIN_SKILL_REGISTRY_COMMANDS[index])
   ) {
     return;
   }

@@ -112,7 +112,7 @@ function seedDemoData(tables) {
     {
       installation_id: "firm-alpha-01", feedback_id: "fb_002", classification: "confusing_ux", status: "reviewed", matter_name: "Gionee v. Creditor",
       occurred_at: hoursAgo(8), received_at: hoursAgo(8),
-      payload: { id: "fb_002", classification: "confusing_ux", status: "reviewed", createdAt: hoursAgo(8), tryingToDo: "Understand why List of Dates didn't run automatically", happenedInstead: "I waited 10 minutes and nothing happened.", context: { activeMatterName: "Gionee v. Creditor", username: "shivangi@firm-alpha.com", displayName: "Shivangi" } },
+      payload: { id: "fb_002", classification: "confusing_ux", status: "reviewed", createdAt: hoursAgo(8), tryingToDo: "Understand why Case Timeline didn't run automatically", happenedInstead: "I waited 10 minutes and nothing happened.", context: { activeMatterName: "Gionee v. Creditor", username: "shivangi@firm-alpha.com", displayName: "Shivangi" } },
     },
     {
       installation_id: "firm-beta-02", feedback_id: "fb_003", classification: "feature_request", status: "needs_evidence", matter_name: "Estate of Kapoor",
@@ -165,7 +165,7 @@ function seedDemoData(tables) {
         id: "hb_001", createdAt: hoursAgo(0.5), activeSessions: 2, highestPatienceRisk: "high",
         journeys: [
           { user: "aks@firm-alpha.com", matter: "Gionee v. Creditor", screen: "Matter Overview", route: "/matter/overview", lastAction: "Asked Copilot", currentStage: "source_labels", currentStageStatus: "failed", traceId: "trace_001", jobId: "job_001", lastError: "No extraction records found", patienceRisk: "high" },
-          { user: "shivangi@firm-alpha.com", matter: "Gionee v. Creditor", screen: "List of Dates", route: "/matter/listofdates", lastAction: "Waiting for preparation", currentStage: "extract_documents", currentStageStatus: "running", traceId: "trace_002", jobId: "job_002", lastError: "", patienceRisk: "medium" },
+          { user: "shivangi@firm-alpha.com", matter: "Gionee v. Creditor", screen: "Case Timeline", route: "/matter/case-timeline", lastAction: "Waiting for preparation", currentStage: "extract_documents", currentStageStatus: "running", traceId: "trace_002", jobId: "job_002", lastError: "", patienceRisk: "medium" },
         ],
         matterHealth: [
           { matter: "Gionee v. Creditor", prepareState: "stale", nextStepLabel: "Extract Documents", attentionState: "warning", blockers: 1, warnings: 1, checkedAt: hoursAgo(0.5) },

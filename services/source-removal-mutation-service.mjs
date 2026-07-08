@@ -28,8 +28,7 @@ import { createLocalArtifactCurrentnessStore } from "./local-artifact-currentnes
 import { previewSourceRemovalImpact } from "./source-removal-impact-preview-service.mjs";
 import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
 import {
-  CASE_TIMELINE_JSON_RELATIVE,
-  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 
@@ -282,9 +281,7 @@ export function buildRuntimeDbSourceRemovalMutationSql(input = {}) {
     "), artifact_candidates as (",
     artifactCandidateSql(SOURCE_INDEX_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.SOURCE_INDEX, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.SOURCE_SET_CHANGED, "source_removal.active_source_set_changed"),
     "  union all",
-    artifactCandidateSql(CASE_TIMELINE_MARKDOWN_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED, "source_removal.chronology_regeneration_needed"),
-    "  union all",
-    artifactCandidateSql(CASE_TIMELINE_JSON_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED, "source_removal.chronology_regeneration_needed"),
+    artifactCandidateUnionSql(CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES, ARTIFACT_CURRENTNESS_STATES.STALE, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.CHRONOLOGY_REGENERATION_NEEDED, "source_removal.chronology_regeneration_needed"),
     "  union all",
     artifactCandidateSql(DISPUTE_STORY_OUTPUT_RELATIVE, ARTIFACT_CURRENTNESS_FAMILIES.MATTER_STORY, ARTIFACT_CURRENTNESS_STATES.NEEDS_REVIEW, ARTIFACT_CURRENTNESS_DEPENDENCY_STATES.SOURCE_SET_REVIEW_NEEDED, "source_removal.story_needs_review"),
     "  union all",
@@ -354,6 +351,12 @@ export function buildRuntimeDbSourceRemovalMutationSql(input = {}) {
   ].join("\n"));
 }
 
+function artifactCandidateUnionSql(relativePaths, family, state, dependencyState, reasonCode) {
+  return relativePaths
+    .map((relativePath) => artifactCandidateSql(relativePath, family, state, dependencyState, reasonCode))
+    .join("\n  union all\n");
+}
+
 function artifactCandidateSql(relativePath, family, state, dependencyState, reasonCode) {
   return [
     "  select",
@@ -381,8 +384,7 @@ async function buildLocalCurrentnessRecords({ matterRoot, matterName, fileId, pr
     .map((artifact) => artifact.family));
   const sourceIndexPresent = affectedFamilies.has("source_index") || await fileExists(path.join(matterRoot, SOURCE_INDEX_RELATIVE));
   const listOfDatesAffected = affectedFamilies.has("list_of_dates")
-    || await fileExists(path.join(matterRoot, CASE_TIMELINE_MARKDOWN_RELATIVE))
-    || await fileExists(path.join(matterRoot, CASE_TIMELINE_JSON_RELATIVE));
+    || await anyFileExists(matterRoot, CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES);
   const matterStoryPresent = await fileExists(path.join(matterRoot, DISPUTE_STORY_OUTPUT_RELATIVE));
   return buildSourceRemovalArtifactCurrentnessEffects({
     matterName,
@@ -527,6 +529,13 @@ async function readRepairPhase(repairPath) {
   } catch {
     return "unknown";
   }
+}
+
+async function anyFileExists(root, relativePaths = []) {
+  for (const relativePath of relativePaths) {
+    if (await fileExists(path.join(root, relativePath))) return true;
+  }
+  return false;
 }
 
 async function fileExists(filePath) {

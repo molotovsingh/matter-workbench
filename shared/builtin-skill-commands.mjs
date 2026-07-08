@@ -1,19 +1,34 @@
-export const BUILTIN_SKILL_COMMANDS = Object.freeze([
+import {
+  CASE_TIMELINE_SKILL_SLASH,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+} from "./case-timeline-operation.mjs";
+
+export const BUILTIN_SKILL_REGISTRY_COMMANDS = Object.freeze([
   "/matter-init",
   "/prepare_matter",
   "/extract",
   "/describe_sources",
   "/context_preview",
   "/context_search",
-  "/create_listofdates",
+  CASE_TIMELINE_SKILL_SLASH,
   "/the_story",
   "/procedural_posture_diagnosis",
   "/doctor",
 ]);
 
+export const LEGACY_BUILTIN_SKILL_COMMANDS = Object.freeze([
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+]);
+
+export const BUILTIN_SKILL_COMMANDS = Object.freeze([
+  ...BUILTIN_SKILL_REGISTRY_COMMANDS,
+  ...LEGACY_BUILTIN_SKILL_COMMANDS,
+]);
+
 export const PROVIDER_BACKED_BUILTIN_SKILL_COMMANDS = Object.freeze([
   "/describe_sources",
-  "/create_listofdates",
+  CASE_TIMELINE_SKILL_SLASH,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
   "/the_story",
   "/procedural_posture_diagnosis",
 ]);
@@ -44,7 +59,7 @@ export const BUILTIN_SKILL_SUGGESTIONS = Object.freeze([
     description: "Search the bounded matter context locally. No provider call.",
   },
   {
-    command: "/create_listofdates",
+    command: CASE_TIMELINE_SKILL_SLASH,
     description: "Build the neutral Case Timeline. Paid AI actions ask first.",
   },
   {
@@ -74,11 +89,11 @@ export const BUILTIN_SKILL_COMMAND_ALIASES = Object.freeze([
   ["show context", "/context_preview"],
   ["preview matter context", "/context_preview"],
   ["find in matter", "/context_search"],
-  ["case timeline", "/create_listofdates"],
-  ["build case timeline", "/create_listofdates"],
-  ["list of dates", "/create_listofdates"],
-  ["create list of dates", "/create_listofdates"],
-  ["chronology", "/create_listofdates"],
+  ["case timeline", CASE_TIMELINE_SKILL_SLASH],
+  ["build case timeline", CASE_TIMELINE_SKILL_SLASH],
+  ["list of dates", CASE_TIMELINE_SKILL_SLASH],
+  ["create list of dates", CASE_TIMELINE_SKILL_SLASH],
+  ["chronology", CASE_TIMELINE_SKILL_SLASH],
   ["the story", "/the_story"],
   ["matter story", "/the_story"],
   ["write matter story", "/the_story"],

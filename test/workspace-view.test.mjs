@@ -84,9 +84,9 @@ test("workspace area lookup and preview render empty and populated areas", () =>
         path: "10_Library",
         children: [
           {
-            name: "List of Dates.md",
+            name: "Case Timeline.md",
             kind: "file",
-            path: "10_Library/List of Dates.md",
+            path: "10_Library/Case Timeline.md",
             size: 1200,
           },
         ],
@@ -114,7 +114,7 @@ test("workspace area lookup and preview render empty and populated areas", () =>
   );
   assert.match(libraryHtml, /Source Record/);
   assert.match(libraryHtml, /extracted text, source labels, and citeable references/);
-  assert.match(libraryHtml, /List of Dates\.md/);
+  assert.match(libraryHtml, /Case Timeline\.md/);
   assert.match(libraryHtml, /1 files/);
 
   const draftsHtml = renderWorkspaceLaneView(
@@ -181,25 +181,25 @@ test("workspace tree hides technical files by default and exposes them when requ
             previewKind: "text",
           },
           {
-            name: "List of Dates.md",
+            name: "Case Timeline.md",
             kind: "file",
-            path: "10_Library/List of Dates.md",
+            path: "10_Library/Case Timeline.md",
             size: 1200,
             previewable: true,
             previewKind: "text",
           },
           {
-            name: "List of Dates.json",
+            name: "Case Timeline.json",
             kind: "file",
-            path: "10_Library/List of Dates.json",
+            path: "10_Library/Case Timeline.json",
             size: 2000,
             previewable: true,
             previewKind: "text",
           },
           {
-            name: "List of Dates.csv",
+            name: "Case Timeline.csv",
             kind: "file",
-            path: "10_Library/List of Dates.csv",
+            path: "10_Library/Case Timeline.csv",
             size: 1500,
             previewable: true,
             previewKind: "text",
@@ -219,34 +219,34 @@ test("workspace tree hides technical files by default and exposes them when requ
   const html = renderTreeNode(tree);
 
   assert.match(html, /Source Labels/);
-  assert.match(html, /List of Dates/);
+  assert.match(html, /Case Timeline/);
   assert.doesNotMatch(html, /tree-canonical-name">Source Index\.json/);
-  assert.doesNotMatch(html, /tree-canonical-name">List of Dates\.md/);
+  assert.doesNotMatch(html, /tree-canonical-name">Case Timeline\.md/);
   assert.doesNotMatch(html, /Technical files/);
   assert.doesNotMatch(html, /File Register\.csv/);
   assert.doesNotMatch(html, /_extracted/);
-  assert.doesNotMatch(html, /List of Dates\.json/);
-  assert.doesNotMatch(html, /List of Dates\.csv/);
+  assert.doesNotMatch(html, /Case Timeline\.json/);
+  assert.doesNotMatch(html, /Case Timeline\.csv/);
   assert.doesNotMatch(html, /matter\.json/);
 
   const technicalHtml = renderTreeNode(tree, 0, { showTechnical: true });
 
   assert.match(technicalHtml, /Source Labels <span class="tree-canonical-name">Source Index\.json/);
-  assert.match(technicalHtml, /List of Dates <span class="tree-canonical-name">List of Dates\.md/);
+  assert.match(technicalHtml, /Case Timeline <span class="tree-canonical-name">Case Timeline\.md/);
   assert.match(technicalHtml, /Technical files[\s\S]*Technical files are used by the app/);
   assert.match(technicalHtml, /Technical files[\s\S]*File Register\.csv/);
   assert.match(technicalHtml, /Technical files[\s\S]*_extracted/);
-  assert.match(technicalHtml, /Technical files[\s\S]*List of Dates\.json/);
-  assert.match(technicalHtml, /Technical files[\s\S]*List of Dates\.csv/);
+  assert.match(technicalHtml, /Technical files[\s\S]*Case Timeline\.json/);
+  assert.match(technicalHtml, /Technical files[\s\S]*Case Timeline\.csv/);
   assert.match(technicalHtml, /Technical files[\s\S]*matter\.json/);
 });
 
-test("workspace preview renders List of Dates markdown actions", () => {
-  const html = renderListOfDatesPreviewActions("10_Library/List of Dates.md", escapeHtml);
+test("workspace preview renders Case Timeline markdown actions", () => {
+  const html = renderListOfDatesPreviewActions("10_Library/Case Timeline.md", escapeHtml);
 
   assert.match(html, /Copy Markdown/);
   assert.match(html, /Download/);
-  assert.ok(html.includes("/api/file-raw?path=10_Library%2FList%20of%20Dates.md"));
+  assert.ok(html.includes("/api/file-raw?path=10_Library%2FCase%20Timeline.md"));
 });
 
 test("workspace preview does not render markdown actions for other files", () => {
@@ -267,9 +267,9 @@ test("workspace tree marks the active preview file", () => {
         path: "10_Library",
         children: [
           {
-            name: "List of Dates.md",
+            name: "Case Timeline.md",
             kind: "file",
-            path: "10_Library/List of Dates.md",
+            path: "10_Library/Case Timeline.md",
             size: 1200,
             previewable: true,
             previewKind: "text",
@@ -277,14 +277,14 @@ test("workspace tree marks the active preview file", () => {
         ],
       },
     ],
-  }, 0, { activeFilePath: "10_Library/List of Dates.md" });
+  }, 0, { activeFilePath: "10_Library/Case Timeline.md" });
 
   assert.match(html, /tree-file-button active/);
   assert.match(html, /aria-current="true"/);
 });
 
-test("List of Dates markdown parser preserves source fragments and escaped pipes", () => {
-  const parsed = parseListOfDatesMarkdown(`# List of Dates
+test("Case Timeline markdown parser preserves source fragments and escaped pipes", () => {
+  const parsed = parseListOfDatesMarkdown(`# Case Timeline
 
 Matter: Ayesha Vs Japan Airlines
 
@@ -296,7 +296,7 @@ Generated by create-listofdates-v1-ai. Review before relying on this chronology.
 | 2026-03-13 | Airline sent official confirmation | Official confirmation | Airline email (FILE-0001 p1.b1)<br>Consulate email (FILE-0002 p2.b1) |
 `);
 
-  assert.equal(parsed.title, "List of Dates");
+  assert.equal(parsed.title, "Case Timeline");
   assert.equal(parsed.matter, "Ayesha Vs Japan Airlines");
   assert.equal(parsed.entries.length, 2);
   assert.equal(parsed.entries[0].event, "Client was denied boarding after showing rule A|B");
@@ -306,11 +306,11 @@ Generated by create-listofdates-v1-ai. Review before relying on this chronology.
   assert.equal(parsed.dateRange, "2026-03-10 to 2026-03-13");
 });
 
-test("List of Dates markdown preview renders a scannable chronology", () => {
+test("Case Timeline markdown preview renders a scannable chronology", () => {
   const html = renderListOfDatesMarkdownPreview({
-    name: "List of Dates.md",
-    path: "10_Library/List of Dates.md",
-    content: `# List of Dates
+    name: "Case Timeline.md",
+    path: "10_Library/Case Timeline.md",
+    content: `# Case Timeline
 
 Matter: Ayesha Vs Japan Airlines
 
@@ -336,11 +336,11 @@ Generated by create-listofdates-v1-ai. Review before relying on this chronology.
   assert.doesNotMatch(html, /json-preview/);
 });
 
-test("List of Dates markdown preview hides raw technical citations", () => {
+test("Case Timeline markdown preview hides raw technical citations", () => {
   const html = renderListOfDatesMarkdownPreview({
-    name: "List of Dates.md",
-    path: "10_Library/List of Dates.md",
-    content: `# List of Dates
+    name: "Case Timeline.md",
+    path: "10_Library/Case Timeline.md",
+    content: `# Case Timeline
 
 Matter: Ayesha Vs Japan Airlines
 

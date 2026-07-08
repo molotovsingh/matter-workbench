@@ -49,7 +49,7 @@ export async function runCreateListOfDates(options = {}) {
       const sourceSuppressionIndex = await readSourceSuppressionIndex(matterRoot, { warnings: suppressionWarnings });
       const fileIndex = await readFileRegisterIndex(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
       const records = await readExtractionRecords(matterRoot, intakes, { sourceSuppressionIndex, warnings: suppressionWarnings });
-      if (!records.length) throw new Error("No extraction records found. Run /extract before /create_listofdates.");
+      if (!records.length) throw new Error("No extraction records found. Run /extract before /create_case_timeline.");
 
       const inputs = await prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex, dryRun, suppressionWarnings });
       return { matterJson, records, inputs };
@@ -99,7 +99,7 @@ async function prepareOnePassInputs({ matterRoot, matterJson, records, fileIndex
   const chunks = chunkBlocks(chronologyBlocks);
   const filteredBlockCount = blocks.length - chronologyBlocks.length;
   const outputLines = [
-    `> workbench.run /create_listofdates${dryRun ? " (dry-run)" : ""}`,
+    `> workbench.run /create_case_timeline${dryRun ? " (dry-run)" : ""}`,
     ...suppressionWarnings.map((warning) => `[listofdates] ${warning}`),
     `[listofdates] read ${records.length} extraction record(s)`,
     `[listofdates] sending ${chronologyBlocks.length} source block(s) in ${chunks.length} AI request(s)`,

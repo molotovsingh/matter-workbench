@@ -34,6 +34,17 @@ export const NATIVE_SKILL_POLICY_PROMPTS = Object.freeze({
     "preserve stable source identity internally;",
     "surface bad-copy and missing-document signals without blocking by default.",
   ].join(" "),
+  create_case_timeline: [
+    "Native skill policy for Build Case Timeline:",
+    "use one legal event per final row;",
+    "consolidate duplicate mentions of the same event;",
+    "do not treat repeated citations as repeated events;",
+    "preserve date precision;",
+    "use lawyer-facing source labels in rendered Markdown;",
+    "keep raw citations in internal JSON or audit views;",
+    "describe legal relevance without unsupported argument;",
+    "include limitations and follow-up needs when the source record is incomplete.",
+  ].join(" "),
   create_listofdates: [
     "Native skill policy for Build Case Timeline:",
     "use one legal event per final row;",

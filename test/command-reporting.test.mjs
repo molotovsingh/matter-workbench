@@ -88,7 +88,7 @@ test("buildCommandInteractionLogBody maps command report fields to beta diagnost
     skillIdeaId: "idea_1",
     sampleId: "sample_1",
     routerDecision: "modify_existing_skill",
-    routerMatchedSkill: "/create_listofdates",
+    routerMatchedSkill: "/create_case_timeline",
     plannerSource: "model",
     plannerModel: "openai-direct / gpt-5.4",
     error: "sample error",
@@ -110,7 +110,7 @@ test("buildCommandInteractionLogBody maps command report fields to beta diagnost
     sample_id: "sample_1",
     router_decision: {
       decision: "modify_existing_skill",
-      matched_skill: "/create_listofdates",
+      matched_skill: "/create_case_timeline",
     },
     provider_run_invoked: true,
     planner_source: "model",
@@ -129,9 +129,9 @@ test("buildCommandInteractionLogBody maps command report fields to beta diagnost
     matchedCommand: "router/check",
     status: "checked",
     routerDecision: "needs_user_approval",
-    routerMatchedSkill: "/create_listofdates",
+    routerMatchedSkill: "/create_case_timeline",
   });
-  assert.match(routerReport, /- Skill fit check: needs_user_approval -> \/create_listofdates/);
+  assert.match(routerReport, /- Skill fit check: needs_user_approval -> \/create_case_timeline/);
   assert.doesNotMatch(routerReport, /Router\/check result/);
 });
 

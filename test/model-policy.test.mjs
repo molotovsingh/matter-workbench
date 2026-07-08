@@ -87,7 +87,7 @@ test("model policy owns AI task status metadata", () => {
     },
     {
       task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
-      label: "/create_listofdates",
+      label: "/create_case_timeline",
       surface: "Case Timeline chronology",
       modelEnvKey: "OPENAI_MODEL",
       openRouterModelEnvKey: "OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL",

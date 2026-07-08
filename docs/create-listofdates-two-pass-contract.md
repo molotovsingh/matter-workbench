@@ -1,8 +1,8 @@
-# Two-Pass `/create_listofdates` Runtime Contract
+# Two-Pass `/create_case_timeline` Runtime Contract
 
 Status: design contract plus gated runtime path. The production default remains the one-pass runtime unless `CREATE_LISTOFDATES_TWO_PASS_ENABLED=1` is set.
 
-This contract records the path from the reusable two-pass smoke harness to a production-safe `/create_listofdates` implementation. The current one-pass skill remains the default while the two-pass path is gated and re-smoked on real matters.
+This contract records the path from the reusable two-pass smoke harness to a production-safe `/create_case_timeline` implementation. The current one-pass skill remains the default while the two-pass path is gated and re-smoked on real matters.
 
 ## Why Change
 
@@ -30,7 +30,7 @@ Evidence:
 
 ## Current Production Behavior
 
-Today `/create_listofdates`:
+Today `/create_case_timeline`:
 
 1. Reads `extraction-record/v1` outputs and `10_Library/Source Index.json`.
 2. Filters chronology-eligible source blocks.
@@ -41,9 +41,9 @@ Today `/create_listofdates`:
 7. Writes:
 
 ```text
-10_Library/List of Dates.md
-10_Library/List of Dates.csv
-10_Library/List of Dates.json
+10_Library/Case Timeline.md
+10_Library/Case Timeline.csv
+10_Library/Case Timeline.json
 ```
 
 Those final artifact paths are the public contract. Downstream skills and lawyers should continue to read those outputs.
@@ -52,7 +52,7 @@ Those final artifact paths are the public contract. Downstream skills and lawyer
 
 ### Pass 1: Candidate Ledger
 
-Pass 1 should harvest a verbose candidate ledger. It is not the final List of Dates.
+Pass 1 should harvest a verbose candidate ledger. It is not the final Case Timeline.
 
 It should preserve:
 
@@ -99,15 +99,15 @@ It should not:
 The final public outputs remain unchanged:
 
 ```text
-10_Library/List of Dates.md
-10_Library/List of Dates.csv
-10_Library/List of Dates.json
+10_Library/Case Timeline.md
+10_Library/Case Timeline.csv
+10_Library/Case Timeline.json
 ```
 
 The first-pass ledger is an internal review artifact. It should not appear as the main lawyer-facing chronology. The implementation should choose one explicit technical path and hide it by default in normal workspace view. Suggested path:
 
 ```text
-10_Library/List of Dates Candidates.json
+10_Library/Case Timeline Candidates.json
 ```
 
 If the workspace later adds a separate hidden technical subfolder, this can move behind a compatibility reader. Do not put candidate ledgers in `00_Inbox`; they are analysis products, not source materials.
@@ -118,14 +118,14 @@ The final JSON should remain backward-compatible with current readers and includ
 {
   "engine_version": "create-listofdates-v2-two-pass",
   "generation_mode": "two_pass",
-  "candidate_ledger_path": "10_Library/List of Dates Candidates.json",
+  "candidate_ledger_path": "10_Library/Case Timeline Candidates.json",
   "pass1_ai_run": {},
   "pass2_ai_run": {},
   "validation": {}
 }
 ```
 
-Downstream custom skills should keep reading the final `List of Dates.md` or `List of Dates.json` unless they explicitly opt into review-mode access to the candidate ledger. That preserves the lawyer's usual style and prevents a custom skill from unexpectedly ingesting raw candidate noise.
+Downstream custom skills should keep reading the final `Case Timeline.md` or `Case Timeline.json` unless they explicitly opt into review-mode access to the candidate ledger. That preserves the lawyer's usual style and prevents a custom skill from unexpectedly ingesting raw candidate noise.
 
 ## Candidate Ledger Schema
 
@@ -172,7 +172,7 @@ The ledger may keep several candidates for one date or one fact. That is the poi
 
 ## Final Chronology Compatibility
 
-The final `List of Dates.json` should keep existing fields that current UI and downstream skills rely on. New fields should be additive.
+The final `Case Timeline.json` should keep existing fields that current UI and downstream skills rely on. New fields should be additive.
 
 Suggested row additions:
 
@@ -222,7 +222,7 @@ OpenRouter is not globally good or bad. It is a route. Use it only where the tas
 
 ## Validation Gates
 
-A two-pass run can replace the production List of Dates only if the final output passes these checks:
+A two-pass run can replace the production Case Timeline only if the final output passes these checks:
 
 1. Final Markdown renders a readable lawyer chronology.
 2. Final rows preserve raw `FILE-NNNN pX.bY` citations.
@@ -239,12 +239,12 @@ A two-pass run can replace the production List of Dates only if the final output
 
 Keep the existing rerun guard.
 
-If final List of Dates artifacts already exist, the UI must ask before replacing them. The destructive action should be described as replacing the existing output document, not replacing the skill.
+If final Case Timeline artifacts already exist, the UI must ask before replacing them. The destructive action should be described as replacing the existing output document, not replacing the skill.
 
 If pass 1 succeeds but pass 2 fails:
 
-- do not replace `List of Dates.md`, `.csv`, or `.json`;
-- do not mark the matter as having a new current List of Dates;
+- do not replace `Case Timeline.md`, `.csv`, or `.json`;
+- do not mark the matter as having a new current Case Timeline;
 - the candidate ledger may be retained only as a failed/internal run artifact with clear metadata;
 - the UI should report that final chronology generation failed after candidate extraction.
 
@@ -256,7 +256,7 @@ If pass 2 succeeds but validation fails:
 
 ## Rollout Plan
 
-1. Keep one-pass `/create_listofdates` as default.
+1. Keep one-pass `/create_case_timeline` as default.
 2. Enable two-pass only behind the explicit env gate:
 
 ```text
@@ -278,15 +278,15 @@ AI_TASKS.CREATE_LISTOFDATES_PASS2
    - one cleaner matter where current one-pass already works.
 6. Compare against current one-pass output and the committed Atlas goldens.
 7. Promote only after duplicate control, source-label quality, raw citation preservation, and legal coverage are better or equal.
-8. Roll back by disabling the env gate. Existing public List of Dates paths stay valid.
+8. Roll back by disabling the env gate. Existing canonical Case Timeline paths stay valid; legacy List of Dates paths remain readable fallbacks.
 
 ## Tests To Add When Implementing
 
 Implemented service tests:
 
 - pass 1 writes candidate ledger in gated mode;
-- pass 2 writes the stable final List of Dates paths after validation;
-- pass 2 failure leaves existing final List of Dates artifacts unchanged and marks the candidate ledger failed;
+- pass 2 writes the stable final Case Timeline paths after validation;
+- pass 2 failure leaves existing final Case Timeline artifacts unchanged and marks the candidate ledger failed;
 - model policy exposes separate pass 1 and pass 2 task defaults.
 
 Remaining tests before promoting the gated runtime:
@@ -299,10 +299,10 @@ Remaining tests before promoting the gated runtime:
 
 UI/API tests:
 
-- rerun guard still appears before replacing existing List of Dates;
+- rerun guard still appears before replacing existing Case Timeline;
 - the final success report shows both pass models;
 - technical candidate ledger is not presented as the main lawyer-facing output;
-- downstream `/create_listofdates` exact command still works through the existing skill runner.
+- legacy `/create_listofdates` and canonical `/create_case_timeline` commands both work through the skill runner.
 
 ## Non-Goals
 
@@ -333,5 +333,5 @@ Until those are answered, the safe default is:
 one-pass remains production default;
 two-pass remains gated;
 candidate ledger stays internal;
-final List of Dates contract stays stable.
+final Case Timeline contract stays stable.
 ```

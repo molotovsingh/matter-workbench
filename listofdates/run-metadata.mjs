@@ -26,7 +26,7 @@ export function twoPassAiRunMetadata(pass1AiRun, pass2AiRun) {
   return {
     policyVersion: pass2AiRun.policyVersion || pass1AiRun.policyVersion,
     policyPromptVersion: pass2AiRun.policyPromptVersion || pass1AiRun.policyPromptVersion,
-    task: "create_listofdates_two_pass",
+    task: "create_case_timeline_two_pass",
     tier: "source_backed_analysis",
     provider: "two-pass",
     model: `${pass1AiRun.model} -> ${pass2AiRun.model}`,

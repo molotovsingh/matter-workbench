@@ -30,7 +30,7 @@
     "/extract"
   ],
   "downstream": [
-    "/create_listofdates"
+    "/create_case_timeline"
   ],
   "default_lane": "10_Library",
   "runner_key": "/describe_sources",

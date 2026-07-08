@@ -25,7 +25,7 @@ Matter Workbench uses models for different kinds of work:
 - sample output generation;
 - custom skill authoring and validation;
 - source labels;
-- List of Dates generation;
+- Case Timeline generation;
 - future drafting and draft amendments.
 
 These tasks do not have the same risk profile.
@@ -101,7 +101,7 @@ The selector must not affect:
 - custom skill validation;
 - custom skill execution;
 - Source Labels / Document Index;
-- List of Dates;
+- Case Timeline;
 - drafting or dispatch workflows unless a future contract explicitly scopes a
   draft-amendment selector.
 

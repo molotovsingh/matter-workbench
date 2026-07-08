@@ -186,7 +186,7 @@ Tasks:
 
    ```text
    /create_listofdates -> create_case_timeline
-   /api/create-listofdates -> /api/create-case-timeline
+   /api/create-listofdates -> /api/case-timeline
    create-listofdates -> case-timeline
    ```
 

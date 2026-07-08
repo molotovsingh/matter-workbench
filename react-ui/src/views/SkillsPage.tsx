@@ -725,7 +725,7 @@ function builtinWorkflowTitle(skill: Skill): string {
   if (slash === '/describe_sources') return 'Create document index';
   if (slash === '/context_preview') return 'See assistant context';
   if (slash === '/context_search') return 'Find in matter';
-  if (slash === '/create_listofdates') return 'Build Case Timeline';
+  if (slash === '/create_case_timeline') return 'Build Case Timeline';
   if (slash === '/the_story') return 'Draft Matter Story';
   if (slash === '/procedural_posture_diagnosis') return 'Diagnose procedural posture';
   if (slash === '/doctor') return 'Check readiness';
@@ -734,7 +734,7 @@ function builtinWorkflowTitle(skill: Skill): string {
 
 function builtinWorkflowActionLabel(skill: Skill): string {
   const slash = skill.slash;
-  if (slash === '/create_listofdates') return 'Run on this matter';
+  if (slash === '/create_case_timeline') return 'Run on this matter';
   if (slash === '/describe_sources') return 'Create index';
   if (slash === '/context_search') return 'Search this matter';
   if (slash === '/context_preview') return 'See context';
@@ -749,7 +749,7 @@ function builtinWorkflowActionLabel(skill: Skill): string {
 
 function builtinWorkflowPurpose(skill: Skill): string {
   const slash = skill.slash;
-  if (slash === '/create_listofdates') return 'Build a source-backed chronology from the matter record.';
+  if (slash === '/create_case_timeline') return 'Build a source-backed chronology from the matter record.';
   if (slash === '/describe_sources') return 'Turn source files into lawyer-readable document labels and a reviewable source index.';
   if (slash === '/context_search') return 'Search the matter record for a fact, party, date, or phrase.';
   if (slash === '/context_preview') return 'See what Matter Assistant can currently read from the matter.';

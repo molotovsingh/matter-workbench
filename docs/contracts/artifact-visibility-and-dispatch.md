@@ -43,7 +43,7 @@ Use these classes when deciding visibility, naming, and default UI placement.
 | --- | --- | --- |
 | `source_original` | Client-provided or imported source file. | Visible as original/source material. |
 | `source_control` | File register, extraction log, source index, source metadata. | Visible only as friendly status or source-record summaries by default. Technical files may appear when `Show technical` is enabled. |
-| `library_artifact` | Generated source-record work such as Source Index or List of Dates. | Visible as reviewable generated artifacts, not lawyer-edited documents. |
+| `library_artifact` | Generated source-record work such as Source Index or Case Timeline. | Visible as reviewable generated artifacts, not lawyer-edited documents. |
 | `analysis_artifact` | Generated matter analysis, maps, notes, or checklists. | Visible as working analysis, with source limits/warnings. |
 | `draft_artifact` | Lawyer-editable draft work product. | Visible in Drafts as material the lawyer may edit or use. |
 | `dispatch_artifact` | Sent, filed, exported, or ready-to-send copy. | Visible as a preserved dispatch/filed copy, not as the live editable workspace. |
@@ -99,8 +99,8 @@ Generated Library artifacts are not lawyer-authored drafts.
 Examples:
 
 - `10_Library/Source Index.json`;
-- `10_Library/List of Dates.md`;
-- `10_Library/List of Dates.json`.
+- `10_Library/Case Timeline.md`;
+- `10_Library/Case Timeline.json`.
 
 The lawyer may review them, rely on them with judgment, and rerun/refresh them.
 The app should not treat row-level edits to these generated artifacts as

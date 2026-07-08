@@ -6,6 +6,7 @@ import {
 } from "../services/workspace-path-policy.mjs";
 
 test("workspace path policy normalizes browser paths", () => {
+  assert.equal(toWorkspacePath("10_Library\\Case Timeline.md"), "10_Library/Case Timeline.md");
   assert.equal(toWorkspacePath("10_Library\\List of Dates.md"), "10_Library/List of Dates.md");
   assert.equal(toWorkspacePath(null), "");
 });
@@ -29,7 +30,7 @@ test("workspace path policy allows ordinary matter artifacts", () => {
   for (const value of [
     "matter.json",
     "10_Library/Source Index.json",
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.md",
     "20_Workshop/Party and Officer Map.md",
     "30_Drafts/Draft Legal Output.md",
   ]) {

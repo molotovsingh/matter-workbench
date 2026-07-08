@@ -5,7 +5,11 @@ import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { LEGAL_WORKBENCH_POLICY_PROMPT_VERSION } from "../shared/legal-workbench-policy-prompt.mjs";
 import { AI_TASKS, resolveModelPolicy } from "../shared/model-policy.mjs";
 import { resolveProviderConfig } from "../shared/ai-provider-policy.mjs";
-import { CASE_TIMELINE_JSON_RELATIVE, CASE_TIMELINE_MARKDOWN_RELATIVE, isCaseTimelineArtifactPath } from "../shared/matter-artifacts.mjs";
+import {
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES,
+  isCaseTimelineArtifactPath,
+} from "../shared/matter-artifacts.mjs";
 import { makeHttpError, resolveRelativeInside } from "../shared/safe-paths.mjs";
 import { buildConfigurableSkillMatterContextPacket, summarizeMatterContext } from "./configurable-skill-context.mjs";
 import { createDefaultRunProvider } from "./configurable-skill-providers.mjs";
@@ -59,10 +63,7 @@ export function createMatterStoryService({
   async function readDisputeStoryStatus(root = matterStore.ensureMatterRoot()) {
     const matterJson = await readMatterJson(root);
     const storyStat = await fileStatIfFile(path.join(root, DISPUTE_STORY_OUTPUT_RELATIVE));
-    const caseTimelineStat = await newestFileStat([
-      path.join(root, DISPUTE_STORY_BASIS_RELATIVE),
-      path.join(root, CASE_TIMELINE_JSON_RELATIVE),
-    ]);
+    const caseTimelineStat = await newestFileStat(CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES.map((relative) => path.join(root, relative)));
     const briefDescriptionSource = matterJson.brief_description_source || null;
     return {
       schema_version: MATTER_STORY_SCHEMA_VERSION,

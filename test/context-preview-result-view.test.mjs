@@ -35,7 +35,7 @@ test("context preview renders packet stats without raw block text", () => {
     ],
     library_artifacts: [
       {
-        path: "10_Library/List of Dates.json",
+        path: "10_Library/Case Timeline.json",
         kind: "list_of_dates",
         summary: "33 accepted chronology entries with preserved raw citations",
       },
@@ -51,7 +51,7 @@ test("context preview renders packet stats without raw block text", () => {
   assert.match(html, /120 included, 137 omitted/);
   assert.match(html, /Legal notice, 20 Apr 2026/);
   assert.match(html, /FILE-0001 p1\.b1/);
-  assert.match(html, /10_Library\/List of Dates\.json/);
+  assert.match(html, /10_Library\/Case Timeline\.json/);
   assert.doesNotMatch(html, /full extracted paragraph text/i);
 
   const report = formatContextReport(result);

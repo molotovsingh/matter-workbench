@@ -1,5 +1,6 @@
 import path from "node:path";
 import { CASE_TIMELINE_DEPENDENCY_STATES } from "../shared/case-timeline-dependency-states.mjs";
+import { CASE_TIMELINE_SKILL_SLASH, CASE_TIMELINE_STAGE_ID } from "../shared/case-timeline-operation.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
 import { missingMetadataLabels, PREPARE_STAGE_DEFINITIONS, warningsForPlan } from "../shared/preparation-stages.mjs";
 
@@ -20,7 +21,7 @@ export function createPrepareMatterService({ matterStore, matterStatusService, m
     const matterInitStage = stageBySlash.get("/matter-init") || null;
     const extractStage = stageBySlash.get("/extract") || null;
     const sourceStage = stageBySlash.get("/describe_sources") || null;
-    const caseTimelineStage = stageBySlash.get("/create_listofdates") || null;
+    const caseTimelineStage = stageBySlash.get(CASE_TIMELINE_SKILL_SLASH) || null;
 
     const setup = buildSetupStage(matterInitStage, missingMetadata);
     const extraction = buildExtractionStage(extractStage, setup);
@@ -98,8 +99,8 @@ function noActiveMatterPlan() {
     stages: [],
     downstream: {
       listOfDates: {
-        id: "create-listofdates",
-        slash: "/create_listofdates",
+        id: CASE_TIMELINE_STAGE_ID,
+        slash: CASE_TIMELINE_SKILL_SLASH,
         label: "Build Case Timeline",
         state: "not_selected",
         action: PREPARATION_STAGE_ACTIONS.BLOCKED,
@@ -226,7 +227,7 @@ function buildSourceLabelsStage(stage, extractionStage) {
 
 function buildCaseTimelineStage(stage, sourceLabelsStage) {
   const base = {
-    ...stageBase("/create_listofdates", stage),
+    ...stageBase(CASE_TIMELINE_SKILL_SLASH, stage),
     metrics: stage?.metrics || null,
     rerunAdvice: stage?.rerunAdvice || null,
   };

@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 import {
   BUILTIN_SKILL_COMMAND_ALIASES,
-  BUILTIN_SKILL_COMMANDS,
+  BUILTIN_SKILL_REGISTRY_COMMANDS,
 } from "../shared/builtin-skill-commands.mjs";
 
 const nativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
@@ -21,7 +21,7 @@ test("React native commands mirror shared slash commands and aliases", async () 
   const reactCommands = [...commandsSource.matchAll(/\bcommand:\s*['"]([^'"]+)['"]/g)]
     .map((match) => match[1])
     .sort();
-  assert.deepEqual(reactCommands, [...BUILTIN_SKILL_COMMANDS].sort());
+  assert.deepEqual(reactCommands, [...BUILTIN_SKILL_REGISTRY_COMMANDS].sort());
 
   const reactAliases = [...aliasesSource.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\]/g)]
     .map((match) => [match[1], match[2]])

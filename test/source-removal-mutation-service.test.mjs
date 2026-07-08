@@ -193,12 +193,12 @@ async function makeMatterRoot() {
     schema_version: "source-index/v1",
     sources: [{ file_id: "FILE-0002", content_hash: "hash-2" }],
   }, null, 2));
-  await writeFile(path.join(root, "10_Library", "List of Dates.json"), JSON.stringify({
+  await writeFile(path.join(root, "10_Library", "Case Timeline.json"), JSON.stringify({
     schema_version: "list-of-dates/v1",
     source_snapshot: [{ file_id: "FILE-0002", content_hash: "hash-2" }],
     entries: [{ event: "Fixture chronology", citation: "FILE-0002 p1.b1" }],
   }, null, 2));
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# Fixture chronology\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# Fixture chronology\n");
   await writeFile(path.join(root, "20_Workshop", "The Story.md"), "# Fixture story\n");
   return root;
 }

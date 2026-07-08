@@ -6,10 +6,12 @@ import test from "node:test";
 import { parseCsv, parseCsvRow, toCsv } from "../shared/csv.mjs";
 import { loadLocalEnv, parseEnvText, upsertLocalEnv } from "../shared/local-env.mjs";
 import {
+  CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES,
   CASE_TIMELINE_ARTIFACT_RELATIVES,
   CASE_TIMELINE_CSV_RELATIVE,
   CASE_TIMELINE_JSON_RELATIVE,
   CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES,
   CASE_TIMELINE_READ_MODEL_RELATIVES,
   isCaseTimelineArtifactPath,
   isCaseTimelineReadModelPath,
@@ -108,25 +110,33 @@ test("source label helpers prefer confirmed labels and suppress FILE identifiers
 test("matter artifact path constants keep Case Timeline canonical and legacy outputs stable", () => {
   assert.equal(MATTER_LIBRARY_DIR, "10_Library");
   assert.equal(SOURCE_INDEX_RELATIVE, "10_Library/Source Index.json");
-  assert.equal(CASE_TIMELINE_JSON_RELATIVE, "10_Library/List of Dates.json");
-  assert.equal(CASE_TIMELINE_CSV_RELATIVE, "10_Library/List of Dates.csv");
-  assert.equal(CASE_TIMELINE_MARKDOWN_RELATIVE, "10_Library/List of Dates.md");
+  assert.equal(CASE_TIMELINE_JSON_RELATIVE, "10_Library/Case Timeline.json");
+  assert.equal(CASE_TIMELINE_CSV_RELATIVE, "10_Library/Case Timeline.csv");
+  assert.equal(CASE_TIMELINE_MARKDOWN_RELATIVE, "10_Library/Case Timeline.md");
   assert.deepEqual(CASE_TIMELINE_ARTIFACT_RELATIVES, [
-    "10_Library/List of Dates.md",
-    "10_Library/List of Dates.json",
-    "10_Library/List of Dates.csv",
+    "10_Library/Case Timeline.md",
+    "10_Library/Case Timeline.json",
+    "10_Library/Case Timeline.csv",
   ]);
   assert.deepEqual(CASE_TIMELINE_READ_MODEL_RELATIVES, [
+    "10_Library/Case Timeline.md",
+    "10_Library/Case Timeline.json",
+  ]);
+  assert.deepEqual(CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES, [
+    "10_Library/Case Timeline.md",
+    "10_Library/Case Timeline.json",
     "10_Library/List of Dates.md",
     "10_Library/List of Dates.json",
   ]);
+  assert.equal(isCaseTimelineArtifactPath("10_Library/Case Timeline.csv"), true);
   assert.equal(isCaseTimelineArtifactPath("10_Library/List of Dates.csv"), true);
-  assert.equal(isCaseTimelineArtifactPath("/10_Library/List of Dates.md"), true);
+  assert.equal(isCaseTimelineArtifactPath("/10_Library/Case Timeline.md"), true);
   assert.equal(isCaseTimelineArtifactPath("10_Library\\List of Dates.json"), true);
-  assert.equal(isCaseTimelineReadModelPath("10_Library/List of Dates.csv"), false);
-  assert.equal(LIST_OF_DATES_JSON_RELATIVE, CASE_TIMELINE_JSON_RELATIVE);
-  assert.equal(LIST_OF_DATES_CSV_RELATIVE, CASE_TIMELINE_CSV_RELATIVE);
-  assert.equal(LIST_OF_DATES_MARKDOWN_RELATIVE, CASE_TIMELINE_MARKDOWN_RELATIVE);
+  assert.equal(isCaseTimelineReadModelPath("10_Library/Case Timeline.csv"), false);
+  assert.equal(LIST_OF_DATES_JSON_RELATIVE, "10_Library/List of Dates.json");
+  assert.equal(LIST_OF_DATES_CSV_RELATIVE, "10_Library/List of Dates.csv");
+  assert.equal(LIST_OF_DATES_MARKDOWN_RELATIVE, "10_Library/List of Dates.md");
+  assert.ok(CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES.includes(LIST_OF_DATES_MARKDOWN_RELATIVE));
 });
 
 test("secret redaction helper covers provider keys and bearer tokens", () => {

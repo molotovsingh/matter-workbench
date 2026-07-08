@@ -9,7 +9,7 @@ import {
 
 test("workspace preview policy classifies text, email, pdf, image, and unsupported files", () => {
   assert.deepEqual(
-    classifyWorkspacePreview({ relativePath: "10_Library/List of Dates.md", sizeBytes: 1024 }),
+    classifyWorkspacePreview({ relativePath: "10_Library/Case Timeline.md", sizeBytes: 1024 }),
     { previewable: true, previewKind: "text" },
   );
   assert.deepEqual(
@@ -42,18 +42,18 @@ test("workspace preview policy treats email as text-previewable up to the raw-fi
 
 test("workspace preview policy requires a DB payload before marking runtime DB files previewable", () => {
   assert.deepEqual(
-    classifyWorkspacePreview({ relativePath: "10_Library/List of Dates.md", sizeBytes: 1024, hasPayload: false }),
+    classifyWorkspacePreview({ relativePath: "10_Library/Case Timeline.md", sizeBytes: 1024, hasPayload: false }),
     { previewable: false, previewKind: null },
   );
   assert.deepEqual(
-    classifyWorkspacePreview({ relativePath: "10_Library/List of Dates.md", sizeBytes: 1024, hasPayload: true }),
+    classifyWorkspacePreview({ relativePath: "10_Library/Case Timeline.md", sizeBytes: 1024, hasPayload: true }),
     { previewable: true, previewKind: "text" },
   );
 });
 
 test("workspace preview policy owns raw response content types", () => {
   assert.equal(getWorkspaceRawContentType("10_Library/Source Index.json"), "application/json; charset=utf-8");
-  assert.equal(getWorkspaceRawContentType("10_Library/List of Dates.md"), "text/markdown; charset=utf-8");
+  assert.equal(getWorkspaceRawContentType("10_Library/Case Timeline.md"), "text/markdown; charset=utf-8");
   assert.equal(getWorkspaceRawContentType("00_Inbox/Intake 01/Originals/scan.pdf"), "application/pdf");
   assert.equal(getWorkspaceRawContentType("00_Inbox/Intake 01/Originals/photo.webp"), "image/webp");
   assert.equal(getWorkspaceRawContentType("00_Inbox/Intake 01/Originals/unknown.bin"), "application/octet-stream");

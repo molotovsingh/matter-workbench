@@ -27,9 +27,9 @@ test("command parser maps exact slash commands and static aliases", () => {
   assert.deepEqual(parseDeterministicCommand("find"), { type: "search", command: "/context_search", query: "" });
   assert.deepEqual(parseDeterministicCommand("search payment receipts"), { type: "search", command: "/context_search", query: "payment receipts" });
   assert.deepEqual(parseDeterministicCommand("find legal notice"), { type: "search", command: "/context_search", query: "legal notice" });
-  assert.deepEqual(parseDeterministicCommand("list of dates"), { type: "skill", command: "/create_listofdates" });
-  assert.deepEqual(parseDeterministicCommand("create list of dates"), { type: "skill", command: "/create_listofdates" });
-  assert.deepEqual(parseDeterministicCommand("chronology"), { type: "skill", command: "/create_listofdates" });
+  assert.deepEqual(parseDeterministicCommand("list of dates"), { type: "skill", command: "/create_case_timeline" });
+  assert.deepEqual(parseDeterministicCommand("create list of dates"), { type: "skill", command: "/create_case_timeline" });
+  assert.deepEqual(parseDeterministicCommand("chronology"), { type: "skill", command: "/create_case_timeline" });
   assert.deepEqual(parseDeterministicCommand("doctor"), { type: "skill", command: "/doctor" });
   assert.deepEqual(parseDeterministicCommand("check matter health"), { type: "skill", command: "/doctor" });
   assert.deepEqual(parseDeterministicCommand("open inbox"), { type: "lane", input: "open inbox", lanePath: "00_Inbox" });
@@ -112,7 +112,7 @@ test("skill idea parser detects explicit proposal phrases only", () => {
 test("slash command suggestions are explicit and description-backed", () => {
   assert.deepEqual(
     listSlashCommandSuggestions("/").map((suggestion) => suggestion.command),
-    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
+    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_case_timeline", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
   );
   assert.deepEqual(
     listSlashCommandSuggestions("/prep").map((suggestion) => suggestion.command),

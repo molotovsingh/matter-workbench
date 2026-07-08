@@ -135,10 +135,10 @@ async function writeListOfDates(root, {
       citation: "FILE-0001 p1.b1",
     },
   ],
-  markdown = "# List of Dates\n\nVerbose chronology note.\n\n| Date | Event |\n",
+  markdown = "# Case Timeline\n\nVerbose chronology note.\n\n| Date | Event |\n",
 } = {}) {
   await writeFile(
-    path.join(root, "10_Library", "List of Dates.json"),
+    path.join(root, "10_Library", "Case Timeline.json"),
     `${JSON.stringify({
       schema_version: "list-of-dates/v1",
       generated_at: "2026-05-11T12:00:00.000Z",
@@ -155,7 +155,7 @@ async function writeListOfDates(root, {
       },
     }, null, 2)}\n`,
   );
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), markdown);
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), markdown);
 }
 
 test("matter context packet includes source-labeled extraction blocks and selected library summaries", async () => {
@@ -218,8 +218,8 @@ test("matter context packet includes source-labeled extraction blocks and select
     "FILE-0001 p1.b2",
   ]);
   assert.equal(packet.evidence_blocks[0].source_label, "Confirmed Legal Notice dated 20 April 2026");
-  assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.json"));
-  assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/List of Dates.md"));
+  assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/Case Timeline.json"));
+  assert.ok(packet.library_artifacts.some((artifact) => artifact.path === "10_Library/Case Timeline.md"));
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "source_index").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.model, "openai/gpt-4.1");
   assert.equal(packet.library_artifacts.find((artifact) => artifact.kind === "list_of_dates").ai_run.policyPromptVersion, "legal-workbench-policy/v1");
@@ -307,7 +307,7 @@ test("matter context packet excludes tombstoned sources from registers, descript
         source_excerpt: "Removed stale excerpt must not re-enter active context.",
       },
     ],
-    markdown: "# List of Dates\n\nRemoved chronology note cites FILE-0002 p1.b1.\n",
+    markdown: "# Case Timeline\n\nRemoved chronology note cites FILE-0002 p1.b1.\n",
   });
   await writeSourceTombstones(root, [{
     file_id: "FILE-0002",
@@ -331,7 +331,7 @@ test("matter context packet excludes tombstoned sources from registers, descript
   assert.doesNotMatch(JSON.stringify(packet.library_artifacts), /Removed note|removed evidence|Removed chronology|Removed stale excerpt/i);
   assert.match(packet.warnings.join("\n"), /Suppressed FILE-0002 from active source set/);
   assert.match(packet.warnings.join("\n"), /Suppressed 1 Case Timeline entry from active context/);
-  assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/List of Dates\.md: cites suppressed source/);
+  assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/Case Timeline\.md: cites suppressed source/);
 });
 
 test("matter context search returns source labels, snippets, and raw citations from bounded packet", async () => {

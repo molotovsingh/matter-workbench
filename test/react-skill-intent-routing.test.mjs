@@ -28,7 +28,7 @@ test("React skill intent routing opens Skill Factory only for reusable new-skill
   assert.equal(routing.shouldStartSkillIdeaSessionFromIntent({
     decision: "modify_existing_skill",
     user_gate_required: false,
-    matched_skill: "/create_listofdates",
+    matched_skill: "/create_case_timeline",
   }), false);
   assert.equal(routing.shouldStartSkillIdeaSessionFromIntent({
     decision: "new_skill",
@@ -94,7 +94,7 @@ test("React skill intent routing opens Skill Factory only for reusable new-skill
     routing.intentChoiceLabels({
       decision: "needs_user_approval",
       recommended_action: "run_existing_skill",
-      matched_skill: "/create_listofdates",
+      matched_skill: "/create_case_timeline",
       matched_skill_card: { configurable: false },
       user_gate_required: true,
     }),
@@ -107,7 +107,7 @@ test("React skill intent routing opens Skill Factory only for reusable new-skill
     routing.isConfigurableExistingSkillChoice({
       decision: "needs_user_approval",
       recommended_action: "run_existing_skill",
-      matched_skill: "/create_listofdates",
+      matched_skill: "/create_case_timeline",
       matched_skill_card: { configurable: false },
       user_gate_required: true,
     }),
@@ -137,7 +137,7 @@ test("React skill intent routing opens Skill Factory only for reusable new-skill
     routing.shouldAutoStartConfigurableSkillImprovement({
       decision: "modify_existing_skill",
       recommended_action: "modify_existing_skill",
-      matched_skill: "/create_listofdates",
+      matched_skill: "/create_case_timeline",
       matched_skill_card: { configurable: false, title: "List of Dates" },
       user_gate_required: false,
     }, "improve List of Dates"),

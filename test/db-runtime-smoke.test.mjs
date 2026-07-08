@@ -87,9 +87,9 @@ test("runtime DB smoke verifies postgres storage mode can preview and stream a D
               kind: "directory",
               path: "",
               children: [{
-                name: "List of Dates.md",
+                name: "Case Timeline.md",
                 kind: "file",
-                path: "10_Library/List of Dates.md",
+                path: "10_Library/Case Timeline.md",
                 size: bytes.length,
                 previewable: true,
                 previewKind: "text",
@@ -98,13 +98,13 @@ test("runtime DB smoke verifies postgres storage mode can preview and stream a D
           };
         },
         async readFilePreview(relativePath) {
-          return { path: relativePath, name: "List of Dates.md", ext: "md", content: bytes.toString("utf8") };
+          return { path: relativePath, name: "Case Timeline.md", ext: "md", content: bytes.toString("utf8") };
         },
         async getRawFile() {
           return {
             contentType: "text/markdown; charset=utf-8",
             fileSize: bytes.length,
-            safeFilename: "List of Dates.md",
+            safeFilename: "Case Timeline.md",
             stream: Readable.from(bytes),
           };
         },
@@ -117,7 +117,7 @@ test("runtime DB smoke verifies postgres storage mode can preview and stream a D
   assert.equal(report.workspaceReadable, true);
   assert.equal(report.storageFilePreviewReadable, true);
   assert.equal(report.storageRawReadable, true);
-  assert.equal(report.filePreviewPath, "10_Library/List of Dates.md");
+  assert.equal(report.filePreviewPath, "10_Library/Case Timeline.md");
 
   const rendered = renderRuntimeDbSmokeReport(report).join("\n");
   assert.match(rendered, /runtime_db_storage_mode: postgres/);

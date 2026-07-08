@@ -27,7 +27,7 @@ test("runtime DB storage service builds workspace tree from storage payload meta
     spawn: jsonSpawn(calls, {
       matter,
       objects: [
-        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true),
+        storageRow("DB Matter/10_Library/Case Timeline.md", "matter_artifact", "text/markdown", 30, true),
         storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true),
         storageRow("DB Matter/00_Inbox/Intake 01/Originals/agreement.pdf", "source_original", "application/pdf", 1200, true),
       ],
@@ -42,7 +42,7 @@ test("runtime DB storage service builds workspace tree from storage payload meta
   assert.equal(workspace.fileCount, 3);
   assert.equal(workspace.directoryCount, 4);
   assert.deepEqual(workspace.tree.children.map((child) => child.name), ["00_Inbox", "10_Library"]);
-  assert.equal(workspace.tree.children[1].children[0].name, "List of Dates.md");
+  assert.equal(workspace.tree.children[1].children[0].name, "Case Timeline.md");
   assert.equal(workspace.tree.children[1].children[0].previewKind, "text");
   assertSafeRuntimeRoleGuard(calls[0].input);
   assert.match(calls[0].input, /set_config\('app\.tenant_id'/i);
@@ -70,8 +70,8 @@ test("runtime DB storage service projects Matter Workbench story metadata into w
         brief_description_source: {
           author: "MW",
           type: "matter_workbench_story",
-          based_on: "Current List of Dates",
-          basis_artifact: "10_Library/List of Dates.md",
+          based_on: "Current Case Timeline",
+          basis_artifact: "10_Library/Case Timeline.md",
         },
       }), "application/json"),
     ]),
@@ -81,8 +81,8 @@ test("runtime DB storage service projects Matter Workbench story metadata into w
   assert.equal(workspace.metadata.briefDescription, "Matter Workbench story.");
   assert.equal(workspace.metadata.originalIntakeNote, "Initial intake note.");
   assert.equal(workspace.metadata.briefDescriptionSource.author, "MW");
-  assert.equal(workspace.metadata.briefDescriptionSource.basedOn, "Current List of Dates");
-  assert.equal(workspace.metadata.briefDescriptionSource.basisArtifact, "10_Library/List of Dates.md");
+  assert.equal(workspace.metadata.briefDescriptionSource.basedOn, "Current Case Timeline");
+  assert.equal(workspace.metadata.briefDescriptionSource.basisArtifact, "10_Library/Case Timeline.md");
 });
 
 test("runtime DB storage service gives psql enough buffer for DB-backed payloads", async () => {
@@ -152,13 +152,13 @@ test("runtime DB storage service previews text from payload bytes", async () => 
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
-    spawn: jsonSpawn([], payloadRow("DB Matter/10_Library/List of Dates.md", "# List of Dates")),
+    spawn: jsonSpawn([], payloadRow("DB Matter/10_Library/Case Timeline.md", "# List of Dates")),
   });
 
-  const preview = await service.readFilePreview("10_Library/List of Dates.md", matter);
+  const preview = await service.readFilePreview("10_Library/Case Timeline.md", matter);
 
-  assert.equal(preview.path, "10_Library/List of Dates.md");
-  assert.equal(preview.name, "List of Dates.md");
+  assert.equal(preview.path, "10_Library/Case Timeline.md");
+  assert.equal(preview.name, "Case Timeline.md");
   assert.equal(preview.ext, "md");
   assert.equal(preview.content, "# List of Dates");
 });
@@ -212,7 +212,7 @@ test("runtime DB storage service fails closed when payload row is missing", asyn
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawn([], {
-      objectKey: "DB Matter/10_Library/List of Dates.md",
+      objectKey: "DB Matter/10_Library/Case Timeline.md",
       mimeType: "text/markdown",
       sizeBytes: 12,
       payloadBase64: "",
@@ -221,7 +221,7 @@ test("runtime DB storage service fails closed when payload row is missing", asyn
   });
 
   await assert.rejects(
-    () => service.readFilePreview("10_Library/List of Dates.md", matter),
+    () => service.readFilePreview("10_Library/Case Timeline.md", matter),
     (error) => error.statusCode === 409
       && error.code === "runtime_db.read.payload_missing"
       && /payload is missing/i.test(error.message),
@@ -276,7 +276,7 @@ test("runtime DB storage service derives matter status and preparation plan from
         storageRow("DB Matter/00_Inbox/Intake 01/File Register.csv", "matter_artifact", "text/csv", 30, true),
         storageRow("DB Matter/00_Inbox/Intake 01/_extracted/FILE-0001.json", "extraction_payload", "application/json", 20, true),
         storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true),
-        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true),
+        storageRow("DB Matter/10_Library/Case Timeline.md", "matter_artifact", "text/markdown", 30, true),
       ],
     }),
   });
@@ -286,9 +286,9 @@ test("runtime DB storage service derives matter status and preparation plan from
   assert.equal(status.stages.find((stage) => stage.slash === "/matter-init").present, true);
   assert.equal(status.stages.find((stage) => stage.slash === "/extract").present, true);
   assert.equal(status.stages.find((stage) => stage.slash === "/describe_sources").present, true);
-  assert.equal(status.stages.find((stage) => stage.slash === "/create_listofdates").present, true);
+  assert.equal(status.stages.find((stage) => stage.slash === "/create_case_timeline").present, true);
   assert.equal(status.stages.find((stage) => stage.slash === "/describe_sources").rerunAdvice.state, "current");
-  assert.equal(status.stages.find((stage) => stage.slash === "/create_listofdates").rerunAdvice.state, "current");
+  assert.equal(status.stages.find((stage) => stage.slash === "/create_case_timeline").rerunAdvice.state, "current");
 
   const plan = await service.readPrepareMatterPlan(matter);
   assert.equal(plan.schema_version, "prepare-matter-plan/v1");
@@ -320,7 +320,7 @@ test("runtime DB storage service can include Matter Story after current List of 
           storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true, {
             updatedAt: "2026-06-20T09:30:00.000Z",
           }),
-          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+          storageRow("DB Matter/10_Library/Case Timeline.md", "matter_artifact", "text/markdown", 30, true, {
             updatedAt: "2026-06-20T11:00:00.000Z",
           }),
           storageRow("DB Matter/20_Workshop/The Story.md", "matter_artifact", "text/markdown", 30, true, {
@@ -366,10 +366,10 @@ test("runtime DB storage service marks procedural posture missing after current 
           storageRow("DB Matter/10_Library/Source Index.json", "matter_artifact", "application/json", 17, true, {
             updatedAt: "2026-06-20T09:30:00.000Z",
           }),
-          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+          storageRow("DB Matter/10_Library/Case Timeline.md", "matter_artifact", "text/markdown", 30, true, {
             updatedAt: "2026-06-20T10:00:00.000Z",
           }),
-          storageRow("DB Matter/10_Library/List of Dates.json", "matter_artifact", "application/json", 30, true, {
+          storageRow("DB Matter/10_Library/Case Timeline.json", "matter_artifact", "application/json", 30, true, {
             updatedAt: "2026-06-20T10:00:00.000Z",
           }),
           storageRow("DB Matter/20_Workshop/The Story.md", "matter_artifact", "text/markdown", 30, true, {
@@ -456,7 +456,7 @@ test("runtime DB storage service marks List of Dates stale when Source Index is 
           sha256: "3".repeat(64),
           updatedAt: "2026-06-07T11:00:00.000Z",
         }),
-        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+        storageRow("DB Matter/10_Library/Case Timeline.md", "matter_artifact", "text/markdown", 30, true, {
           sha256: "4".repeat(64),
           updatedAt: "2026-06-07T10:00:00.000Z",
         }),
@@ -465,14 +465,14 @@ test("runtime DB storage service marks List of Dates stale when Source Index is 
   });
 
   const status = await service.readMatterStatus(matter);
-  const listStage = status.stages.find((stage) => stage.slash === "/create_listofdates");
+  const listStage = status.stages.find((stage) => stage.slash === "/create_case_timeline");
   assert.equal(listStage.present, true);
   assert.equal(listStage.rerunAdvice.state, "stale");
   assert.equal(listStage.rerunAdvice.shouldConfirm, false);
   assert.equal(listStage.rerunAdvice.newestInputPath, "10_Library/Source Index.json");
 
   const plan = await service.readPrepareMatterPlan(matter);
-  const listPlanStage = plan.stages.find((stage) => stage.slash === "/create_listofdates");
+  const listPlanStage = plan.stages.find((stage) => stage.slash === "/create_case_timeline");
   assert.equal(listPlanStage.state, "stale");
   assert.equal(listPlanStage.action, "confirm_paid_run");
 });
@@ -506,7 +506,7 @@ test("runtime DB storage service sends added files through extraction before reg
           sha256: "5".repeat(64),
           updatedAt: "2026-06-07T11:00:00.000Z",
         }),
-        storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 30, true, {
+        storageRow("DB Matter/10_Library/Case Timeline.md", "matter_artifact", "text/markdown", 30, true, {
           sha256: "6".repeat(64),
           updatedAt: "2026-06-07T12:00:00.000Z",
         }),
@@ -818,13 +818,13 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
         matter,
         objects: [
           storageRow("DB Matter/matter.json", "matter_artifact", "application/json", 20, true),
-          storageRow("DB Matter/10_Library/List of Dates.md", "matter_artifact", "text/markdown", 15, true),
+          storageRow("DB Matter/10_Library/Case Timeline.md", "matter_artifact", "text/markdown", 15, true),
         ],
         };
       } else if (/payload_rows/i.test(input) && /matter\.json/i.test(input)) {
         payload = payloadRow("DB Matter/matter.json", JSON.stringify({ matterName: "Legal Caption", intakes: [] }), "application/json");
-      } else if (/payload_rows/i.test(input) && /List of Dates\.md/i.test(input)) {
-        payload = payloadRow("DB Matter/10_Library/List of Dates.md", "# Old Dates\n");
+      } else if (/payload_rows/i.test(input) && /Case Timeline\.md/i.test(input)) {
+        payload = payloadRow("DB Matter/10_Library/Case Timeline.md", "# Old Dates\n");
       }
       return {
         status: 0,
@@ -864,7 +864,7 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
   assert.match(sql, /DB Matter\/00_Inbox\/Intake 02 - \d{4}-\d{2}-\d{2} Follow Up\/File Register\.csv/);
   assert.match(sql, /DB Matter\/00_Inbox\/Intake 02 - \d{4}-\d{2}-\d{2} Follow Up\/Originals\/supplement\/affidavit\.pdf/);
   assert.match(sql, /DB Matter\/00_Inbox\/Intake 02 - \d{4}-\d{2}-\d{2} Follow Up\/By Type\/PDFs\/FILE-0003__affidavit\.pdf/);
-  assert.doesNotMatch(writeSql, /DB Matter\/10_Library\/List of Dates\.md/);
+  assert.doesNotMatch(writeSql, /DB Matter\/10_Library\/Case Timeline\.md/);
   assert.match(calls[0].input, /next_file_number\s*=\s*coalesce\(m\.next_file_number,\s*1\)\s*\+\s*1/i);
   assert.doesNotMatch(writeSql, /next_file_number\s*=\s*greatest/i);
   assert.doesNotMatch(sql, /secret/);
@@ -1259,13 +1259,13 @@ test("runtime DB storage service creates List of Dates directly from DB custody"
   assert.equal(result.operationResult.matterRoot, "postgres:DB Matter");
   assert.equal(result.operationResult.counts.entries, 1);
   assert.deepEqual(result.persisted.map((item) => item.relativePath), [
-    "10_Library/List of Dates.json",
-    "10_Library/List of Dates.csv",
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.json",
+    "10_Library/Case Timeline.csv",
+    "10_Library/Case Timeline.md",
   ]);
-  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.json/);
-  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.csv/);
-  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.md/);
+  assert.match(calls.at(-1).input, /10_Library\/Case Timeline\.json/);
+  assert.match(calls.at(-1).input, /10_Library\/Case Timeline\.csv/);
+  assert.match(calls.at(-1).input, /10_Library\/Case Timeline\.md/);
 });
 
 test("runtime DB storage service creates two-pass List of Dates directly from DB custody", async () => {
@@ -1346,15 +1346,15 @@ test("runtime DB storage service creates two-pass List of Dates directly from DB
   assert.equal(result.operationResult.counts.acceptedCandidates, 1);
   assert.equal(result.operationResult.counts.entries, 1);
   assert.deepEqual(result.persisted.map((item) => item.relativePath), [
-    "10_Library/List of Dates Candidates.json",
-    "10_Library/List of Dates.json",
-    "10_Library/List of Dates.csv",
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline Candidates.json",
+    "10_Library/Case Timeline.json",
+    "10_Library/Case Timeline.csv",
+    "10_Library/Case Timeline.md",
   ]);
-  assert.match(calls.at(-2).input, /10_Library\/List of Dates Candidates\.json/);
-  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.json/);
-  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.csv/);
-  assert.match(calls.at(-1).input, /10_Library\/List of Dates\.md/);
+  assert.match(calls.at(-2).input, /10_Library\/Case Timeline Candidates\.json/);
+  assert.match(calls.at(-1).input, /10_Library\/Case Timeline\.json/);
+  assert.match(calls.at(-1).input, /10_Library\/Case Timeline\.csv/);
+  assert.match(calls.at(-1).input, /10_Library\/Case Timeline\.md/);
 });
 
 test("runtime DB storage service reads and persists matter.json directly in DB custody", async () => {
@@ -1466,7 +1466,7 @@ test("runtime DB storage service refreshes List of Dates labels directly in DB c
     tenantId,
     spawn: jsonSpawnSequence(calls, [
       payloadRow("DB Matter/matter.json", JSON.stringify(matterJson), "application/json"),
-      payloadRow("DB Matter/10_Library/List of Dates.json", JSON.stringify(listJson), "application/json"),
+      payloadRow("DB Matter/10_Library/Case Timeline.json", JSON.stringify(listJson), "application/json"),
       payloadRow("DB Matter/10_Library/Source Index.json", JSON.stringify(sourceIndex), "application/json"),
       {},
     ]),
@@ -1478,15 +1478,15 @@ test("runtime DB storage service refreshes List of Dates labels directly in DB c
   assert.equal(result.operationResult.counts.refreshedEntries, 1);
   assert.equal(result.operationResult.entries[0].source_label, "Agreement note dated 20 April 2026");
   assert.deepEqual(result.persisted.map((item) => item.relativePath), [
-    "10_Library/List of Dates.json",
-    "10_Library/List of Dates.csv",
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.json",
+    "10_Library/Case Timeline.csv",
+    "10_Library/Case Timeline.md",
   ]);
   const sql = calls.at(-1).input;
   assert.match(sql, /insert into storage_objects/i);
-  assert.match(sql, /10_Library\/List of Dates\.json/);
-  assert.match(sql, /10_Library\/List of Dates\.csv/);
-  assert.match(sql, /10_Library\/List of Dates\.md/);
+  assert.match(sql, /10_Library\/Case Timeline\.json/);
+  assert.match(sql, /10_Library\/Case Timeline\.csv/);
+  assert.match(sql, /10_Library\/Case Timeline\.md/);
 });
 
 test("runtime DB storage service scans legacy layout directly from DB payload custody", async () => {

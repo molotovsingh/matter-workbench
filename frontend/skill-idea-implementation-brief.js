@@ -7,7 +7,7 @@ import { calculateSkillIdeaReadiness } from "../shared/skill-idea-design-brief.m
 
 const KNOWN_TARGETS = [
   {
-    slash: "/create_listofdates",
+    slash: "/create_case_timeline",
     title: "Build Case Timeline",
     keywords: /\b(list\s+of\s+dates|chronolog|timeline)\b/i,
   },
@@ -241,7 +241,7 @@ function buildNewSkillBrief({ idea, brief, specialty }) {
 }
 
 function buildModifyBrief({ idea, brief, text, targetSkill }) {
-  const targetSkillId = targetSkill?.slash || extractTargetSkill(text) || "/create_listofdates";
+  const targetSkillId = targetSkill?.slash || extractTargetSkill(text) || "/create_case_timeline";
   const targetTitle = targetSkill?.title || targetSkillId;
   const limitationRelated = /\b(limitation|time[-\s]?barred|within\s+time|outside\s+limitation|delay|condonation)\b/i.test(text);
   const whatChanges = limitationRelated

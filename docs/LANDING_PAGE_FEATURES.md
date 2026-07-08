@@ -16,7 +16,7 @@ Supported documents get their text pulled out into structured extraction records
 The AI reads every document and gives each a lawyer-friendly label: "Sale Deed dated 12.03.2021 between Rajesh Kumar and Sunita Devi." No more squinting at file names. But the raw FILE-NNNN citations stay underneath for audit. If the AI hallucinates a citation, the system rejects it.
 
 ### Chronology Built for You
-The centerpiece: a chronological List of Dates sourced entirely from your documents. Every event is traced back to its source with a sharp legal relevance tag — supports, rebuts, corroborates, contradicts. It catches payment mismatches, flags corroborated events (multiple sources confirm), and clusters related entries so you can scan for patterns instead of hunting through pages.
+The centerpiece: a neutral Case Timeline sourced entirely from your documents. Every event is traced back to its source with a sharp legal relevance tag — supports, rebuts, corroborates, contradicts. It catches payment mismatches, flags corroborated events (multiple sources confirm), and clusters related entries so you can scan for patterns instead of hunting through pages.
 
 ### Custom Skills You Design
 Need something Matter Workbench doesn't do yet? Describe what you want, and the system interviews you to nail down the design. It generates sample output, you approve it, and then it authors a custom skill — a reusable command you can run on any matter. Every custom run is logged for review.
@@ -37,7 +37,7 @@ Every case is organized into five workspace lanes mirroring real legal workflow:
 Switch between matters quickly. Search your case list. Continue the last matter or pick a recent one without digging through folders.
 
 ### Slash Commands
-Type `/` and a command — like `/matter-init`, `/extract`, `/create_listofdates` — and the system runs that pipeline stage. Familiar if you've used VS Code or Slack. Autocomplete guides you. No hunting through menus.
+Type `/` and a command — like `/matter-init`, `/extract`, `/create_case_timeline` — and the system runs that pipeline stage. Familiar if you've used VS Code or Slack. Autocomplete guides you. No hunting through menus.
 
 ### File Preview In-App
 Click any file and preview it directly — markdown, CSV, JSON, plain text. No need to open Finder or another app.

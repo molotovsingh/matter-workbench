@@ -28,7 +28,7 @@ flowchart LR
     ReactContext["react-ui/src/store/AppContext.tsx<br/>active matter and workspace refresh owner"]
     ReactCommand["react-ui/src/components/command/CommandPanel.tsx<br/>command panel"]
     ReactWorkflowViews["react-ui/src/views/workflows/*.tsx<br/>native workflow views"]
-    ReactFilePreview["react-ui/src/lib/filePreview.ts<br/>file loading and List of Dates preview helpers"]
+    ReactFilePreview["react-ui/src/lib/filePreview.ts<br/>file loading and Case Timeline preview helpers"]
     LegacyHelpers["frontend/*.js<br/>retired UX plus temporary tested helpers"]
   end
 
@@ -101,7 +101,7 @@ flowchart LR
     MatterInit["matter-init-engine.mjs<br/>/matter-init"]
     Extract["extract-engine.mjs<br/>/extract"]
     SourceDescriptors["source-descriptors-engine.mjs<br/>/describe_sources"]
-    ListOfDates["create-listofdates-engine.mjs<br/>/create_listofdates"]
+    ListOfDates["create-listofdates-engine.mjs<br/>/create_case_timeline"]
   end
 
   MatterWorkflowRoutes --> MatterInit
@@ -184,9 +184,9 @@ flowchart LR
     ExtractionLog["00_Inbox/*/Extraction Log.csv"]
     Library["10_Library/"]
     SourceIndex["10_Library/Source Index.json"]
-    LodJson["10_Library/List of Dates.json"]
-    LodCsv["10_Library/List of Dates.csv"]
-    LodMd["10_Library/List of Dates.md"]
+    LodJson["10_Library/Case Timeline.json"]
+    LodCsv["10_Library/Case Timeline.csv"]
+    LodMd["10_Library/Case Timeline.md"]
     Workshop["20_Workshop/"]
     Drafts["30_Drafts/"]
     Dispatch["40_Dispatch/"]
@@ -269,8 +269,8 @@ flowchart TD
   ExtractionRecords["extraction-record/v1<br/>_extracted/FILE-NNNN.json<br/>_extracted/FILE-NNNN.txt<br/>Extraction Log.csv"]
   DescribeSources["/describe_sources<br/>OpenRouter source labels<br/>local contract validation"]
   SourceIndex["10_Library/Source Index.json<br/>lawyer-readable source labels"]
-  CreateListOfDates["/create_listofdates<br/>source-backed chronology<br/>meta-source filtering<br/>lawyer-facing fields<br/>cluster classification"]
-  ListOfDates["10_Library/List of Dates.*<br/>JSON + CSV + Markdown<br/>readable labels + raw citations"]
+  CreateListOfDates["/create_case_timeline<br/>source-backed chronology<br/>meta-source filtering<br/>lawyer-facing fields<br/>cluster classification"]
+  ListOfDates["10_Library/Case Timeline.*<br/>JSON + CSV + Markdown<br/>readable labels + raw citations"]
   BetaReview["Supervised beta review<br/>missing events<br/>overstated relevance<br/>cluster completeness<br/>raw citation integrity"]
 
   RawMatter --> MatterInit
@@ -297,7 +297,7 @@ flowchart LR
 
   SourceEval -->|"synthetic fixtures + gated live OpenRouter"| SourceContract["Source descriptor contract"]
   OcrSmoke -->|"gated live Mistral OCR smoke"| OcrContract["OCR provider shape"]
-  LodEval -->|"golden markdown/json checks"| LodContract["List of Dates quality gates"]
+  LodEval -->|"golden markdown/json checks"| LodContract["Case Timeline quality gates"]
 ```
 
 ## Developer Attention Surface
@@ -316,7 +316,7 @@ The implementation lives in:
 - `services/matter-attention-service.mjs` - orchestration, item normalization, sorting, summary.
 - `services/matter-attention-intake.mjs` - matter setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file signals.
 - `services/matter-attention-source-labels.mjs` - Source Index existence/schema/label-review/developer-name and Source Labels rerun-advice signals.
-- `services/matter-attention-chronology.mjs` - List of Dates JSON/Markdown and chronology dependency-state signals.
+- `services/matter-attention-chronology.mjs` - Case Timeline JSON/Markdown and chronology dependency-state signals.
 - `services/matter-attention-custom-runs.mjs` - custom skill run failure and ledger warning signals.
 - `services/matter-attention-command-failures.mjs` - recent command failure signals through the command log service boundary.
 - `services/matter-attention-rerun-advice.mjs` - shared rerun-advice-to-attention-item mapping.
@@ -330,7 +330,7 @@ The implementation lives in:
 
 - `/extract` uses OCR-first PDF extraction when `MISTRAL_API_KEY` is configured. Mistral is the primary OCR provider; Gemini can be used as repair when configured and quality doubt is detected. PDF.js remains available for page-count, text-layer diagnostics, and fallback.
 - `/describe_sources` is implemented by `source-descriptors-engine.mjs` and uses OpenRouter with strict structured output and local validation.
-- `/create_listofdates` uses OpenAI direct by default, or OpenRouter when `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`.
+- `/create_case_timeline` uses OpenAI direct by default, or OpenRouter when `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`.
 - OpenRouter routing remains explicit. Automatic fallback is not enabled for lawyer-facing artifacts.
 - Provider output is treated as untrusted until it passes local validation.
 
@@ -344,10 +344,10 @@ At this repo state, `source-descriptors-engine.mjs` is both:
 The pipeline is beta-ready for supervised use:
 
 ```text
-/extract -> /describe_sources -> /create_listofdates
+/extract -> /describe_sources -> /create_case_timeline
 ```
 
-The generated List of Dates should be reviewed by a lawyer. The target status is lawyer-review-ready, not court-ready without review.
+The generated Case Timeline should be reviewed by a lawyer. The target status is lawyer-review-ready, not court-ready without review.
 
 During beta, reviewers should pay special attention to:
 

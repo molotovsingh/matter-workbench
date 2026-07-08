@@ -51,7 +51,7 @@ export function createMatterOverview(ctx, skills) {
         ${renderMatterActionButton("runMatterInitButton", "/matter-init", { disabled: Boolean(missing.length) })}
         ${renderMatterActionButton("runExtractButton", "/extract", { secondary: true })}
         ${renderMatterActionButton("runDescribeSourcesButton", "/describe_sources", { secondary: true })}
-        ${renderMatterActionButton("runListOfDatesButton", "/create_listofdates", { secondary: true })}
+        ${renderMatterActionButton("runListOfDatesButton", "/create_case_timeline", { secondary: true })}
         ${renderMatterActionButton("runDoctorButton", "/doctor", { secondary: true })}
       </div>
     `;
@@ -74,7 +74,7 @@ export function createMatterOverview(ctx, skills) {
     }
     const runListOfDatesButton = document.getElementById("runListOfDatesButton");
     if (runListOfDatesButton) {
-      runListOfDatesButton.addEventListener("click", () => skills.runCreateListOfDates("/create_listofdates"));
+      runListOfDatesButton.addEventListener("click", () => skills.runCreateListOfDates("/create_case_timeline"));
     }
     const runDoctorButton = document.getElementById("runDoctorButton");
     if (runDoctorButton) {

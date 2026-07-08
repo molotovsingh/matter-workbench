@@ -12,7 +12,7 @@ test("List of Dates run metadata merges provider response usage without mutating
   const baseAiRun = {
     provider: "openai-direct",
     model: "gpt-4.1",
-    task: "create_listofdates",
+    task: "create_case_timeline",
   };
 
   const merged = mergeAiRunMetadata(baseAiRun, [
@@ -40,12 +40,12 @@ test("List of Dates run metadata merges provider response usage without mutating
   assert.deepEqual(baseAiRun, {
     provider: "openai-direct",
     model: "gpt-4.1",
-    task: "create_listofdates",
+    task: "create_case_timeline",
   });
   assert.deepEqual(merged, {
     provider: "openai-direct",
     model: "gpt-4.1",
-    task: "create_listofdates",
+    task: "create_case_timeline",
     returnedModel: "gpt-4.1-2026",
     returnedProvider: "openai",
     usage: {
@@ -71,7 +71,7 @@ test("List of Dates two-pass metadata composes pass metadata fail-closed", () =>
   assert.deepEqual(twoPassAiRunMetadata(pass1, pass2), {
     policyVersion: "policy/v2",
     policyPromptVersion: "legal-workbench-policy/v1",
-    task: "create_listofdates_two_pass",
+    task: "create_case_timeline_two_pass",
     tier: "source_backed_analysis",
     provider: "two-pass",
     model: "gpt-4.1 -> gpt-5.4",

@@ -35,7 +35,7 @@
   ],
   "downstream": [
     "/describe_sources",
-    "/create_listofdates"
+    "/create_case_timeline"
   ],
   "default_lane": "00_Inbox",
   "runner_key": "/extract",

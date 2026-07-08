@@ -15,12 +15,12 @@ test("runtime DB artifact currentness upsert SQL is tenant-scoped and idempotent
     record: {
       matterName: "Demo Matter",
       artifactFamily: "list_of_dates",
-      artifactPath: "10_Library/List of Dates.md",
+      artifactPath: "10_Library/Case Timeline.md",
       state: "stale",
       dependencyState: "chronology_regeneration_needed",
       reasonCode: "source_removal.chronology_regeneration_needed",
       affectedFileIds: ["FILE-0007"],
-      metadata: { skill: "/create_listofdates", sourceText: "must not appear" },
+      metadata: { skill: "/create_case_timeline", sourceText: "must not appear" },
       observedAt: "2026-06-26T00:00:00.000Z",
     },
   });

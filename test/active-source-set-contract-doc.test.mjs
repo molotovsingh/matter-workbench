@@ -18,7 +18,7 @@ test("active source set contract documents read-side suppression without unlocki
   assert.match(contract, /Matter Context packets/);
   assert.match(contract, /generated Library artifact summaries/);
   assert.match(contract, /stale generated artifacts to reintroduce suppressed/);
-  assert.match(contract, /List of Dates generation/);
+  assert.match(contract, /Case Timeline generation/);
   assert.match(contract, /rerun\/currentness advice/);
   assert.match(contract, /chronology_regeneration_needed/);
   assert.match(contract, /canonical `source_file\.removed_from_active_record` event append/);

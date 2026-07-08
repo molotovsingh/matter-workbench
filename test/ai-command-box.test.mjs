@@ -76,7 +76,7 @@ test("command box opens workspace lanes without running a skill", async () => {
   });
   const box = createAiCommandBox(ctx, {
     skillDispatch: {
-      "/create_listofdates": async (command) => calls.push(command),
+      "/create_case_timeline": async (command) => calls.push(command),
     },
   });
 
@@ -234,10 +234,10 @@ test("command report records paid rerun cancellation without running a new artif
     loadMatterStatus: async () => ({
       stages: [
         {
-          slash: "/create_listofdates",
+          slash: "/create_case_timeline",
           artifacts: [
-            "10_Library/List of Dates.md",
-            "10_Library/List of Dates.json",
+            "10_Library/Case Timeline.md",
+            "10_Library/Case Timeline.json",
           ],
           aiRun: {
             provider: "openrouter",
@@ -248,13 +248,13 @@ test("command report records paid rerun cancellation without running a new artif
       ],
     }),
     skillDispatch: {
-      "/create_listofdates": async () => {
+      "/create_case_timeline": async () => {
         ctx.setStatus({
           bar: "Rerun Confirmation",
           terminal: "[listofdates] rerun confirmation shown",
         });
         ctx.setStatus({
-          bar: "List of Dates Cancelled",
+          bar: "Case Timeline Cancelled",
           terminal: "[listofdates] rerun cancelled by user",
         });
       },
@@ -266,9 +266,9 @@ test("command report records paid rerun cancellation without running a new artif
   await box.copyLatestReport();
 
   assert.match(copied, /- Typed input: `chronology`/);
-  assert.match(copied, /- Matched command: `\/create_listofdates`/);
+  assert.match(copied, /- Matched command: `\/create_case_timeline`/);
   assert.match(copied, /- Status: cancelled/);
   assert.match(copied, /- Provider\/model: Friendli \/ openai\/gpt-4\.1/);
-  assert.match(copied, /10_Library\/List of Dates\.md/);
+  assert.match(copied, /10_Library\/Case Timeline\.md/);
   assert.match(copied, /\[listofdates\] rerun cancelled by user/);
 });

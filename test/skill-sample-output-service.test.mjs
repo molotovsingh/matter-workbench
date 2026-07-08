@@ -65,7 +65,7 @@ test("skill sample output service generates a bounded review sample without writ
   assert.ok(output.warnings.includes("Sample output only. Creating a skill still requires approval and validation."));
 
   const libraryFiles = await readdir(path.join(matterRoot, "10_Library"));
-  assert.deepEqual(libraryFiles.sort(), ["List of Dates.md", "Source Index.json"]);
+  assert.deepEqual(libraryFiles.sort(), ["Case Timeline.md", "Source Index.json"]);
 });
 
 test("skill sample output provider carries the shared legal workbench policy prompt", async () => {
@@ -335,7 +335,7 @@ async function makeMatterRoot() {
       document_type: "agreement",
     }],
   }, null, 2)}\n`);
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n\n| Date | Event |\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n\n| Date | Event |\n");
   await writeFile(path.join(root, ".env"), "SUPER_SECRET=never log this\n");
   await writeFile(path.join(root, "debug.log"), "debug log should not leave the app\n");
   return root;

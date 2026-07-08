@@ -4,6 +4,14 @@ import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { renderListOfDatesMarkdown } from "../create-listofdates-engine.mjs";
 import { toCsv } from "../shared/csv.mjs";
 import {
+  CASE_TIMELINE_CSV_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  MATTER_LIBRARY_DIR,
+  SOURCE_INDEX_RELATIVE,
+} from "../shared/matter-artifacts.mjs";
+import {
   normalizeSourceLabelText,
   sourceLabelMetadata,
 } from "../shared/source-labels.mjs";
@@ -40,9 +48,9 @@ export async function refreshListOfDatesSourceLabels(options = {}) {
   if (!matterRoot) throw new Error("MATTER_ROOT is not set. Pass options.matterRoot or set the env var.");
 
   const dryRun = Boolean(options.dryRun);
-  const outputDir = path.join(matterRoot, "10_Library");
-  const listJson = await readListOfDatesArtifact(path.join(outputDir, "List of Dates.json"));
-  const sourceIndex = await readSourceIndexArtifact(path.join(outputDir, "Source Index.json"));
+  const outputDir = path.join(matterRoot, MATTER_LIBRARY_DIR);
+  const listJson = await readFirstListOfDatesArtifact(matterRoot, CASE_TIMELINE_JSON_RELATIVE_CANDIDATES);
+  const sourceIndex = await readSourceIndexArtifact(path.join(matterRoot, SOURCE_INDEX_RELATIVE));
   const matterJson = await readMatterJson(matterRoot);
   const { response, files } = buildListOfDatesSourceLabelRefresh({
     matterRoot,
@@ -94,14 +102,14 @@ export function buildListOfDatesSourceLabelRefresh({
   const csvText = toCsv(refresh.entries, LIST_OF_DATES_CSV_HEADERS);
   const markdownText = renderListOfDatesMarkdown(matterJson, refresh.entries, engineVersion);
   const outputPaths = {
-    directory: "10_Library",
-    json: "10_Library/List of Dates.json",
-    csv: "10_Library/List of Dates.csv",
-    markdown: "10_Library/List of Dates.md",
+    directory: MATTER_LIBRARY_DIR,
+    json: CASE_TIMELINE_JSON_RELATIVE,
+    csv: CASE_TIMELINE_CSV_RELATIVE,
+    markdown: CASE_TIMELINE_MARKDOWN_RELATIVE,
   };
   const outputLines = [
-    `> workbench.run /create_listofdates --refresh-labels${dryRun ? " (dry-run)" : ""}`,
-    "[listofdates] read 10_Library/List of Dates.json",
+    `> workbench.run /create_case_timeline --refresh-labels${dryRun ? " (dry-run)" : ""}`,
+    `[listofdates] read ${CASE_TIMELINE_JSON_RELATIVE}`,
     `[listofdates] checked ${labelIndex.size} source label record(s) without calling an AI provider`,
     `[listofdates] refreshed ${refresh.refreshedEntries} chronology row label(s)`,
   ];
@@ -152,12 +160,24 @@ async function readMatterJson(matterRoot) {
   }
 }
 
+async function readFirstListOfDatesArtifact(matterRoot, relativePaths = []) {
+  let lastError = null;
+  for (const relativePath of relativePaths) {
+    try {
+      return await readListOfDatesArtifact(path.join(matterRoot, relativePath));
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Case Timeline artifact is missing. Run /create_case_timeline first.");
+}
+
 async function readListOfDatesArtifact(filePath) {
   let artifact;
   try {
     artifact = JSON.parse(await readFile(filePath, "utf8"));
   } catch (error) {
-    const wrapped = new Error(`Case Timeline artifact is missing or invalid at ${filePath}. Run /create_listofdates first. (${error.message})`);
+    const wrapped = new Error(`Case Timeline artifact is missing or invalid at ${filePath}. Run /create_case_timeline first. (${error.message})`);
     wrapped.statusCode = 404;
     throw wrapped;
   }

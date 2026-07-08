@@ -12,11 +12,11 @@ function fakeRegistryService() {
     async readRegistry() {
       return {
         skills: [{
-          slash: "/create_listofdates",
+          slash: "/create_case_timeline",
           title: "Build Case Timeline",
           purpose: "Build a neutral cited Case Timeline.",
           inputs: ["extraction records", "Source Index.json"],
-          outputs: ["10_Library/List of Dates.md"],
+          outputs: ["10_Library/Case Timeline.md"],
           default_lane: "10_Library",
           source_backed: "required",
           paid_provider_call: true,
@@ -181,11 +181,11 @@ test("skill interview planner sends only idea, matter metadata, and skill summar
     oppositeParty: "Opponent B",
   });
   assert.deepEqual(received.skillRegistry, [{
-    slash: "/create_listofdates",
+    slash: "/create_case_timeline",
     title: "Build Case Timeline",
     purpose: "Build a neutral cited Case Timeline.",
     inputs: ["extraction records", "Source Index.json"],
-    outputs: ["10_Library/List of Dates.md"],
+    outputs: ["10_Library/Case Timeline.md"],
     lane: "10_Library",
     sourceBacked: "required",
     paidProviderCall: true,
@@ -246,7 +246,7 @@ test("OpenRouter skill interview planner sends strict no-fallback JSON-schema re
     userRequest: "draft client update email",
     skillIdea: { mode: "new_skill", text: "draft client update email" },
     activeMatter: { matterName: "Demo" },
-    skillRegistry: [{ slash: "/create_listofdates" }],
+    skillRegistry: [{ slash: "/create_case_timeline" }],
     designBrief: {},
     schema: { type: "object", properties: {}, additionalProperties: true },
   });
@@ -325,7 +325,7 @@ test("OpenAI direct skill interview planner sends strict Responses JSON-schema r
     userRequest: "draft client update email",
     skillIdea: { mode: "new_skill", text: "draft client update email" },
     activeMatter: { matterName: "Demo" },
-    skillRegistry: [{ slash: "/create_listofdates" }],
+    skillRegistry: [{ slash: "/create_case_timeline" }],
     designBrief: {},
     schema: { type: "object", properties: {}, additionalProperties: true },
   });

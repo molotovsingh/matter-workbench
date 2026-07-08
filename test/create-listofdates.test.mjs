@@ -70,11 +70,11 @@ test("create-listofdates builds chronology artifacts from DB-native extraction i
 
   assert.equal(result.matterRoot, "postgres:DB Matter");
   assert.equal(result.counts.recordsRead, 1);
-  assert.equal(result.outputPaths.json, "10_Library/List of Dates.json");
+  assert.equal(result.outputPaths.json, "10_Library/Case Timeline.json");
   assert.deepEqual(result.artifactFiles.map((file) => file.relativePath), [
-    "10_Library/List of Dates.json",
-    "10_Library/List of Dates.csv",
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.json",
+    "10_Library/Case Timeline.csv",
+    "10_Library/Case Timeline.md",
   ]);
   assert.equal(result.artifact.generated_at, "2026-06-19T00:00:00.000Z");
   assert.equal(result.artifact.entries.length, 1);
@@ -155,11 +155,11 @@ test("create-listofdates calls an AI provider and writes cited chronology output
     fallback: "fail_closed",
   });
 
-  await stat(path.join(root, "10_Library", "List of Dates.json"));
-  await stat(path.join(root, "10_Library", "List of Dates.csv"));
-  await stat(path.join(root, "10_Library", "List of Dates.md"));
+  await stat(path.join(root, "10_Library", "Case Timeline.json"));
+  await stat(path.join(root, "10_Library", "Case Timeline.csv"));
+  await stat(path.join(root, "10_Library", "Case Timeline.md"));
 
-  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline.json"), "utf8"));
   assert.deepEqual(jsonOutput.ai_run, result.aiRun);
   assert.equal(jsonOutput.entries.length, 2);
   assert.equal(jsonOutput.entries[0].event_type, "agreement");
@@ -167,7 +167,7 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   assert.deepEqual(jsonOutput.entries[0].issue_tags, ["agreement"]);
   assert.match(jsonOutput.entries[0].legal_relevance, /contract chronology/);
 
-  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
+  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "Case Timeline.csv"), "utf8"));
   assert.equal(csvRows.length, 2);
   assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
   assert.equal(csvRows[0].event_type, "agreement");
@@ -178,7 +178,7 @@ test("create-listofdates calls an AI provider and writes cited chronology output
   assert.equal(csvRows[0].source_label, "");
   assert.equal(csvRows[1].source_path, "00_Inbox/Intake 01 - Initial/By Type/Text Notes/FILE-0001__facts.txt");
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.match(markdown, /\| Date \| Event \| Legal Relevance \| Source \|/);
   assert.match(markdown, /Agreement was signed/);
   assert.match(markdown, /contract chronology/);
@@ -235,7 +235,7 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
   assert.equal(result.counts.candidateEntries, 3);
   assert.equal(result.counts.acceptedCandidates, 2);
   assert.equal(result.counts.entries, 2);
-  assert.equal(result.outputPaths.candidates, "10_Library/List of Dates Candidates.json");
+  assert.equal(result.outputPaths.candidates, "10_Library/Case Timeline Candidates.json");
   assert.equal(result.pass1AiRun.task, "create_listofdates_pass1");
   assert.equal(result.pass1AiRun.model, "gpt-4.1");
   assert.equal(result.pass2AiRun.task, "create_listofdates_pass2");
@@ -243,7 +243,7 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
   assert.equal(result.aiRun.provider, "two-pass");
   assert.equal(result.aiRun.model, "gpt-4.1 -> gpt-5.4-mini");
 
-  const candidateLedger = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates Candidates.json"), "utf8"));
+  const candidateLedger = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline Candidates.json"), "utf8"));
   assert.equal(candidateLedger.schema_version, "list-of-dates-candidates/v1");
   assert.equal(candidateLedger.status, "succeeded");
   assert.equal(candidateLedger.candidates.length, 2);
@@ -251,15 +251,15 @@ test("create-listofdates two-pass mode writes candidate ledger and final stable 
   assert.equal(candidateLedger.candidates[0].source_label, "Agreement and notice note");
   assert.equal(candidateLedger.pass2_ai_run.model, "gpt-5.4-mini");
 
-  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline.json"), "utf8"));
   assert.equal(jsonOutput.engine_version, "create-listofdates-v2-two-pass");
   assert.equal(jsonOutput.generation_mode, "two_pass");
-  assert.equal(jsonOutput.candidate_ledger_path, "10_Library/List of Dates Candidates.json");
+  assert.equal(jsonOutput.candidate_ledger_path, "10_Library/Case Timeline Candidates.json");
   assert.equal(jsonOutput.entries.length, 2);
   assert.equal(jsonOutput.pass1_ai_run.model, "gpt-4.1");
   assert.equal(jsonOutput.pass2_ai_run.model, "gpt-5.4-mini");
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.match(markdown, /Generated by create-listofdates-v2-two-pass/);
   assert.match(markdown, /Agreement and notice note/);
   assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
@@ -269,9 +269,9 @@ test("create-listofdates two-pass failure leaves existing final artifacts unchan
   const root = await prepareExtractedMatter();
   const outputDir = path.join(root, "10_Library");
   await mkdir(outputDir, { recursive: true });
-  await writeFile(path.join(outputDir, "List of Dates.md"), "old markdown\n");
-  await writeFile(path.join(outputDir, "List of Dates.json"), "{\"old\":true}\n");
-  await writeFile(path.join(outputDir, "List of Dates.csv"), "old\n");
+  await writeFile(path.join(outputDir, "Case Timeline.md"), "old markdown\n");
+  await writeFile(path.join(outputDir, "Case Timeline.json"), "{\"old\":true}\n");
+  await writeFile(path.join(outputDir, "Case Timeline.csv"), "old\n");
 
   await assert.rejects(
     () => runCreateListOfDates({
@@ -291,10 +291,10 @@ test("create-listofdates two-pass failure leaves existing final artifacts unchan
     /editor failed/,
   );
 
-  assert.equal(await readFile(path.join(outputDir, "List of Dates.md"), "utf8"), "old markdown\n");
-  assert.equal(await readFile(path.join(outputDir, "List of Dates.json"), "utf8"), "{\"old\":true}\n");
-  assert.equal(await readFile(path.join(outputDir, "List of Dates.csv"), "utf8"), "old\n");
-  const candidateLedger = JSON.parse(await readFile(path.join(outputDir, "List of Dates Candidates.json"), "utf8"));
+  assert.equal(await readFile(path.join(outputDir, "Case Timeline.md"), "utf8"), "old markdown\n");
+  assert.equal(await readFile(path.join(outputDir, "Case Timeline.json"), "utf8"), "{\"old\":true}\n");
+  assert.equal(await readFile(path.join(outputDir, "Case Timeline.csv"), "utf8"), "old\n");
+  const candidateLedger = JSON.parse(await readFile(path.join(outputDir, "Case Timeline Candidates.json"), "utf8"));
   assert.equal(candidateLedger.status, "failed");
   assert.equal(candidateLedger.error_message, "editor failed");
   assert.equal(candidateLedger.candidates.length, 1);
@@ -327,7 +327,7 @@ test("create-listofdates enriches entries with Source Index labels without chang
   assert.equal(result.entries[0].source_label, "Agreement note dated 20 April 2026");
   assert.equal(result.entries[0].source_short_label, "Agreement note");
 
-  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline.json"), "utf8"));
   assert.equal(jsonOutput.entries[0].citation, "FILE-0001 p1.b1");
   assert.equal(jsonOutput.entries[0].source_file_id, "FILE-0001");
   assert.equal(jsonOutput.entries[0].source_id, "FILE-0001");
@@ -336,7 +336,7 @@ test("create-listofdates enriches entries with Source Index labels without chang
   assert.equal(jsonOutput.entries[0].source_label, "Agreement note dated 20 April 2026");
   assert.equal(jsonOutput.entries[0].source_short_label, "Agreement note");
 
-  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
+  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "Case Timeline.csv"), "utf8"));
   assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
   assert.equal(csvRows[0].source_file_id, "FILE-0001");
   assert.equal(csvRows[0].source_id, "FILE-0001");
@@ -344,7 +344,7 @@ test("create-listofdates enriches entries with Source Index labels without chang
   assert.equal(csvRows[0].source_label, "Agreement note dated 20 April 2026");
   assert.equal(csvRows[0].source_short_label, "Agreement note");
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.match(markdown, /Agreement note dated 20 April 2026/);
   assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
 });
@@ -368,7 +368,7 @@ test("list-of-dates label refresh updates rendered labels without an AI rerun", 
       ],
     }),
   });
-  const beforeJson = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  const beforeJson = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline.json"), "utf8"));
   assert.equal(beforeJson.entries[0].source_label, "Draft source label");
 
   await writeSourceIndex(root, [
@@ -393,12 +393,12 @@ test("list-of-dates label refresh updates rendered labels without an AI rerun", 
   assert.equal(result.entries[0].label_revision, 2);
   assert.match(result.outputLines.join("\n"), /without calling an AI provider/);
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.match(markdown, /Confirmed agreement note dated 20 April 2026/);
   assert.doesNotMatch(markdown, /Draft source label/);
   assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
 
-  const afterJson = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  const afterJson = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline.json"), "utf8"));
   assert.equal(afterJson.generated_at, beforeJson.generated_at);
   assert.ok(afterJson.label_refreshed_at);
   assert.equal(afterJson.source_snapshot[0].source_label, "Confirmed agreement note dated 20 April 2026");
@@ -421,7 +421,7 @@ test("list-of-dates label refresh refuses changed source content", async () => {
       ],
     }),
   });
-  const beforeMarkdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const beforeMarkdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   await writeSourceIndex(root, [
     sourceIndexSource(record, {
       sha256: "changed-source-hash",
@@ -435,7 +435,7 @@ test("list-of-dates label refresh refuses changed source content", async () => {
     /source document changed/i,
   );
 
-  assert.equal(await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8"), beforeMarkdown);
+  assert.equal(await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8"), beforeMarkdown);
 });
 
 test("create-listofdates filters manifest records before AI while preserving substantive duplicate events", async () => {
@@ -512,7 +512,7 @@ test("create-listofdates filters manifest records before AI while preserving sub
     "Email note dated 20 April 2026",
   ]);
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.doesNotMatch(markdown, /Readme Manifest/);
   assert.match(markdown, /Agreement note dated 20 April 2026/);
   assert.match(markdown, /Email note dated 20 April 2026/);
@@ -607,7 +607,7 @@ test("create-listofdates classifies corroboration, payment discrepancies, and tr
     `${fileIds["notice.txt"]} p1.b1`,
   ]);
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.match(markdown, /Payment discrepancy: same-date sources record inconsistent amounts/);
   assert.match(markdown, /bank\.txt label<br>receipt\.txt label/);
   assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
@@ -647,7 +647,7 @@ test("create-listofdates keeps separate same-day payments out of discrepancy clu
     `${maintenanceId} p1.b1`,
   ].sort());
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.doesNotMatch(markdown, /Payment discrepancy/);
   assert.match(markdown, /Rs\.10,00,000 as booking amount/);
   assert.match(markdown, /Rs\.2,50,000 as maintenance deposit/);
@@ -679,13 +679,13 @@ test("create-listofdates ignores stale Source Index labels and keeps current cit
   assert.equal(Object.hasOwn(result.entries[0], "source_label"), false);
   assert.equal(Object.hasOwn(result.entries[0], "source_short_label"), false);
 
-  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
+  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "Case Timeline.csv"), "utf8"));
   assert.equal(csvRows[0].citation, "FILE-0001 p1.b2");
   assert.equal(csvRows[0].source_file_id, "FILE-0001");
   assert.equal(csvRows[0].source_label, "");
   assert.equal(csvRows[0].source_short_label, "");
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.doesNotMatch(markdown, /Stale label that should not appear/);
   assert.match(markdown, /facts\.txt/);
   assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
@@ -716,13 +716,13 @@ test("create-listofdates ignores Source Index labels that contain file identifie
   assert.equal(Object.hasOwn(result.entries[0], "source_label"), false);
   assert.equal(Object.hasOwn(result.entries[0], "source_short_label"), false);
 
-  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "List of Dates.csv"), "utf8"));
+  const csvRows = parseCsv(await readFile(path.join(root, "10_Library", "Case Timeline.csv"), "utf8"));
   assert.equal(csvRows[0].citation, "FILE-0001 p1.b1");
   assert.equal(csvRows[0].source_file_id, "FILE-0001");
   assert.equal(csvRows[0].source_label, "");
   assert.equal(csvRows[0].source_short_label, "");
 
-  const markdown = await readFile(path.join(root, "10_Library", "List of Dates.md"), "utf8");
+  const markdown = await readFile(path.join(root, "10_Library", "Case Timeline.md"), "utf8");
   assert.doesNotMatch(markdown, /FILE-0001: Agreement note/);
   assert.match(markdown, /facts\.txt/);
   assert.doesNotMatch(markdown, /FILE-\d{4}\s+p\d+\.b\d+/);
@@ -842,7 +842,7 @@ test("create-listofdates reports missing extraction records before calling AI", 
         return { entries: [] };
       },
     }),
-    /Run \/extract before \/create_listofdates/,
+    /Run \/extract before \/create_case_timeline/,
   );
   assert.equal(called, false);
 });
@@ -1172,7 +1172,7 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
       cost: 0.001,
     },
   });
-  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+  const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline.json"), "utf8"));
   assert.deepEqual(jsonOutput.ai_run, result.aiRun);
 });
 
@@ -1205,7 +1205,7 @@ test("create-listofdates default provider uses model policy env overrides", asyn
 
   try {
     const result = await runCreateListOfDates({ matterRoot: root, maxOutputTokens: "invalid" });
-    const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "List of Dates.json"), "utf8"));
+    const jsonOutput = JSON.parse(await readFile(path.join(root, "10_Library", "Case Timeline.json"), "utf8"));
 
     assert.equal(result.aiRun.model, "policy-listofdates-model");
     assert.equal(result.aiRun.maxOutputTokens, 3456);

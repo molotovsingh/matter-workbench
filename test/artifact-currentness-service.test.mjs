@@ -20,13 +20,13 @@ test("artifact currentness normalization keeps identifiers and omits source text
   const record = normalizeArtifactCurrentnessRecord({
     matterName: "Demo Matter",
     artifactFamily: "list_of_dates",
-    artifactPath: "/10_Library/List of Dates.md",
+    artifactPath: "/10_Library/Case Timeline.md",
     state: "stale",
     dependencyState: "chronology_regeneration_needed",
     reasonCode: "source_removal.chronology_regeneration_needed",
     affectedFileIds: ["file-0002", "nope", "FILE-0002"],
     metadata: {
-      skill: "/create_listofdates",
+      skill: "/create_case_timeline",
       inputCount: 2,
       sourceText: "must not be retained",
       markdown: "must not be retained",
@@ -36,10 +36,10 @@ test("artifact currentness normalization keeps identifiers and omits source text
 
   assert.equal(record.schema_version, "artifact-currentness-record/v1");
   assert.equal(record.artifactFamily, ARTIFACT_CURRENTNESS_FAMILIES.LIST_OF_DATES);
-  assert.equal(record.artifactPath, "10_Library/List of Dates.md");
+  assert.equal(record.artifactPath, "10_Library/Case Timeline.md");
   assert.equal(record.state, ARTIFACT_CURRENTNESS_STATES.STALE);
   assert.deepEqual(record.affectedFileIds, ["FILE-0002"]);
-  assert.deepEqual(record.metadata, { skill: "/create_listofdates", inputCount: 2 });
+  assert.deepEqual(record.metadata, { skill: "/create_case_timeline", inputCount: 2 });
   assert.equal(JSON.stringify(record).includes("must not be retained"), false);
 });
 
@@ -132,7 +132,7 @@ async function writeSourceIndex(root, sources) {
 
 async function writeListOfDates(root, sourceSnapshot) {
   await writeFile(
-    path.join(root, "10_Library", "List of Dates.json"),
+    path.join(root, "10_Library", "Case Timeline.json"),
     `${JSON.stringify({
       schema_version: "list-of-dates/v1",
       generated_at: "2026-06-26T00:00:00.000Z",
@@ -140,7 +140,7 @@ async function writeListOfDates(root, sourceSnapshot) {
       entries: [{ date_iso: "2026-04-20", event: "Fixture event", citation: "FILE-0001 p1.b1" }],
     }, null, 2)}\n`,
   );
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n\nFixture chronology.\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n\nFixture chronology.\n");
 }
 
 async function writeStory(root) {

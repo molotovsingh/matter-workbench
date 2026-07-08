@@ -6,6 +6,7 @@ export function createBuiltinSkillDispatch(skills = {}) {
     "/describe_sources": skills.runDescribeSources,
     "/context_preview": skills.runContextPreview,
     "/context_search": skills.runContextSearch,
+    "/create_case_timeline": skills.runCreateListOfDates,
     "/create_listofdates": skills.runCreateListOfDates,
     "/doctor": skills.runDoctor,
   };

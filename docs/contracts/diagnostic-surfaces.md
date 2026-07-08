@@ -55,8 +55,8 @@ It may inspect:
 - intake `File Register.csv`;
 - intake `Extraction Log.csv`;
 - `10_Library/Source Index.json`;
-- `10_Library/List of Dates.md`;
-- `10_Library/List of Dates.json`;
+- `10_Library/Case Timeline.md`;
+- `10_Library/Case Timeline.json`;
 - rerun advice;
 - configurable custom-skill run receipts;
 - matter-scoped command interactions.

@@ -30,16 +30,16 @@ test("matter attention command failures filter to the selected matter and dedupe
           {
             timestamp: "2026-05-16T10:02:00.000Z",
             matter: { folder_name: "Attention Matter" },
-            typed_input: "/create_listofdates",
-            matched_command: "/create_listofdates",
+            typed_input: "/create_case_timeline",
+            matched_command: "/create_case_timeline",
             status: "failed",
             errors: ["provider returned invalid chronology"],
           },
           {
             timestamp: "2026-05-16T10:03:00.000Z",
             matter: { folder_name: "Attention Matter" },
-            typed_input: "/create_listofdates",
-            matched_command: "/create_listofdates",
+            typed_input: "/create_case_timeline",
+            matched_command: "/create_case_timeline",
             status: "failed",
             errors: ["provider returned invalid chronology"],
           },
@@ -61,7 +61,7 @@ test("matter attention command failures filter to the selected matter and dedupe
   assert.equal(items.length, 2);
   assert.deepEqual(items.map((item) => item.title), [
     "Command failed: /context_search",
-    "Command failed: /create_listofdates",
+    "Command failed: /create_case_timeline",
   ]);
   assert.equal(items[0].detail, "[context] provider unavailable");
   assert.equal(items[1].detail, "provider returned invalid chronology");

@@ -2,6 +2,15 @@ import { randomUUID } from "node:crypto";
 
 import { runCreateListOfDates } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
+import {
+  CASE_TIMELINE_API_ROUTE,
+  CASE_TIMELINE_REFRESH_LABELS_API_ROUTE,
+  CASE_TIMELINE_SKILL_SLASH,
+  LEGACY_LIST_OF_DATES_API_ROUTE,
+  LEGACY_LIST_OF_DATES_REFRESH_LABELS_API_ROUTE,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+  normalizeCaseTimelineSkillSlash,
+} from "../shared/case-timeline-operation.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { buildCopilotInteractionReceipt } from "../services/copilot-interaction-receipt-service.mjs";
 import { currentRequestContext } from "../services/request-context.mjs";
@@ -55,6 +64,65 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
     skillRunnerService,
     sourceRemovalMutationService,
   } = services;
+
+  const runCaseTimelineApi = async (route = CASE_TIMELINE_API_ROUTE) => {
+    const body = await readRequestJson(request);
+    if (skillRunnerService?.start) {
+      sendJson(response, 200, await runListOfDatesSkill({
+        body,
+        matterStore,
+        runtimeDbStorageService,
+        skillRunnerService,
+        route,
+      }));
+      return;
+    }
+    sendJson(response, 200, await runTrackedWorkflow({
+      jobStatusService,
+      kind: "case_timeline",
+      route,
+      label: "Build Case Timeline",
+      matterName: matterNameForBody(matterStore, body),
+      operation: async ({ job } = {}) => {
+        const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
+        return runCreateListOfDatesLegacy({
+          body,
+          matterStore,
+          runtimeDbStorageService,
+          aiProvider: services.aiProvider,
+          env: services.env || {},
+          stageRecorder,
+        });
+      },
+    }));
+  };
+
+  const refreshCaseTimelineLabelsApi = async (route = CASE_TIMELINE_REFRESH_LABELS_API_ROUTE) => {
+    const body = await readRequestJson(request);
+    sendJson(response, 200, await runTrackedWorkflow({
+      jobStatusService,
+      kind: "label_refresh",
+      route,
+      label: "Refresh Case Timeline Labels",
+      matterName: matterNameForBody(matterStore, body),
+      operation: async () => {
+        if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+          const matter = await runtimeDbMatterForBody(matterStore, body);
+          assertRuntimeDbListOfDatesLabelRefreshAvailable({ runtimeDbStorageService });
+          const result = await runtimeDbStorageService.refreshListOfDatesSourceLabels(matter, {
+            dryRun: Boolean(body.dryRun),
+          });
+          return runtimeDbWorkflowResponse(result, matter);
+        }
+        assertFilesystemWorkflowAvailable(matterStore, "Refresh Case Timeline labels");
+        const root = await matterRootForBody(matterStore, body);
+        return refreshListOfDatesSourceLabels({
+          matterRoot: root,
+          dryRun: Boolean(body.dryRun),
+        });
+      },
+    }));
+  };
 
   return dispatchRoutes({
     request,
@@ -172,62 +240,10 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
           },
         }));
       }),
-      exactRoute("POST", "/api/create-listofdates", async () => {
-        const body = await readRequestJson(request);
-        if (skillRunnerService?.start) {
-          sendJson(response, 200, await runListOfDatesSkill({
-            body,
-            matterStore,
-            runtimeDbStorageService,
-            skillRunnerService,
-          }));
-          return;
-        }
-        sendJson(response, 200, await runTrackedWorkflow({
-          jobStatusService,
-          kind: "list_of_dates",
-          route: "/api/create-listofdates",
-          label: "Build Case Timeline",
-          matterName: matterNameForBody(matterStore, body),
-          operation: async ({ job } = {}) => {
-            const stageRecorder = stageRecorderForWorkflow({ jobStatusService, job });
-            return runCreateListOfDatesLegacy({
-              body,
-              matterStore,
-              runtimeDbStorageService,
-              aiProvider: services.aiProvider,
-              env: services.env || {},
-              stageRecorder,
-            });
-          },
-        }));
-      }),
-      exactRoute("POST", "/api/create-listofdates/refresh-labels", async () => {
-        const body = await readRequestJson(request);
-        sendJson(response, 200, await runTrackedWorkflow({
-          jobStatusService,
-          kind: "label_refresh",
-          route: "/api/create-listofdates/refresh-labels",
-          label: "Refresh Case Timeline Labels",
-          matterName: matterNameForBody(matterStore, body),
-          operation: async () => {
-            if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-              const matter = await runtimeDbMatterForBody(matterStore, body);
-              assertRuntimeDbListOfDatesLabelRefreshAvailable({ runtimeDbStorageService });
-              const result = await runtimeDbStorageService.refreshListOfDatesSourceLabels(matter, {
-                dryRun: Boolean(body.dryRun),
-              });
-              return runtimeDbWorkflowResponse(result, matter);
-            }
-            assertFilesystemWorkflowAvailable(matterStore, "Refresh Case Timeline labels");
-            const root = await matterRootForBody(matterStore, body);
-            return refreshListOfDatesSourceLabels({
-              matterRoot: root,
-              dryRun: Boolean(body.dryRun),
-            });
-          },
-        }));
-      }),
+      exactRoute("POST", CASE_TIMELINE_API_ROUTE, async () => runCaseTimelineApi(CASE_TIMELINE_API_ROUTE)),
+      exactRoute("POST", LEGACY_LIST_OF_DATES_API_ROUTE, async () => runCaseTimelineApi(LEGACY_LIST_OF_DATES_API_ROUTE)),
+      exactRoute("POST", CASE_TIMELINE_REFRESH_LABELS_API_ROUTE, async () => refreshCaseTimelineLabelsApi(CASE_TIMELINE_REFRESH_LABELS_API_ROUTE)),
+      exactRoute("POST", LEGACY_LIST_OF_DATES_REFRESH_LABELS_API_ROUTE, async () => refreshCaseTimelineLabelsApi(LEGACY_LIST_OF_DATES_REFRESH_LABELS_API_ROUTE)),
       exactRoute("POST", "/api/matter-story", async () => {
         const body = await readRequestJson(request);
         if (skillRunnerService?.start) {
@@ -711,7 +727,7 @@ function requestedRuntimePreparationStartStage(body = {}) {
 function runtimePreparationStartStageLabel(startStage = "") {
   const normalized = normalizeRuntimePreparationStageSelector(startStage);
   if (normalized === "/describe_sources") return "Source Labels";
-  if (normalized === "/create_listofdates") return "Case Timeline";
+  if (normalized === CASE_TIMELINE_SKILL_SLASH) return "Case Timeline";
   if (normalized === "/the_story") return "Matter Story";
   if (normalized === "/procedural_posture_diagnosis") return "Procedural Diagnosis";
   if (normalized === "/extract") return "document reading";
@@ -882,7 +898,7 @@ async function runNativeSkillAlias({ slash = "", body = {}, matterStore, runtime
   if (normalizedSlash === "/describe_sources") {
     return runDescribeSourcesSkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
   }
-  if (normalizedSlash === "/create_listofdates") {
+  if (normalizedSlash === CASE_TIMELINE_SKILL_SLASH) {
     return runListOfDatesSkill({ body, matterStore, runtimeDbStorageService, skillRunnerService });
   }
   if (normalizedSlash === "/the_story") {
@@ -897,7 +913,7 @@ async function runNativeSkillAlias({ slash = "", body = {}, matterStore, runtime
 function normalizeNativeSkillAliasSlash(value = "") {
   const text = safeDecodeText(value).trim();
   const slash = text.startsWith("/") ? text : `/${text}`;
-  return slash.toLowerCase();
+  return normalizeCaseTimelineSkillSlash(slash.toLowerCase());
 }
 
 function safeDecodeText(value = "") {
@@ -1005,6 +1021,7 @@ async function runListOfDatesSkill({
   matterStore,
   runtimeDbStorageService,
   skillRunnerService,
+  route = CASE_TIMELINE_API_ROUTE,
 } = {}) {
   const { request } = await listOfDatesRunnerRequest({
     body,
@@ -1012,8 +1029,8 @@ async function runListOfDatesSkill({
     runtimeDbStorageService,
   });
   const workflowMetadata = workflowJobMetadata({
-    kind: "list_of_dates",
-    route: "/api/create-listofdates",
+    kind: "case_timeline",
+    route,
     label: "Build Case Timeline",
   });
   const retryOfJobId = typeof body.retryOfJobId === "string" ? body.retryOfJobId.trim() : "";
@@ -1026,7 +1043,7 @@ async function runListOfDatesSkill({
       metadata: workflowMetadata,
     })
     : await skillRunnerService.start({
-      slash: "/create_listofdates",
+      slash: CASE_TIMELINE_SKILL_SLASH,
       request,
       mode: "inline",
       metadata: workflowMetadata,

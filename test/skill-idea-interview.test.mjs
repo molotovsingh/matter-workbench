@@ -113,10 +113,10 @@ test("skill idea interview detects adjacent list-of-dates improvement", () => {
   });
 
   assert.equal(interview.mode, "adjacent_improvement");
-  assert.equal(interview.targetSkill, "/create_listofdates");
+  assert.equal(interview.targetSkill, "/create_case_timeline");
   assert.match(interview.understood, /Build Case Timeline/);
   assert.equal(interview.designBrief.targetLane, "10_Library");
-  assert.equal(interview.designBrief.expectedOutputArtifact, "10_Library/List of Dates.md");
+  assert.equal(interview.designBrief.expectedOutputArtifact, "10_Library/Case Timeline.md");
   assert.deepEqual(
     interview.questions.map((question) => question.id),
     ["change", "unchanged", "artifact"],

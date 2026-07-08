@@ -1,17 +1,23 @@
 import { runCreateListOfDates } from "../../../create-listofdates-engine.mjs";
+import {
+  CASE_TIMELINE_SKILL_ID,
+  CASE_TIMELINE_SKILL_SLASH,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+} from "../../../shared/case-timeline-operation.mjs";
 import { AI_PROVIDERS, AI_TASKS, resolveModelPolicy } from "../../../shared/model-policy.mjs";
 
-export const CREATE_LISTOFDATES_SLASH = "/create_listofdates";
+export const CREATE_CASE_TIMELINE_SLASH = CASE_TIMELINE_SKILL_SLASH;
+export const CREATE_LISTOFDATES_SLASH = LEGACY_LIST_OF_DATES_SKILL_SLASH;
 
 export function createListOfDatesRunner({
   aiProvider = null,
   env = process.env,
 } = {}) {
   return {
-    id: "create_listofdates",
-    slash: CREATE_LISTOFDATES_SLASH,
+    id: CASE_TIMELINE_SKILL_ID,
+    slash: CREATE_CASE_TIMELINE_SLASH,
     version: 1,
-    kind: "list_of_dates",
+    kind: "case_timeline",
     label: "Build Case Timeline",
     supportsStageRetry: false,
     async run({ request = {}, job, stages }) {

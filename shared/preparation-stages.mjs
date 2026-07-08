@@ -1,4 +1,9 @@
 import { CASE_TIMELINE_DEPENDENCY_STATES } from "./case-timeline-dependency-states.mjs";
+import {
+  CASE_TIMELINE_SKILL_SLASH,
+  CASE_TIMELINE_STAGE_ID,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+} from "./case-timeline-operation.mjs";
 import { REQUIRED_METADATA } from "./matter-contract.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "./preparation-stage-actions.mjs";
 
@@ -25,8 +30,8 @@ export const PREPARE_STAGE_DEFINITIONS = [
     paidProviderCall: true,
   },
   {
-    id: "create-listofdates",
-    slash: "/create_listofdates",
+    id: CASE_TIMELINE_STAGE_ID,
+    slash: CASE_TIMELINE_SKILL_SLASH,
     label: "Build Case Timeline",
     description: "Build a source-backed chronology for lawyer review.",
     paidProviderCall: true,
@@ -47,8 +52,15 @@ export const PREPARE_STAGE_DEFINITIONS = [
   },
 ];
 
+export function normalizePreparationStageSlash(slash) {
+  const value = String(slash || "").trim();
+  if (value === LEGACY_LIST_OF_DATES_SKILL_SLASH) return CASE_TIMELINE_SKILL_SLASH;
+  return value;
+}
+
 export function prepareStageDefinition(slash) {
-  return PREPARE_STAGE_DEFINITIONS.find((candidate) => candidate.slash === slash);
+  const normalizedSlash = normalizePreparationStageSlash(slash);
+  return PREPARE_STAGE_DEFINITIONS.find((candidate) => candidate.slash === normalizedSlash);
 }
 
 export function missingMetadataLabels(metadata = {}) {

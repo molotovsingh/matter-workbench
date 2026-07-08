@@ -33,7 +33,7 @@ const STANDARD_ROW_ACTION_COPY: Record<string, StandardPreparationRowActionCopy>
     refreshLabel: 'Refresh from Source Labels',
     hint: 'Checks source labels and downstream stages; skips current work.',
   },
-  '/create_listofdates': {
+  '/create_case_timeline': {
     runLabel: 'Build Case Timeline',
     refreshLabel: 'Refresh from Case Timeline',
     hint: 'Starts at Case Timeline; does not re-read documents when upstream is current.',
@@ -49,7 +49,7 @@ const BLOCKED_ROW_ACTION_LABELS: Record<string, string> = {
   '/matter-init': 'Needs matter details',
   '/extract': 'Needs matter setup first',
   '/describe_sources': 'Needs documents first',
-  '/create_listofdates': 'Needs Source Labels first',
+  '/create_case_timeline': 'Needs Source Labels first',
   '/the_story': 'Needs Case Timeline first',
   '/procedural_posture_diagnosis': 'Needs Matter Story first',
 };

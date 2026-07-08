@@ -48,7 +48,7 @@ test("matter attention aggregates developer blockers from existing matter traces
       },
     ],
   })}\n`);
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n");
 
   const commandLogPath = path.join(root, ".local", "command-interactions.jsonl");
   await mkdir(path.dirname(commandLogPath), { recursive: true });
@@ -65,16 +65,16 @@ test("matter attention aggregates developer blockers from existing matter traces
     JSON.stringify({
       timestamp: "2026-05-16T09:59:00.000Z",
       matter: { folder_name: "Attention Matter" },
-      typed_input: "/create_listofdates",
-      matched_command: "/create_listofdates",
+      typed_input: "/create_case_timeline",
+      matched_command: "/create_case_timeline",
       status: "failed",
       errors: ["provider returned invalid chronology"],
     }),
     JSON.stringify({
       timestamp: "2026-05-16T10:00:00.000Z",
       matter: { folder_name: "Attention Matter" },
-      typed_input: "/create_listofdates",
-      matched_command: "/create_listofdates",
+      typed_input: "/create_case_timeline",
+      matched_command: "/create_case_timeline",
       status: "failed",
       errors: ["provider returned invalid chronology"],
     }),
@@ -100,14 +100,14 @@ test("matter attention aggregates developer blockers from existing matter traces
             },
           },
           {
-            slash: "/create_listofdates",
+            slash: "/create_case_timeline",
             state: "present",
             rerunAdvice: {
               state: "stale",
               label: "list of dates",
               reason: "Only Source Index labels appear newer than this artifact.",
               dependencyState: "label_refresh_needed",
-              artifactPath: "10_Library/List of Dates.md",
+              artifactPath: "10_Library/Case Timeline.md",
               newestInputPath: "10_Library/Source Index.json",
               newestInputAt: "2026-05-16T10:06:00.000Z",
             },
@@ -229,8 +229,8 @@ test("matter attention stays clear for a coherent matter lifecycle", async () =>
       },
     ],
   })}\n`);
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n");
-  await writeFile(path.join(root, "10_Library", "List of Dates.json"), `${JSON.stringify({
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.json"), `${JSON.stringify({
     entries: [],
   })}\n`);
 
@@ -241,7 +241,7 @@ test("matter attention stays clear for a coherent matter lifecycle", async () =>
         stages: [
           { slash: "/extract", state: "present" },
           { slash: "/describe_sources", state: "present", rerunAdvice: { state: "current" } },
-          { slash: "/create_listofdates", state: "present", rerunAdvice: { state: "current" } },
+          { slash: "/create_case_timeline", state: "present", rerunAdvice: { state: "current" } },
         ],
       }),
     },
@@ -283,7 +283,7 @@ test("matter attention reads command failures through the command log service", 
         stages: [
           { slash: "/extract", state: "present" },
           { slash: "/describe_sources", state: "not_run" },
-          { slash: "/create_listofdates", state: "not_run" },
+          { slash: "/create_case_timeline", state: "not_run" },
         ],
       }),
     },

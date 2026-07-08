@@ -22,10 +22,12 @@ test("runtime preparation job mapping covers the preparation chain", () => {
     "/matter-init": "matter_init",
     "/extract": "extract",
     "/describe_sources": "source_labels",
+    "/create_case_timeline": "case_timeline",
     "/create_listofdates": "case_timeline",
     "/the_story": "matter_story",
     "/procedural_posture_diagnosis": "posture_diagnosis",
   });
+  assert.equal(runtimePreparationJobKindForStage({ slash: "/create_case_timeline" }), "case_timeline");
   assert.equal(runtimePreparationJobKindForStage({ slash: "/create_listofdates" }), "case_timeline");
   assert.equal(runtimePreparationJobKindForStage({ slash: "/procedural_posture_diagnosis" }), "posture_diagnosis");
   assert.equal(runtimePreparationJobKindForStage({ slash: "/unknown" }), "");
@@ -35,11 +37,11 @@ test("runtime preparation helpers select queueable and blocked stages", () => {
   const plan = {
     stages: [
       { id: "matter-init", slash: "/matter-init", action: "skip_current", state: "current" },
-      { id: "create-listofdates", slash: "/create_listofdates", action: "confirm_paid_run", state: "missing" },
+      { id: "case-timeline", slash: "/create_case_timeline", action: "confirm_paid_run", state: "missing" },
       { id: "dispute-story", slash: "/the_story", action: "blocked", reason: "Case Timeline required." },
     ],
   };
-  assert.equal(firstQueueableRuntimePreparationStage(plan)?.id, "create-listofdates");
+  assert.equal(firstQueueableRuntimePreparationStage(plan)?.id, "case-timeline");
   assert.equal(firstQueueableRuntimePreparationStage(plan, { startStage: "/the_story" }), null);
   assert.equal(firstBlockedRuntimePreparationStage(plan)?.id, "dispute-story");
   assert.equal(firstBlockedRuntimePreparationStage(plan, { startStage: "matter_story" })?.id, "dispute-story");
@@ -52,27 +54,27 @@ test("runtime preparation helpers support targeted start stages", () => {
       { id: "matter-init", slash: "/matter-init", action: "skip_current", state: "current" },
       { id: "extract", slash: "/extract", action: "skip_current", state: "current" },
       { id: "describe-sources", slash: "/describe_sources", action: "skip_current", state: "current" },
-      { id: "create-listofdates", slash: "/create_listofdates", action: "confirm_paid_run", state: "stale" },
+      { id: "case-timeline", slash: "/create_case_timeline", action: "confirm_paid_run", state: "stale" },
       { id: "dispute-story", slash: "/the_story", action: "confirm_paid_run", state: "missing" },
       { id: "procedural-posture-diagnosis", slash: "/procedural_posture_diagnosis", action: "blocked", state: "blocked" },
     ],
   };
 
-  assert.deepEqual([...RUNTIME_PREPARATION_STAGE_SLASHES], ["/matter-init", "/extract", "/describe_sources", "/create_listofdates", "/the_story", "/procedural_posture_diagnosis"]);
-  assert.equal(normalizeRuntimePreparationStageSelector("case_timeline"), "/create_listofdates");
+  assert.deepEqual([...RUNTIME_PREPARATION_STAGE_SLASHES], ["/matter-init", "/extract", "/describe_sources", "/create_case_timeline", "/the_story", "/procedural_posture_diagnosis"]);
+  assert.equal(normalizeRuntimePreparationStageSelector("case_timeline"), "/create_case_timeline");
   assert.equal(normalizeRuntimePreparationStageSelector("/procedural_posture_diagnosis"), "/procedural_posture_diagnosis");
   assert.equal(runtimePreparationStageIndex("matter_story"), 4);
   assert.equal(isRuntimePreparationStageCurrent(plan.stages[2]), true);
-  assert.equal(firstQueueableRuntimePreparationStage(plan, { startStage: "case_timeline" })?.id, "create-listofdates");
+  assert.equal(firstQueueableRuntimePreparationStage(plan, { startStage: "case_timeline" })?.id, "case-timeline");
   assert.equal(firstQueueableRuntimePreparationStage(plan, { startStage: "matter_story" })?.id, "dispute-story");
-  assert.equal(firstNonCurrentRuntimePreparationStageBefore(plan, "matter_story")?.id, "create-listofdates");
+  assert.equal(firstNonCurrentRuntimePreparationStageBefore(plan, "matter_story")?.id, "case-timeline");
 });
 
 test("runtime preparation stale Story and posture jobs request overwrite", () => {
   assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/the_story", state: "stale" }), true);
   assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/procedural_posture_diagnosis", state: "stale" }), true);
   assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/the_story", state: "ready_to_run" }), false);
-  assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/create_listofdates", state: "stale" }), false);
+  assert.equal(runtimePreparationStageShouldOverwrite({ slash: "/create_case_timeline", state: "stale" }), false);
   assert.deepEqual(runtimePreparationJobMetadataForStage({
     id: "dispute-story",
     slash: "/the_story",

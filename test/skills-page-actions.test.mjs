@@ -6,7 +6,7 @@ import {
 } from "../frontend/skills-page-actions.js";
 
 test("skills page actions run card commands through the command rail", () => {
-  const commandButton = createButton({ skillCardCommand: "/create_listofdates" });
+  const commandButton = createButton({ skillCardCommand: "/create_case_timeline" });
   const commands = [];
   const editorContent = createEditorContentDouble({
     "[data-skill-card-command]": [commandButton],
@@ -21,8 +21,8 @@ test("skills page actions run card commands through the command rail", () => {
   wireSkillsPageActions({ ctx, editorContent });
   commandButton.handlers.click();
 
-  assert.equal(ctx.elements.aiCommandInput.value, "/create_listofdates");
-  assert.deepEqual(commands, ["/create_listofdates"]);
+  assert.equal(ctx.elements.aiCommandInput.value, "/create_case_timeline");
+  assert.deepEqual(commands, ["/create_case_timeline"]);
 });
 
 test("activity page actions copy run reports and open output files", async () => {

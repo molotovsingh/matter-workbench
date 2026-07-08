@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createSkillRegistryService } from "../services/skill-registry-service.mjs";
-import { BUILTIN_SKILL_COMMANDS } from "../shared/builtin-skill-commands.mjs";
+import { BUILTIN_SKILL_REGISTRY_COMMANDS } from "../shared/builtin-skill-commands.mjs";
 
-const EXPECTED_SLASHES = BUILTIN_SKILL_COMMANDS;
+const EXPECTED_SLASHES = BUILTIN_SKILL_REGISTRY_COMMANDS;
 
 test("skill registry reads all built-in skill stubs", async () => {
   const registry = await createSkillRegistryService({ appDir: process.cwd() }).readRegistry();
@@ -21,7 +21,7 @@ test("skill registry reads all built-in skill stubs", async () => {
 
   const prepareMatter = registry.skills.find((skill) => skill.slash === "/prepare_matter");
   const sourceLabels = registry.skills.find((skill) => skill.slash === "/describe_sources");
-  const listOfDates = registry.skills.find((skill) => skill.slash === "/create_listofdates");
+  const listOfDates = registry.skills.find((skill) => skill.slash === "/create_case_timeline");
   const matterStory = registry.skills.find((skill) => skill.slash === "/the_story");
   const proceduralPosture = registry.skills.find((skill) => skill.slash === "/procedural_posture_diagnosis");
   assert.equal(prepareMatter.category, "Prepare");
@@ -55,16 +55,16 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.deepEqual(listOfDates.downstream, []);
   assert.equal(listOfDates.markdown_first, true);
   assert.deepEqual(listOfDates.outputs, [
-    "10_Library/List of Dates.md",
-    "10_Library/List of Dates.csv",
-    "10_Library/List of Dates.json",
+    "10_Library/Case Timeline.md",
+    "10_Library/Case Timeline.csv",
+    "10_Library/Case Timeline.json",
   ]);
   assert.equal(matterStory.category, "Analyze");
   assert.equal(matterStory.product_surface, "native_legal");
   assert.equal(matterStory.display.action, "Write Matter Story");
   assert.equal(matterStory.display.artifact, "Matter Story");
   assert.equal(matterStory.default_lane, "20_Workshop");
-  assert.deepEqual(matterStory.upstream, ["/create_listofdates"]);
+  assert.deepEqual(matterStory.upstream, ["/create_case_timeline"]);
   assert.deepEqual(matterStory.outputs, [
     "20_Workshop/The Story.md",
     "20_Workshop/The Story.json",
@@ -78,7 +78,7 @@ test("skill registry reads all built-in skill stubs", async () => {
   assert.equal(proceduralPosture.paid_provider_call, true);
   assert.equal(proceduralPosture.rerun_guarded, true);
   assert.equal(proceduralPosture.source_backed, "required");
-  assert.deepEqual(proceduralPosture.upstream, ["/create_listofdates", "/the_story"]);
+  assert.deepEqual(proceduralPosture.upstream, ["/create_case_timeline", "/the_story"]);
   assert.deepEqual(proceduralPosture.outputs, [
     "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md",
     "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.json",
@@ -90,7 +90,7 @@ test("skill registry response shape remains API-compatible", async () => {
   const source = JSON.parse(await readFile(path.join(process.cwd(), "skills", "registry.json"), "utf8"));
   const registry = await createSkillRegistryService({ appDir: process.cwd() }).readRegistry();
 
-  assert.deepEqual(source.builtins.map((id) => `/${id}`), BUILTIN_SKILL_COMMANDS);
+  assert.deepEqual(source.builtins.map((id) => `/${id}`), BUILTIN_SKILL_REGISTRY_COMMANDS);
   assert.equal(source.skills, undefined);
   assert.ok(Array.isArray(registry.categories));
   assert.equal(typeof registry.principles, "object");
@@ -150,9 +150,9 @@ test("skill registry validation fails clearly for invalid built-in stubs", async
     schema_version: "skill-registry/v1",
     categories: ["Analyze"],
     principles: {},
-    builtins: BUILTIN_SKILL_COMMANDS.map((slash) => slash.slice(1)),
+    builtins: BUILTIN_SKILL_REGISTRY_COMMANDS.map((slash) => slash.slice(1)),
   }, null, 2)}\n`);
-  for (const slash of BUILTIN_SKILL_COMMANDS) {
+  for (const slash of BUILTIN_SKILL_REGISTRY_COMMANDS) {
     const id = slash.slice(1);
     await mkdir(path.join(builtinsDir, id), { recursive: true });
     await writeFile(path.join(builtinsDir, id, "skill.json"), `${JSON.stringify({

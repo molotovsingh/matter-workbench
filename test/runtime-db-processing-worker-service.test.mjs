@@ -195,7 +195,7 @@ test("runtime DB processing worker queues post-upload preparation stages in depe
   ];
   const nextSlashByCompletedKind = {
     extract: "/describe_sources",
-    source_labels: "/create_listofdates",
+    source_labels: "/create_case_timeline",
     case_timeline: "/the_story",
     matter_story: "/procedural_posture_diagnosis",
   };

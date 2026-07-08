@@ -24,7 +24,7 @@ const actor = {
 
 test("runtime DB storage query SQL builds workspace and payload reads", () => {
   const workspaceSql = buildWorkspaceSql({ tenantId, matter });
-  const payloadSql = buildPayloadSql({ tenantId, matter, relativePath: "10_Library/List of Dates.md" });
+  const payloadSql = buildPayloadSql({ tenantId, matter, relativePath: "10_Library/Case Timeline.md" });
 
   assert.match(workspaceSql, /set_config\('app\.tenant_id'/);
   assert.match(workspaceSql, /from storage_objects so/i);
@@ -44,7 +44,7 @@ test("runtime DB storage query SQL builds workspace and payload reads", () => {
   assert.match(payloadSql, /d\.status not in \('removed_from_active_record', 'quarantined', 'deleted_pending', 'deleted'\)/);
   assert.match(payloadSql, /extraction_document\.status not in \('removed_from_active_record', 'quarantined', 'deleted_pending', 'deleted'\)/);
   assert.match(payloadSql, /text_document\.status not in \('removed_from_active_record', 'quarantined', 'deleted_pending', 'deleted'\)/);
-  assert.match(payloadSql, /DB Matter\/10_Library\/List of Dates\.md/);
+  assert.match(payloadSql, /DB Matter\/10_Library\/Case Timeline\.md/);
   assert.match(payloadSql, /encode\(sop\.payload, 'base64'\)/i);
   assert.match(payloadSql, /array_position/);
 });

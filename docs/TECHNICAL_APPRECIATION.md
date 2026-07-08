@@ -12,7 +12,7 @@ Most legal tech products are either thin wrappers around a chat API or monolithi
 
 This is the project's crown jewel — and it solves a real AI reliability problem elegantly.
 
-**The problem:** Ask an LLM to produce a complete List of Dates from 20+ legal documents in one shot, and three things go wrong: it skips events buried in dense paragraphs, it hallucinates dates to fill gaps, and it can't reliably cross-reference corroborating sources.
+**The problem:** Ask an LLM to produce a complete neutral Case Timeline from 20+ legal documents in one shot, and three things go wrong: it skips events buried in dense paragraphs, it hallucinates dates to fill gaps, and it can't reliably cross-reference corroborating sources.
 
 **The solution:** Split the problem into two passes with a deterministic clustering layer between them:
 
@@ -52,7 +52,7 @@ The system cleanly distinguishes two categories of operations, enforced at the e
 |-------------------------------|--------------------------------|
 | matter-init (hash, classify, copy) | describe_sources (labeling) |
 | non-PDF extraction and PDF diagnostics | OCR-first PDF extraction and repair |
-| local extraction/cache decisions | create_listofdates (chronology) |
+| local extraction/cache decisions | create_case_timeline (chronology) |
 | context_preview (packet build) | configurable skills |
 | context_search (local grep) | skill interview planner |
 | doctor (structure scan) | skill sample generator |
@@ -217,7 +217,7 @@ React production shell
   ├── CommandPanel.tsx               ← command panel and activity strip
   ├── workflows/*.tsx                ← native skill workflow views
   ├── RerunConfirmDialog.tsx         ← paid/replacing artifact guard
-  └── filePreview.ts                 ← file loading + List of Dates preview
+  └── filePreview.ts                 ← file loading + Case Timeline preview
 
 Temporary helper inventory from the retired plain-JS era
   ├── ai-command-box.js              ← facade

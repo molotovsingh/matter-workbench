@@ -102,7 +102,7 @@ function renderListOfDatesRecommendation(stage, escapeHtml) {
       <div class="pipeline-stage-main">
         <div>
           <strong>${escapeHtml(lawyerActionLabel(stage, stage.label || "Create list of dates"))}</strong>
-          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage.slash ? stage : "/create_listofdates"))}</span>
+          <span class="pipeline-stage-label">${escapeHtml(lawyerActionPill(stage.slash ? stage : "/create_case_timeline"))}</span>
         </div>
         <span class="pipeline-state ${stateClass(stage.state)}">Recommended separately</span>
       </div>

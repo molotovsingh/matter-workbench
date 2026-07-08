@@ -108,10 +108,10 @@ test("story status marks Matter Workbench story stale when List of Dates changed
     brief_description: "Existing Matter Workbench story.",
     brief_description_source: { author: "MW", type: "matter_workbench_story" },
   }, null, 2)}\n`);
-  await writeFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(matterRoot, "10_Library", "Case Timeline.md"), "# List of Dates\n");
   await writeFile(path.join(matterRoot, "20_Workshop", "The Story.md"), "# The Story\n");
   await utimes(path.join(matterRoot, "20_Workshop", "The Story.md"), new Date("2026-06-20T09:00:00.000Z"), new Date("2026-06-20T09:00:00.000Z"));
-  await utimes(path.join(matterRoot, "10_Library", "List of Dates.md"), new Date("2026-06-20T10:00:00.000Z"), new Date("2026-06-20T10:00:00.000Z"));
+  await utimes(path.join(matterRoot, "10_Library", "Case Timeline.md"), new Date("2026-06-20T10:00:00.000Z"), new Date("2026-06-20T10:00:00.000Z"));
 
   const service = createMatterStoryService({
     matterStore: { ensureMatterRoot: () => matterRoot },
@@ -179,7 +179,7 @@ test("story description update can build a DB-native matter.json payload", () =>
   assert.equal(nextMatterJson.brief_description, "The dispute concerns delayed possession of the flat.");
   assert.deepEqual(nextMatterJson.intakes, [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }]);
   assert.equal(nextMatterJson.brief_description_source.author, "MW");
-  assert.equal(nextMatterJson.brief_description_source.basis_artifact, "10_Library/List of Dates.md");
+  assert.equal(nextMatterJson.brief_description_source.basis_artifact, "10_Library/Case Timeline.md");
   assert.equal(nextMatterJson.brief_description_source.updated_at, "2026-06-19T00:00:00.000Z");
 });
 
@@ -215,7 +215,7 @@ test("matter story service runs native Story when no configured Story skill exis
       matter: { matter_name: "Native Story Matter" },
       sources: [],
       evidence_blocks: [],
-      library_artifacts: [{ kind: "list_of_dates", path: "10_Library/List of Dates.json", entries: [] }],
+      library_artifacts: [{ kind: "list_of_dates", path: "10_Library/Case Timeline.json", entries: [] }],
       warnings: [],
     },
     stageRecorder: createRecordingStageRecorder(stageEvents),
@@ -226,7 +226,7 @@ test("matter story service runs native Story when no configured Story skill exis
   assert.equal(result.state, "updated");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].skill.slash, DISPUTE_STORY_SKILL_SLASH);
-  assert.equal(calls[0].matterContext.library_artifacts[0].path, "10_Library/List of Dates.json");
+  assert.equal(calls[0].matterContext.library_artifacts[0].path, "10_Library/Case Timeline.json");
   assert.match(markdown, /delayed payment/);
   assert.equal(matterJson.brief_description, "The dispute concerns delayed payment under the supply contract.");
   assert.equal(matterJson.brief_description_source.author, "MW");
@@ -276,7 +276,7 @@ test("matter story service attributes native provider failure to generate stage"
         matter: { matter_name: "Native Story Fail Matter" },
         sources: [],
         evidence_blocks: [],
-        library_artifacts: [{ kind: "list_of_dates", path: "10_Library/List of Dates.json", entries: [] }],
+        library_artifacts: [{ kind: "list_of_dates", path: "10_Library/Case Timeline.json", entries: [] }],
         warnings: [],
       },
       stageRecorder: createRecordingStageRecorder(stageEvents),

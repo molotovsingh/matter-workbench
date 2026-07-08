@@ -400,7 +400,7 @@ async function run() {
       missingReactBuiltins.length > 0 ? `missing: ${missingReactBuiltins.join(", ")}` : `${BUILTIN_SKILL_COMMANDS.length} commands`,
     );
     assert(slashes.has("/describe_sources"), "Source Labels native skill is present");
-    assert(slashes.has("/create_listofdates"), "Case Timeline native skill is present");
+    assert(slashes.has("/create_case_timeline"), "Case Timeline native skill is present");
   } catch (error) {
     fail("Skills API contract", error.message);
   }

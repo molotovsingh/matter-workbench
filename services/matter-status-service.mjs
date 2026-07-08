@@ -1,10 +1,13 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { AI_RUN_STATUS_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
+import { CASE_TIMELINE_SKILL_SLASH, CASE_TIMELINE_STAGE_ID } from "../shared/case-timeline-operation.mjs";
 import { toPosix } from "../shared/safe-paths.mjs";
 import {
   CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
   CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import {
@@ -48,11 +51,11 @@ export function createMatterStatusService({ matterStore, skillRegistryService = 
     const sourceIndex = sourceIndexPresent ? await readJsonIfPossible(sourceIndexPath) : null;
     const sourceRerunAdvice = await describeSourcesRerunAdvice(root);
 
-    const caseTimelineJsonPath = path.join(root, CASE_TIMELINE_JSON_RELATIVE);
-    const caseTimelineMarkdownPath = path.join(root, CASE_TIMELINE_MARKDOWN_RELATIVE);
-    const caseTimelineJsonPresent = await fileExists(caseTimelineJsonPath);
-    const caseTimelineMarkdownPresent = await fileExists(caseTimelineMarkdownPath);
-    const caseTimeline = caseTimelineJsonPresent ? await readJsonIfPossible(caseTimelineJsonPath) : null;
+    const caseTimelineJsonMatch = await firstExistingRelativePath(root, CASE_TIMELINE_JSON_RELATIVE_CANDIDATES);
+    const caseTimelineMarkdownMatch = await firstExistingRelativePath(root, CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES);
+    const caseTimelineJsonPresent = Boolean(caseTimelineJsonMatch);
+    const caseTimelineMarkdownPresent = Boolean(caseTimelineMarkdownMatch);
+    const caseTimeline = caseTimelineJsonMatch ? await readJsonIfPossible(path.join(root, caseTimelineJsonMatch)) : null;
     const caseTimelineRerun = await caseTimelineRerunAdvice(root);
 
     const postureStatus = proceduralPostureDiagnosisService?.readDiagnosisStatus
@@ -93,14 +96,14 @@ export function createMatterStatusService({ matterStore, skillRegistryService = 
         rerunAdvice: sourceRerunAdvice,
       }),
       stage({
-        id: "create-listofdates",
-        slash: "/create_listofdates",
-        display: displayBySlash.get("/create_listofdates"),
-        label: displayBySlash.get("/create_listofdates")?.action || "Build Case Timeline",
+        id: CASE_TIMELINE_STAGE_ID,
+        slash: CASE_TIMELINE_SKILL_SLASH,
+        display: displayBySlash.get(CASE_TIMELINE_SKILL_SLASH),
+        label: displayBySlash.get(CASE_TIMELINE_SKILL_SLASH)?.action || "Build Case Timeline",
         present: caseTimelineMarkdownPresent || caseTimelineJsonPresent,
         artifacts: [
-          ...(caseTimelineMarkdownPresent ? [CASE_TIMELINE_MARKDOWN_RELATIVE] : []),
-          ...(caseTimelineJsonPresent ? [CASE_TIMELINE_JSON_RELATIVE] : []),
+          ...(caseTimelineMarkdownPresent ? [caseTimelineMarkdownMatch || CASE_TIMELINE_MARKDOWN_RELATIVE] : []),
+          ...(caseTimelineJsonPresent ? [caseTimelineJsonMatch || CASE_TIMELINE_JSON_RELATIVE] : []),
         ],
         aiRun: normalizeAiRunMetadata(caseTimeline?.ai_run, { fields: AI_RUN_STATUS_FIELDS }),
         metrics: caseTimelineMetrics(caseTimeline),
@@ -194,6 +197,13 @@ function postureDiagnosisRerunAdvice(status = {}) {
         : status.blockedReasons?.join(" ") || "Case Timeline and Matter Story are required before diagnosis.",
     newestInputAt: status.caseTimelineUpdatedAt || status.matterStoryUpdatedAt || "",
   };
+}
+
+async function firstExistingRelativePath(root, relativePaths = []) {
+  for (const relativePath of relativePaths) {
+    if (await fileExists(path.join(root, relativePath))) return relativePath;
+  }
+  return "";
 }
 
 async function fileExists(filePath) {

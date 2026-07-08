@@ -15,7 +15,7 @@ A skill should say what kind of work it is doing. A central policy layer should 
 Matter Workbench is starting to have two different kinds of AI work:
 
 - Router work, such as deciding whether a proposed skill overlaps with the registry.
-- Lawyer-facing work, such as building a cited list of dates from extraction records.
+- Source-backed legal work, such as building a cited Case Timeline from extraction records.
 
 Those jobs should not automatically use the same model. A router can often be cheap, fast, and low-context. A legal chronology needs stronger reasoning, strict source grounding, and conservative failure behavior.
 
@@ -117,7 +117,7 @@ Example future registry shape:
 
 ```json
 {
-  "slash": "/create_listofdates",
+  "slash": "/create_case_timeline",
   "ai": {
     "task_type": "source_backed_analysis",
     "complexity": "medium",
@@ -196,7 +196,7 @@ The first implementation does not need all tiers. It can start with `router` and
 | --- | --- | --- |
 | `/matter-init` | None | deterministic |
 | `/extract` | None | deterministic |
-| `/create_listofdates` | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `source_backed_analysis` |
+| `/create_case_timeline` | OpenAI direct by default; optional OpenRouter Chat Completions, structured JSON | `source_backed_analysis` |
 | `/describe_sources` | OpenRouter Chat Completions, structured JSON | `source_description` |
 | Matter Copilot | OpenRouter by default for transient answers, with pinged selector presets | `copilot_answer` |
 | Copilot Research | OpenRouter by default for explicit public-source Research answers; web search provider remains separate | `copilot_web_research` |
@@ -223,7 +223,7 @@ Current AI-assisted stage:
 | Stage | Model Posture | Reason |
 | --- | --- | --- |
 | Skill router / overlap check | Cheap, fast router tier is acceptable | The router classifies or checks overlap. It should not receive full matter documents by default. |
-| Skill design interview planner | Quality-first default: `gpt-5.4` when model planning is enabled; deterministic fallback otherwise | It may receive the idea text, safe matter metadata, built-in skill cards, and existing design-brief fields. It must not receive raw documents, extraction blocks, Source Index content, List of Dates content, logs, `.env`, API keys, or chat history. |
+| Skill design interview planner | Quality-first default: `gpt-5.4` when model planning is enabled; deterministic fallback otherwise | It may receive the idea text, safe matter metadata, built-in skill cards, and existing design-brief fields. It must not receive raw documents, extraction blocks, Source Index content, Case Timeline content, logs, `.env`, API keys, or chat history. |
 | Skill sample output | Quality-first default: `gpt-5.4` | It generates a review sample from the bounded matter context after the user chooses a test matter. It must not create a runnable skill, prompt, slash command, or matter artifact. |
 
 ## Quality-First GPT-5.4 Task Map
@@ -242,7 +242,7 @@ Use `gpt-5.4` for work where one weak model answer can bend the product in the w
 | Surgical draft amendments | `gpt-5.4`, explicit draft-amendment policy | Amendment requests act on lawyer-owned text. The model should propose bounded paragraph/section changes with preview/diff semantics, not silently regenerate or overwrite drafts. |
 | Weakness Review, Limitation Review, Evidence Gap Review, Opponent Argument Map, Settlement Risk Matrix | `gpt-5.4` | These are strategic legal-review tasks where nuance matters more than token cost. |
 | Senior Counsel Briefing, Court Synopsis, Legal Notice, Affidavit, Client Update Email | `gpt-5.4` | These are draft or dispatch-adjacent tasks. They need careful tone, legal boundaries, and human review. |
-| `/create_listofdates` lawyer-facing final chronology | Quality-first candidate: `gpt-5.4`; keep observable provider/model metadata | Chronology is core legal work product. If the goal is maximum quality over cost, this belongs in the premium tier, subject to real-matter smoke and raw citation checks. |
+| `/create_case_timeline` neutral Case Timeline | Quality-first candidate: `gpt-5.4`; keep observable provider/model metadata | Chronology is core legal work product. If the goal is maximum quality over cost, this belongs in the premium tier, subject to real-matter smoke and raw citation checks. Legacy `/create_listofdates` remains a compatibility alias only. |
 | `/describe_sources` source labels and second-pass label polish | Strong structured model, but not automatically `gpt-5.4` | This is high-volume descriptor work. A model second pass is preferred before creating heavy lawyer cleanup, but it must not mark labels as lawyer-confirmed. Escalate only if label quality or malformed JSON failures justify it. |
 | Skill router / overlap check | Cheap/fast structured model | It should classify, not decide legal strategy. If uncertain, ask for approval instead of spending premium model budget. |
 | Command rail parsing, status, lane navigation, context preview/search, readiness checks | No model | These are deterministic product controls. |
@@ -296,7 +296,7 @@ Do not add a visible model selector for skill work until these task names are st
 
 Use `.env.example` as the starting point for local configuration. Do not commit real keys.
 
-OpenAI direct remains the default for `/create_listofdates`:
+OpenAI direct remains the default for `/create_case_timeline`:
 
 ```text
 OPENAI_API_KEY=...
@@ -305,7 +305,7 @@ OPENAI_MAX_OUTPUT_TOKENS=3000
 SOURCE_BACKED_ANALYSIS_PROVIDER=openai-direct
 ```
 
-To route `/create_listofdates` through OpenRouter instead, set all of these explicitly:
+To route `/create_case_timeline` through OpenRouter instead, set all of these explicitly:
 
 ```text
 SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
@@ -319,7 +319,7 @@ OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE=
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE=
 ```
 
-The gated two-pass `/create_listofdates` runtime uses separate pass policies so the harvester and editor can be tuned independently:
+The gated two-pass `/create_case_timeline` runtime uses separate pass policies so the harvester and editor can be tuned independently:
 
 ```text
 CREATE_LISTOFDATES_TWO_PASS_ENABLED=0
@@ -362,7 +362,7 @@ OpenRouter chronology requests are still fail-closed:
 - no automatic model fallback
 - raw `FILE-NNNN pX.bY` citations remain canonical
 
-For `/create_listofdates`, use either a pinned provider order or price/latency routing, not both. `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT` accepts `price`, `throughput`, or `latency`. A provider order cannot be combined with `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT`, `OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE`, or `OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE`.
+For `/create_case_timeline`, use either a pinned provider order or price/latency routing, not both. `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT` accepts `price`, `throughput`, or `latency`. A provider order cannot be combined with `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT`, `OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE`, or `OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_COMPLETION_PRICE`.
 
 The current recommended smoke-tested setting is `OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency`. The final merged-path smoke hit OpenRouter `429` twice with `provider.sort=price`, while `provider.sort=latency` succeeded and returned provider `Friendli`.
 
@@ -458,7 +458,7 @@ For this task, which route is primary, which route is allowed as fallback, and w
 5. If fallback changes the expected quality/risk posture, the UI or run report should say so.
 6. If structured JSON, citation preservation, or source-grounding fails after fallback, the run fails closed.
 
-### Two-Pass List of Dates Evidence
+### Two-Pass Case Timeline Evidence
 
 The Atlas two-pass bakeoff showed why fallback needs to consider both model quality and provider reliability.
 
@@ -553,7 +553,7 @@ This is especially important with brokered providers because the returned model 
 Do not add yet:
 
 - visible model chooser for lawyers;
-- silent auto-fallback for `/create_listofdates`;
+- silent auto-fallback for `/create_case_timeline`;
 - multi-provider fallback for all skills;
 - provider fallback that bypasses validation;
 - fallback from a premium legal task to a cheap model merely to save cost.
@@ -636,10 +636,10 @@ Completed:
 1. Added `shared/model-policy.mjs` with current task policies.
 2. Added the provider-adapter boundary for request-ready config and metadata.
 3. Wired `source_description` to OpenRouter with strict JSON schema output.
-4. Wired `/create_listofdates` to keep OpenAI direct as default and opt into OpenRouter only with `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`.
+4. Wired `/create_case_timeline` to keep OpenAI direct as default and opt into OpenRouter only with `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`, while retaining `/create_listofdates` as a legacy alias.
 5. Added artifact metadata so generated outputs record policy version, task, tier, provider, model, token budget, fallback posture, and provider-returned usage when available.
 6. Added `.env.example` coverage for the implemented provider-selection env vars.
-7. Added gated two-pass `/create_listofdates` task policies for `create_listofdates_pass1` and `create_listofdates_pass2`.
+7. Added gated two-pass `/create_case_timeline` task policies for `create_listofdates_pass1` and `create_listofdates_pass2`.
 
 Still not done:
 

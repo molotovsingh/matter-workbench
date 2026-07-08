@@ -387,15 +387,15 @@ test("create-listofdates route runs through the native skill runner", async () =
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
     await postJson(baseUrl, "/api/switch-matter", { name: "Skill Job Matter" });
 
-    const result = await postJson(baseUrl, "/api/create-listofdates", {
+    const result = await postJson(baseUrl, "/api/case-timeline", {
       matterName: "Skill Job Matter",
     });
 
-    assert.equal(result.job.kind, "list_of_dates");
-    assert.equal(result.job.metadata.skill.slash, "/create_listofdates");
+    assert.equal(result.job.kind, "case_timeline");
+    assert.equal(result.job.metadata.skill.slash, "/create_case_timeline");
     assert.deepEqual(result.job.stages.map((stage) => stage.id), ["build_packet", "generate", "validate", "persist"]);
-    assert.equal(result.receipt.slash, "/create_listofdates");
-    assert.equal(result.receipt.outputPaths.markdown, "10_Library/List of Dates.md");
+    assert.equal(result.receipt.slash, "/create_case_timeline");
+    assert.equal(result.receipt.outputPaths.markdown, "10_Library/Case Timeline.md");
   } finally {
     app.server.close();
   }

@@ -16,11 +16,11 @@ test("runtime DB object key policy derives lookup candidates from storage and le
         folderName: "State - Rajesh Mehra",
         matterName: "State/Rajesh Mehra",
       },
-      relativePath: "10_Library/List of Dates.md",
+      relativePath: "10_Library/Case Timeline.md",
     }),
     [
-      "State - Rajesh Mehra/10_Library/List of Dates.md",
-      "State/Rajesh Mehra/10_Library/List of Dates.md",
+      "State - Rajesh Mehra/10_Library/Case Timeline.md",
+      "State/Rajesh Mehra/10_Library/Case Timeline.md",
     ],
   );
 });
@@ -28,18 +28,18 @@ test("runtime DB object key policy derives lookup candidates from storage and le
 test("runtime DB object key policy strips matter prefix and validates stored relative paths", () => {
   assert.equal(
     relativePathFromRuntimeObjectKey(
-      "State - Rajesh Mehra/10_Library/List of Dates.md",
+      "State - Rajesh Mehra/10_Library/Case Timeline.md",
       "State - Rajesh Mehra",
     ),
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.md",
   );
 
   assert.equal(
     validatedRelativePathFromRuntimeObjectKey(
-      "State - Rajesh Mehra/10_Library/List of Dates.md",
+      "State - Rajesh Mehra/10_Library/Case Timeline.md",
       "State - Rajesh Mehra",
     ),
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.md",
   );
 
   assert.throws(

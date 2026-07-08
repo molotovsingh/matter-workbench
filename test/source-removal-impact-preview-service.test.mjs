@@ -35,7 +35,7 @@ function packetFixture() {
       },
       {
         kind: "list_of_dates",
-        path: "10_Library/List of Dates.json",
+        path: "10_Library/Case Timeline.json",
         entries: [
           {
             event: "Chronology event must not appear in preview.",

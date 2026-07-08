@@ -39,8 +39,8 @@ test("React lawyer mode helper filters generated internals but keeps client evid
       path: "10_Library",
       type: "folder",
       children: [
-        { name: "List of Dates.md", path: "10_Library/List of Dates.md", type: "file" },
-        { name: "List of Dates.json", path: "10_Library/List of Dates.json", type: "file" },
+        { name: "Case Timeline.md", path: "10_Library/Case Timeline.md", type: "file" },
+        { name: "Case Timeline.json", path: "10_Library/Case Timeline.json", type: "file" },
         { name: "Source Index.json", path: "10_Library/Source Index.json", type: "file" },
       ],
     },
@@ -56,7 +56,7 @@ test("React lawyer mode helper filters generated internals but keeps client evid
 
   assert.deepEqual(flattenFilePaths(filterWorkspaceFilesForOperatorVisibility(files, true, { username: "lawyer@example.test", role: "tester" })), [
     "10_Library",
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.md",
     "00_Inbox",
     "00_Inbox/Intake 01 - Initial/Originals/client-ledger.csv",
   ]);

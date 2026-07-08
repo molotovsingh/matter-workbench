@@ -109,7 +109,7 @@ test("runtime DB matter context filters inactive register rows from active packe
         },
       ],
     })],
-    ["10_Library/List of Dates.json", JSON.stringify({
+    ["10_Library/Case Timeline.json", JSON.stringify({
       schema_version: "list-of-dates/v1",
       entries: [
         {
@@ -125,7 +125,7 @@ test("runtime DB matter context filters inactive register rows from active packe
         },
       ],
     })],
-    ["10_Library/List of Dates.md", "# List of Dates\n\nRemoved runtime chronology cites FILE-0002 p1.b1.\n"],
+    ["10_Library/Case Timeline.md", "# Case Timeline\n\nRemoved runtime chronology cites FILE-0002 p1.b1.\n"],
   ]);
   const workspace = {
     tree: buildRuntimeWorkspaceTree({
@@ -158,7 +158,7 @@ test("runtime DB matter context filters inactive register rows from active packe
   assert.doesNotMatch(JSON.stringify(packet), /Removed text/);
   assert.match(packet.warnings.join("\n"), /Suppressed FILE-0002 from active source set/);
   assert.match(packet.warnings.join("\n"), /Suppressed 1 Case Timeline entry from active context/);
-  assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/List of Dates\.md: cites suppressed source/);
+  assert.match(packet.warnings.join("\n"), /Skipped 10_Library\/Case Timeline\.md: cites suppressed source/);
 });
 
 test("runtime DB matter context rejects malformed source index payloads", () => {

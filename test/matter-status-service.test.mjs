@@ -21,8 +21,8 @@ test("matter status derives pipeline state from existing artifacts", async () =>
       policyPromptVersion: "legal-workbench-policy/v1",
     },
   })}\n`);
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n");
-  await writeFile(path.join(root, "10_Library", "List of Dates.json"), `${JSON.stringify({
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.json"), `${JSON.stringify({
     counts: {
       entries: 36,
     },
@@ -47,11 +47,11 @@ test("matter status derives pipeline state from existing artifacts", async () =>
     ["/matter-init", "present"],
     ["/extract", "present"],
     ["/describe_sources", "present"],
-    ["/create_listofdates", "present"],
+    ["/create_case_timeline", "present"],
   ]);
   assert.ok(status.stages.find((stage) => stage.slash === "/extract").artifacts.some((artifact) => artifact.includes("_extracted")));
   const sourceStage = status.stages.find((stage) => stage.slash === "/describe_sources");
-  const listStage = status.stages.find((stage) => stage.slash === "/create_listofdates");
+  const listStage = status.stages.find((stage) => stage.slash === "/create_case_timeline");
   assert.equal(sourceStage.aiRun.returnedProvider, "akashml/fp8");
   assert.equal(sourceStage.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
   assert.equal(sourceStage.rerunAdvice.state, "current");
@@ -82,7 +82,7 @@ test("matter status treats missing artifacts as not run", async () => {
     ["/matter-init", "not_run"],
     ["/extract", "not_run"],
     ["/describe_sources", "not_run"],
-    ["/create_listofdates", "not_run"],
+    ["/create_case_timeline", "not_run"],
   ]);
   assert.equal(status.stages.find((stage) => stage.slash === "/matter-init").artifacts.length, 1);
 });
@@ -210,8 +210,8 @@ test("rerun advice confirms current list of dates and skips missing artifacts", 
   await mkdir(path.join(root, "10_Library"), { recursive: true });
   const recordPath = path.join(extractedDir, "FILE-0001.json");
   const sourceIndexPath = path.join(root, "10_Library", "Source Index.json");
-  const listJsonPath = path.join(root, "10_Library", "List of Dates.json");
-  const listMarkdownPath = path.join(root, "10_Library", "List of Dates.md");
+  const listJsonPath = path.join(root, "10_Library", "Case Timeline.json");
+  const listMarkdownPath = path.join(root, "10_Library", "Case Timeline.md");
   await writeFile(recordPath, "{}\n");
   await writeFile(sourceIndexPath, "{}\n");
   await writeFile(listMarkdownPath, "# List of Dates\n");
@@ -238,10 +238,10 @@ test("rerun advice confirms current list of dates and skips missing artifacts", 
     },
   });
 
-  const current = await service.readRerunAdvice("/create_listofdates");
+  const current = await service.readRerunAdvice("/create_case_timeline");
   assert.equal(current.state, "current");
   assert.equal(current.shouldConfirm, true);
-  assert.equal(current.artifactPath, "10_Library/List of Dates.md");
+  assert.equal(current.artifactPath, "10_Library/Case Timeline.md");
   assert.equal(current.provider, "Friendli");
   assert.equal(current.model, "openai/gpt-4.1");
   assert.match(current.message, /No newer extraction records or Source Index changes were found/);
@@ -255,7 +255,7 @@ test("rerun advice confirms current list of dates and skips missing artifacts", 
       listIntakeFolders: async () => [{ name: "Intake 01 - Initial", intakeNumber: 1 }],
     },
   });
-  const missing = await missingService.readRerunAdvice("/create_listofdates");
+  const missing = await missingService.readRerunAdvice("/create_case_timeline");
   assert.equal(missing.state, "missing");
   assert.equal(missing.shouldConfirm, false);
 });
@@ -267,8 +267,8 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
   await mkdir(path.join(root, "10_Library"), { recursive: true });
   const recordPath = path.join(extractedDir, "FILE-0001.json");
   const sourceIndexPath = path.join(root, "10_Library", "Source Index.json");
-  const listJsonPath = path.join(root, "10_Library", "List of Dates.json");
-  const listMarkdownPath = path.join(root, "10_Library", "List of Dates.md");
+  const listJsonPath = path.join(root, "10_Library", "Case Timeline.json");
+  const listMarkdownPath = path.join(root, "10_Library", "Case Timeline.md");
 
   await writeFile(recordPath, "{}\n");
   await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
@@ -310,7 +310,7 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
     },
   });
 
-  const labelRefresh = await service.readRerunAdvice("/create_listofdates");
+  const labelRefresh = await service.readRerunAdvice("/create_case_timeline");
   assert.equal(labelRefresh.state, "stale");
   assert.equal(labelRefresh.shouldConfirm, true);
   assert.equal(labelRefresh.dependencyState, "label_refresh_needed");
@@ -322,7 +322,7 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
     documentType: "pleading",
   }))}\n`);
   await utimes(sourceIndexPath, sourceDate, sourceDate);
-  const review = await service.readRerunAdvice("/create_listofdates");
+  const review = await service.readRerunAdvice("/create_case_timeline");
   assert.equal(review.dependencyState, "chronology_review_needed");
   assert.equal(review.shouldConfirm, false);
 
@@ -332,7 +332,7 @@ test("list of dates rerun advice classifies source-index-only changes", async ()
     documentType: "notice",
   }))}\n`);
   await utimes(sourceIndexPath, sourceDate, sourceDate);
-  const regeneration = await service.readRerunAdvice("/create_listofdates");
+  const regeneration = await service.readRerunAdvice("/create_case_timeline");
   assert.equal(regeneration.dependencyState, "chronology_regeneration_needed");
   assert.equal(regeneration.shouldConfirm, false);
 });
@@ -344,8 +344,8 @@ test("list of dates rerun advice detects source hash changes without relying on 
   await mkdir(path.join(root, "10_Library"), { recursive: true });
   const recordPath = path.join(extractedDir, "FILE-0001.json");
   const sourceIndexPath = path.join(root, "10_Library", "Source Index.json");
-  const listJsonPath = path.join(root, "10_Library", "List of Dates.json");
-  const listMarkdownPath = path.join(root, "10_Library", "List of Dates.md");
+  const listJsonPath = path.join(root, "10_Library", "Case Timeline.json");
+  const listMarkdownPath = path.join(root, "10_Library", "Case Timeline.md");
 
   await writeFile(recordPath, "{}\n");
   await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexFixture({
@@ -379,7 +379,7 @@ test("list of dates rerun advice detects source hash changes without relying on 
     },
   });
 
-  const advice = await service.readRerunAdvice("/create_listofdates");
+  const advice = await service.readRerunAdvice("/create_case_timeline");
   assert.equal(advice.state, "stale");
   assert.equal(advice.shouldConfirm, false);
   assert.equal(advice.dependencyState, "chronology_regeneration_needed");

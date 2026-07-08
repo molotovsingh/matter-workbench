@@ -2,11 +2,11 @@ const DEFAULT_SOURCE_CITATION_RULE = "Every material point must cite source labe
 
 export const ADJACENT_SKILL_PATTERNS = [
   {
-    slash: "/create_listofdates",
+    slash: "/create_case_timeline",
     title: "Build Case Timeline",
     patterns: [/list\s+of\s+dates/i, /chronolog/i, /timeline/i],
     targetLane: "10_Library",
-    outputArtifact: "10_Library/List of Dates.md",
+    outputArtifact: "10_Library/Case Timeline.md",
   },
   {
     slash: "/describe_sources",

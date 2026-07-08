@@ -381,7 +381,7 @@ test("private beta signal firm-internal mode keeps richer monitor context but st
       detail: "The 2023 notice appears in OCR text but not the List of Dates. OPENAI_API_KEY=sk-attention-secret",
       action: "Review the notice and rebuild chronology.",
       evidence: [
-        "10_Library/List of Dates.md - missing 2023 notice",
+        "10_Library/Case Timeline.md - missing 2023 notice",
         "source text: Client says notice was sent on 12 March 2023.",
       ],
     }],
@@ -392,7 +392,7 @@ test("private beta signal firm-internal mode keeps richer monitor context but st
   assert.match(attention.signals[0].details.detail, /The 2023 notice appears/);
   assert.match(attention.signals[0].details.detail, /OPENAI_API_KEY=\[redacted-secret\]/);
   assert.deepEqual(attention.signals[0].details.evidence, [
-    "10_Library/List of Dates.md - missing 2023 notice",
+    "10_Library/Case Timeline.md - missing 2023 notice",
     "source text: Client says notice was sent on 12 March 2023.",
   ]);
 

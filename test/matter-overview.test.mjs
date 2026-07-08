@@ -40,10 +40,10 @@ test("matter overview renders read-only pipeline status", () => {
         },
       },
       {
-        slash: "/create_listofdates",
+        slash: "/create_case_timeline",
         label: "Build Case Timeline",
         present: true,
-        artifacts: ["10_Library/List of Dates.md"],
+        artifacts: ["10_Library/Case Timeline.md"],
         metrics: {
           rows: 36,
         },
@@ -55,7 +55,7 @@ test("matter overview renders read-only pipeline status", () => {
         rerunAdvice: {
           state: "current",
           shouldConfirm: true,
-          artifactPath: "10_Library/List of Dates.md",
+          artifactPath: "10_Library/Case Timeline.md",
           lastRunAt: "2026-05-11T14:16:00.000Z",
           provider: "Friendli",
           model: "openai/gpt-4.1",
@@ -80,7 +80,7 @@ test("matter overview renders read-only pipeline status", () => {
   assert.match(html, /pipeline-rerun-hint stale/);
   assert.doesNotMatch(html, />Stale</);
   assert.match(html, /Review the existing output document, then regenerate deliberately/);
-  assert.match(html, /10_Library\/List of Dates\.md/);
+  assert.match(html, /10_Library\/Case Timeline\.md/);
   assert.match(html, /Friendli/);
   assert.match(html, /openai\/gpt-4\.1/);
   assert.match(html, /app will ask before replacing it/);
@@ -91,10 +91,10 @@ test("matter overview explains label refresh without implying AI regeneration is
   const html = renderMatterPipelineStatus({
     stages: [
       {
-        slash: "/create_listofdates",
+        slash: "/create_case_timeline",
         label: "Build Case Timeline",
         present: true,
-        artifacts: ["10_Library/List of Dates.md"],
+        artifacts: ["10_Library/Case Timeline.md"],
         rerunAdvice: {
           state: "stale",
           shouldConfirm: true,

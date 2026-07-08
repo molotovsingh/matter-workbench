@@ -36,8 +36,8 @@ function registryFixture() {
         upstream: ["/matter-init"],
       },
       {
-        id: "create_listofdates",
-        slash: "/create_listofdates",
+        id: "create_case_timeline",
+        slash: "/create_case_timeline",
         title: "Build Case Timeline",
         product_surface: "native_legal",
         purpose: "Build a neutral cited Case Timeline.",
@@ -46,9 +46,9 @@ function registryFixture() {
         paid_provider_call: true,
         rerun_guarded: true,
         default_lane: "10_Library",
-        runner_key: "/create_listofdates",
+        runner_key: "/create_case_timeline",
         inputs: ["extraction-record/v1"],
-        outputs: ["10_Library/List of Dates.md", "10_Library/List of Dates.json"],
+        outputs: ["10_Library/Case Timeline.md", "10_Library/Case Timeline.json"],
         upstream: ["/extract"],
       },
     ],
@@ -65,9 +65,9 @@ test("skills page renders built-in skill governance metadata and matter artifact
         artifacts: ["00_Inbox/Intake 01 - Initial/_extracted (10 records)"],
       },
       {
-        slash: "/create_listofdates",
+        slash: "/create_case_timeline",
         present: true,
-        artifacts: ["10_Library/List of Dates.md"],
+        artifacts: ["10_Library/Case Timeline.md"],
         aiRun: {
           provider: "openrouter",
           returnedProvider: "Friendli",
@@ -92,9 +92,9 @@ test("skills page renders built-in skill governance metadata and matter artifact
           artifacts: ["00_Inbox/Intake 01 - Initial/_extracted (10 records)"],
         },
         {
-          slash: "/create_listofdates",
+          slash: "/create_case_timeline",
           present: true,
-          artifacts: ["10_Library/List of Dates.md"],
+          artifacts: ["10_Library/Case Timeline.md"],
           aiRun: {
             returnedProvider: "Friendli",
             model: "openai/gpt-4.1",
@@ -220,7 +220,7 @@ test("skills page renders built-in skill governance metadata and matter artifact
   assert.match(html, /Setup and readiness/);
   assert.match(html, /Only the latest approved version is shown as runnable/);
   assert.match(html, /\/extract/);
-  assert.match(html, /\/create_listofdates/);
+  assert.match(html, /\/create_case_timeline/);
   assert.doesNotMatch(html, /Create draft skill|Activate draft|API_KEY|\.env|Generate prompt/);
 });
 
@@ -746,7 +746,7 @@ test("legacy skill activity views consume backend receipts without local derivat
 test("skill idea implementation brief classifies client-update email as a new skill", () => {
   const packet = formatSkillIdeaImplementationBrief({
     id: "idea_client_email",
-    text: "new skill: draft a warm client update email after reading List of Dates",
+    text: "new skill: draft a warm client update email after reading Case Timeline",
     status: "ready_for_review",
     matter: {
       matterName: "Ayesha vs Japan Airlines",
@@ -754,8 +754,8 @@ test("skill idea implementation brief classifies client-update email as a new sk
     },
     designBrief: {
       intendedUser: "Lawyer preparing client communication",
-      problem: "Draft a warm client update email after reading List of Dates.",
-      expectedInputs: "10_Library/List of Dates.md, Source Index, matter metadata.",
+      problem: "Draft a warm client update email after reading Case Timeline.",
+      expectedInputs: "10_Library/Case Timeline.md, Source Index, matter metadata.",
       expectedOutputArtifact: "30_Drafts/Client Update Email.md",
       targetLane: "30_Drafts",
       paidPosture: "paid",
@@ -776,7 +776,7 @@ test("skill idea implementation brief classifies client-update email as a new sk
   assert.match(packet, /A client-update idea is classified as a new skill, not a Case Timeline modification/);
   assert.match(packet, /## Non-Goals/);
   assert.match(packet, /Do not send email/);
-  assert.doesNotMatch(packet, /Target existing skill: \/create_listofdates/);
+  assert.doesNotMatch(packet, /Target existing skill: \/create_case_timeline/);
   assert.doesNotMatch(packet, /API_KEY|OPENAI_API_KEY|MISTRAL_API_KEY|\.env|BEGIN EXTRACTION RECORD|raw document text/i);
 });
 
@@ -830,24 +830,24 @@ test("skill idea implementation brief keeps party and officer mapping as a new s
   assert.match(packet, /Every formal name, officer, alias, role, and relationship must cite readable source labels plus raw FILE-NNNN pX\.bY citations/);
   assert.match(packet, /A party\/officer-name idea is classified as a new skill, not a Case Timeline modification/);
   assert.doesNotMatch(packet, /Proposal type: Improve existing skill/);
-  assert.doesNotMatch(packet, /Target existing skill: \/create_listofdates/);
+  assert.doesNotMatch(packet, /Target existing skill: \/create_case_timeline/);
 });
 
 test("skill idea implementation brief classifies limitation flags as a list-of-dates modification", () => {
   const packet = formatSkillIdeaImplementationBrief({
     id: "idea_lod_limitation",
-    text: "modify skill: make List of Dates also flag limitation issues",
+    text: "modify skill: make Case Timeline also flag limitation issues",
     status: "ready_for_review",
     designBrief: {
       intendedUser: "Litigation associate",
-      problem: "Make List of Dates also flag limitation issues.",
+      problem: "Make Case Timeline also flag limitation issues.",
       expectedInputs: "Existing Build Case Timeline inputs and current source-backed chronology.",
-      expectedOutputArtifact: "10_Library/List of Dates.md",
+      expectedOutputArtifact: "10_Library/Case Timeline.md",
       targetLane: "10_Library",
       paidPosture: "paid",
       riskLevel: "high",
       notes: [
-        "Target skill: /create_listofdates.",
+        "Target skill: /create_case_timeline.",
         "What should change: add limitation flags.",
         "What must stay unchanged: preserve raw citations and readable source labels.",
       ].join("\n"),
@@ -855,7 +855,7 @@ test("skill idea implementation brief classifies limitation flags as a list-of-d
   }, registryFixture());
 
   assert.match(packet, /- Proposal type: Improve existing skill/);
-  assert.match(packet, /- Target existing skill: \/create_listofdates/);
+  assert.match(packet, /- Target existing skill: \/create_case_timeline/);
   assert.match(packet, /### What Should Change/);
   assert.match(packet, /Add limitation-aware review signals/);
   assert.match(packet, /### What Must Stay Unchanged/);
@@ -884,12 +884,12 @@ test("skill idea review packet includes governance fields without source text or
       intendedUser: "Litigation associate",
       problem: "Explore whether Build Case Timeline should flag limitation issues.",
       expectedInputs: "Existing Build Case Timeline inputs and source-backed matter files.",
-      expectedOutputArtifact: "10_Library/List of Dates.md",
+      expectedOutputArtifact: "10_Library/Case Timeline.md",
       targetLane: "10_Library",
       paidPosture: "unknown",
       riskLevel: "medium",
       notes: [
-        "Target skill: /create_listofdates. Not runnable yet.",
+        "Target skill: /create_case_timeline. Not runnable yet.",
         "Interview answers:",
         "- What should change?: Add limitation flags.",
         "- What must stay unchanged?: Preserve raw citations.",
@@ -917,15 +917,15 @@ test("skill idea review packet includes governance fields without source text or
   assert.match(packet, /- Idea id: idea_test_1/);
   assert.match(packet, /- Status: Ready for review/);
   assert.match(packet, /- Checklist: Complete/);
-  assert.match(packet, /- Suggested classification: modification candidate \(\/create_listofdates\)/);
+  assert.match(packet, /- Suggested classification: modification candidate \(\/create_case_timeline\)/);
   assert.match(packet, /- Matter: Mehta vs Skyline/);
   assert.match(packet, /- Matter folder: Mehta vs Skyline/);
   assert.match(packet, /## Original User Text/);
   assert.match(packet, /can list of dates also flag limitation issues/);
   assert.match(packet, /- Target matter area: 10_Library/);
-  assert.match(packet, /- Expected output document: 10_Library\/List of Dates\.md/);
+  assert.match(packet, /- Expected output document: 10_Library\/Case Timeline\.md/);
   assert.match(packet, /- Risk level: medium/);
-  assert.match(packet, /Target skill: \/create_listofdates/);
+  assert.match(packet, /Target skill: \/create_case_timeline/);
   assert.match(packet, /- \[x\] Intended user present/);
   assert.match(packet, /Confirm whether this should be free\/local or paid\/provider-backed/);
   assert.match(packet, /This is not yet a usable skill\. It has not been created, checked, or activated\./);
@@ -945,7 +945,7 @@ test("skill idea review packet does not treat background mentions as modificatio
       targetLane: "20_Workshop",
       paidPosture: "unknown",
       riskLevel: "medium",
-      notes: "Use List of Dates as optional background context, but create a separate review document.",
+      notes: "Use Case Timeline as optional background context, but create a separate review document.",
     },
   }, registryFixture());
 

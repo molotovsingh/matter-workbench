@@ -92,7 +92,7 @@ test("prepare matter plan skips setup and asks before paid source labeling", asy
     ["/matter-init", "current", "skip_current"],
     ["/extract", "current", "skip_current"],
     ["/describe_sources", "missing", "confirm_paid_run"],
-    ["/create_listofdates", "blocked", "blocked"],
+    ["/create_case_timeline", "blocked", "blocked"],
   ]);
   assert.equal(plan.nextStep.slash, "/describe_sources");
   assert.match(plan.nextStep.message, /confirm paid source labeling/i);
@@ -118,7 +118,7 @@ test("prepare matter plan blocks source labeling when extraction has no usable r
     ["/matter-init", "current", "skip_current"],
     ["/extract", "blocked", "blocked"],
     ["/describe_sources", "blocked", "blocked"],
-    ["/create_listofdates", "blocked", "blocked"],
+    ["/create_case_timeline", "blocked", "blocked"],
   ]);
   assert.equal(plan.nextStep.slash, "/extract");
   assert.match(plan.nextStep.message, /no usable extraction records/i);
@@ -160,9 +160,9 @@ test("prepare matter plan treats missing Case Timeline as a preparation stage", 
     ["/matter-init", "skip_current"],
     ["/extract", "skip_current"],
     ["/describe_sources", "skip_current"],
-    ["/create_listofdates", "confirm_paid_run"],
+    ["/create_case_timeline", "confirm_paid_run"],
   ]);
-  assert.equal(plan.nextStep.slash, "/create_listofdates");
+  assert.equal(plan.nextStep.slash, "/create_case_timeline");
   assert.equal(plan.downstream.listOfDates.action, "confirm_paid_run");
   assert.match(plan.downstream.listOfDates.reason, /Case Timeline is missing/i);
 });
@@ -183,8 +183,8 @@ test("prepare matter plan places dispute story after current List of Dates when 
   await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
   await writeFile(path.join(extractedDir, "FILE-0001.json"), "{}\n");
   await writeFile(path.join(libraryDir, "Source Index.json"), "{}\n");
-  await writeFile(path.join(libraryDir, "List of Dates.md"), "# List of Dates\n");
-  await writeFile(path.join(libraryDir, "List of Dates.json"), JSON.stringify({
+  await writeFile(path.join(libraryDir, "Case Timeline.md"), "# List of Dates\n");
+  await writeFile(path.join(libraryDir, "Case Timeline.json"), JSON.stringify({
     schema_version: "list-of-dates/v1",
     entries: [],
   }));
@@ -195,7 +195,7 @@ test("prepare matter plan places dispute story after current List of Dates when 
     ["/matter-init", "skip_current"],
     ["/extract", "skip_current"],
     ["/describe_sources", "skip_current"],
-    ["/create_listofdates", "skip_current"],
+    ["/create_case_timeline", "skip_current"],
     ["/the_story", "confirm_paid_run"],
   ]);
   assert.equal(plan.nextStep.slash, "/the_story");
@@ -220,8 +220,8 @@ test("prepare matter plan refreshes dispute story when List of Dates changed aft
   await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
   await writeFile(path.join(extractedDir, "FILE-0001.json"), "{}\n");
   await writeFile(path.join(libraryDir, "Source Index.json"), "{}\n");
-  await writeFile(path.join(libraryDir, "List of Dates.md"), "# List of Dates\n");
-  await writeFile(path.join(libraryDir, "List of Dates.json"), JSON.stringify({ schema_version: "list-of-dates/v1", entries: [] }));
+  await writeFile(path.join(libraryDir, "Case Timeline.md"), "# List of Dates\n");
+  await writeFile(path.join(libraryDir, "Case Timeline.json"), JSON.stringify({ schema_version: "list-of-dates/v1", entries: [] }));
   await mkdir(path.join(root, "20_Workshop"), { recursive: true });
   await writeFile(path.join(root, "20_Workshop", "The Story.md"), "# The Story\n");
 
@@ -263,8 +263,8 @@ test("prepare matter plan places procedural posture diagnosis after current Matt
   await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
   await writeFile(path.join(extractedDir, "FILE-0001.json"), "{}\n");
   await writeFile(path.join(libraryDir, "Source Index.json"), "{}\n");
-  await writeFile(path.join(libraryDir, "List of Dates.md"), "# Case Timeline\n");
-  await writeFile(path.join(libraryDir, "List of Dates.json"), JSON.stringify({ schema_version: "list-of-dates/v1", entries: [] }));
+  await writeFile(path.join(libraryDir, "Case Timeline.md"), "# Case Timeline\n");
+  await writeFile(path.join(libraryDir, "Case Timeline.json"), JSON.stringify({ schema_version: "list-of-dates/v1", entries: [] }));
 
   const plan = await createPrepareMatterService({
     matterStore: createStore(root),
@@ -293,7 +293,7 @@ test("prepare matter plan places procedural posture diagnosis after current Matt
     ["/matter-init", "skip_current"],
     ["/extract", "skip_current"],
     ["/describe_sources", "skip_current"],
-    ["/create_listofdates", "skip_current"],
+    ["/create_case_timeline", "skip_current"],
     ["/the_story", "skip_current"],
     ["/procedural_posture_diagnosis", "confirm_paid_run"],
   ]);
@@ -318,8 +318,8 @@ test("prepare matter plan does not treat a raw intake description as completed d
   await writeFile(path.join(root, "00_Inbox", "Intake 01 - Initial", "File Register.csv"), "file_id\nFILE-0001\n");
   await writeFile(path.join(extractedDir, "FILE-0001.json"), "{}\n");
   await writeFile(path.join(libraryDir, "Source Index.json"), "{}\n");
-  await writeFile(path.join(libraryDir, "List of Dates.md"), "# List of Dates\n");
-  await writeFile(path.join(libraryDir, "List of Dates.json"), JSON.stringify({
+  await writeFile(path.join(libraryDir, "Case Timeline.md"), "# List of Dates\n");
+  await writeFile(path.join(libraryDir, "Case Timeline.json"), JSON.stringify({
     schema_version: "list-of-dates/v1",
     entries: [],
   }));
@@ -330,7 +330,7 @@ test("prepare matter plan does not treat a raw intake description as completed d
     ["/matter-init", "skip_current"],
     ["/extract", "skip_current"],
     ["/describe_sources", "skip_current"],
-    ["/create_listofdates", "skip_current"],
+    ["/create_case_timeline", "skip_current"],
     ["/the_story", "confirm_paid_run"],
   ]);
   assert.equal(plan.nextStep.slash, "/the_story");

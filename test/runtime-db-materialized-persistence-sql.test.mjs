@@ -20,7 +20,7 @@ test("runtime DB materialized persistence SQL builds custody, artifact, extracti
   const rows = materializedRowsForFiles({
     matter,
     files: [
-      file("10_Library/List of Dates.md", "# dates", "matter_artifact", "text/markdown"),
+      file("10_Library/Case Timeline.md", "# dates", "matter_artifact", "text/markdown"),
       file("00_Inbox/Intake 01/_extracted/FILE-0001.json", JSON.stringify({ file_id: "FILE-0001" }), "extraction_payload", "application/json"),
       file("10_Library/Source Index.json", JSON.stringify({
         sources: [{
@@ -35,11 +35,11 @@ test("runtime DB materialized persistence SQL builds custody, artifact, extracti
   });
 
   assert.deepEqual(summarizeMaterializedRows(rows).map((row) => row.relativePath), [
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.md",
     "00_Inbox/Intake 01/_extracted/FILE-0001.json",
     "10_Library/Source Index.json",
   ]);
-  assert.equal(rows[0].objectKey, "DB Matter/10_Library/List of Dates.md");
+  assert.equal(rows[0].objectKey, "DB Matter/10_Library/Case Timeline.md");
   assert.equal(rows[0].payloadHex, Buffer.from("# dates").toString("hex"));
 
   const sql = buildMaterializedFilePersistenceSql({ tenantId, matter, rows });

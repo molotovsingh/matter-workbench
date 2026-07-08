@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { isCaseTimelineArtifactPath } from "../shared/matter-artifacts.mjs";
 import { getWorkspaceRawContentType } from "../shared/workspace-preview-policy.mjs";
 import { normalizeRuntimeObjectKey } from "./runtime-db-object-key-policy.mjs";
 
@@ -23,7 +24,7 @@ export function runtimeArtifactMetadataForRow(row = {}) {
   if (relativePath === "10_Library/Source Index.json") {
     return { family: "source_index", mode: "default", profileKey: "default", format };
   }
-  if (relativePath === "10_Library/List of Dates.md" || relativePath === "10_Library/List of Dates.json" || relativePath === "10_Library/List of Dates.csv") {
+  if (isCaseTimelineArtifactPath(relativePath)) {
     return { family: "list_of_dates", mode: "default", profileKey: "default", format };
   }
   if (/^30_Drafts\//i.test(relativePath)) {

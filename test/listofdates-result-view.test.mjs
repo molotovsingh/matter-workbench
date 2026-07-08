@@ -17,9 +17,9 @@ test("list-of-dates result view renders lawyer-facing chronology columns", () =>
       rejectedEntries: 1,
     },
     outputPaths: {
-      json: "10_Library/List of Dates.json",
-      csv: "10_Library/List of Dates.csv",
-      markdown: "10_Library/List of Dates.md",
+      json: "10_Library/Case Timeline.json",
+      csv: "10_Library/Case Timeline.csv",
+      markdown: "10_Library/Case Timeline.md",
     },
     entries: [
       {
@@ -57,7 +57,7 @@ test("list-of-dates result view renders lawyer-facing chronology columns", () =>
   assert.match(html, /Download Markdown/);
   assert.match(html, /Download CSV/);
   assert.match(html, /data-listofdates-copy-markdown/);
-  assert.match(html, /\/api\/file-raw\?path=10_Library%2FList%20of%20Dates\.md/);
-  assert.match(html, /\/api\/file-raw\?path=10_Library%2FList%20of%20Dates\.csv/);
+  assert.match(html, /\/api\/file-raw\?path=10_Library%2FCase%20Timeline\.md/);
+  assert.match(html, /\/api\/file-raw\?path=10_Library%2FCase%20Timeline\.csv/);
   assert.doesNotMatch(html, /<th>Confidence<\/th>/);
 });

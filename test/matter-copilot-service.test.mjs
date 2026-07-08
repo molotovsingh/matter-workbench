@@ -462,7 +462,7 @@ async function makeMatterRoot({ extraChronologyEntries = 0 } = {}) {
   }
 
   await writeFile(
-    path.join(root, "10_Library", "List of Dates.json"),
+    path.join(root, "10_Library", "Case Timeline.json"),
     `${JSON.stringify({
       schema_version: "list-of-dates/v1",
       generated_at: "2026-05-20T09:30:00.000Z",
@@ -470,7 +470,7 @@ async function makeMatterRoot({ extraChronologyEntries = 0 } = {}) {
     }, null, 2)}\n`,
   );
   await writeFile(
-    path.join(root, "10_Library", "List of Dates.md"),
+    path.join(root, "10_Library", "Case Timeline.md"),
     "# List of Dates\n\n| Date | Event | Legal Relevance | Source |\n|---|---|---|---|\n| 21 January 2013 | Consumer complaint was filed. | Starts the lis before the consumer forum. | Complaint filing record |\n",
   );
   return root;

@@ -894,7 +894,7 @@ function preparationStepIdForStage(stage: PreparationStage): string {
   if (stage.slash === '/matter-init') return 'matter-init';
   if (stage.slash === '/extract') return 'extract';
   if (stage.slash === '/describe_sources') return 'describe-sources';
-  if (stage.slash === '/create_listofdates') return 'create-listofdates';
+  if (stage.slash === '/create_case_timeline') return 'case-timeline';
   if (stage.slash === '/the_story') return 'dispute-story';
   if (stage.slash === '/procedural_posture_diagnosis') return 'procedural-posture-diagnosis';
   return stage.id || '';

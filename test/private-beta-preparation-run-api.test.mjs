@@ -45,7 +45,7 @@ test("private beta preparation run API records one run envelope with stage evide
       runId,
       matterName: "Taori vs Roma Builder",
       mode: "full",
-      stages: ["matter-init", "extract", "describe-sources", "create-listofdates"],
+      stages: ["matter-init", "extract", "describe-sources", "case-timeline"],
     });
     assert.equal(started.job.id, runId);
     assert.equal(started.job.kind, "preparation_run");
@@ -68,7 +68,7 @@ test("private beta preparation run API records one run envelope with stage evide
         { id: "matter-init", status: "succeeded" },
         { id: "extract", status: "succeeded", durationMs: 1800 },
         { id: "describe-sources", status: "succeeded" },
-        { id: "create-listofdates", status: "succeeded" },
+        { id: "case-timeline", status: "succeeded" },
       ],
     });
     assert.equal(finished.job.status, "succeeded");
@@ -81,7 +81,7 @@ test("private beta preparation run API records one run envelope with stage evide
       "matter-init",
       "extract",
       "describe-sources",
-      "create-listofdates",
+      "case-timeline",
     ]);
   } finally {
     app.server.close();

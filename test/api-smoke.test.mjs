@@ -140,11 +140,11 @@ test("server API smoke test keeps public routes stable", async () => {
         : {
             decision: "modify_existing_skill",
             recommended_action: "modify_existing_skill",
-            matched_skill: "/create_listofdates",
+            matched_skill: "/create_case_timeline",
             confidence: 0.92,
-            reason: "The request overlaps with /create_listofdates.",
+            reason: "The request overlaps with /create_case_timeline.",
             user_gate_required: false,
-            suggested_next_action: "Ask for approval to modify /create_listofdates.",
+            suggested_next_action: "Ask for approval to modify /create_case_timeline.",
             mece_violation: true,
             legal_setting: {
               jurisdiction: "",
@@ -251,7 +251,7 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(sourceDescriptors.outputPaths.json, "10_Library/Source Index.json");
     assert.equal(sourceDescriptors.sources[0].file_id, "FILE-0001");
     assert.equal(sourceDescriptors.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
-    const listOfDates = await postJson(baseUrl, "/api/create-listofdates", { dryRun: false });
+    const listOfDates = await postJson(baseUrl, "/api/case-timeline", { dryRun: false });
     assert.equal(listOfDates.counts.entries, 1);
     assert.equal(listOfDates.entries[0].citation, "FILE-0001 p1.b1");
     assert.equal(listOfDates.aiRun.policyPromptVersion, "legal-workbench-policy/v1");
@@ -260,7 +260,7 @@ test("server API smoke test keeps public routes stable", async () => {
       ["/matter-init", "present"],
       ["/extract", "present"],
       ["/describe_sources", "present"],
-      ["/create_listofdates", "present"],
+      ["/create_case_timeline", "present"],
       ["/procedural_posture_diagnosis", "not_run"],
     ]);
     const prepareMatter = await getJson(baseUrl, "/api/prepare-matter");
@@ -269,7 +269,7 @@ test("server API smoke test keeps public routes stable", async () => {
       ["/matter-init", "skip_current"],
       ["/extract", "skip_current"],
       ["/describe_sources", "skip_current"],
-      ["/create_listofdates", "skip_current"],
+      ["/create_case_timeline", "skip_current"],
       ["/the_story", "confirm_paid_run"],
       ["/procedural_posture_diagnosis", "blocked"],
     ]);
@@ -279,9 +279,9 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(sourceRerunAdvice.shouldConfirm, true);
     assert.equal(sourceRerunAdvice.artifactPath, "10_Library/Source Index.json");
     assert.equal(sourceRerunAdvice.policyPromptVersion, "legal-workbench-policy/v1");
-    const listRerunAdvice = await getJson(baseUrl, `/api/rerun-advice?skill=${encodeURIComponent("/create_listofdates")}`);
+    const listRerunAdvice = await getJson(baseUrl, `/api/rerun-advice?skill=${encodeURIComponent("/create_case_timeline")}`);
     assert.equal(listRerunAdvice.shouldConfirm, true);
-    assert.equal(listRerunAdvice.artifactPath, "10_Library/List of Dates.md");
+    assert.equal(listRerunAdvice.artifactPath, "10_Library/Case Timeline.md");
     assert.equal(listRerunAdvice.policyPromptVersion, "legal-workbench-policy/v1");
     const skills = await getJson(baseUrl, "/api/skills");
     assert.equal(skills.schema_version, "skill-registry/v1");
@@ -291,11 +291,11 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.ok(skills.skills.some((skill) => skill.slash === "/context_preview"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/context_search"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/prepare_matter"));
-    assert.ok(skills.skills.some((skill) => skill.slash === "/create_listofdates"));
+    assert.ok(skills.skills.some((skill) => skill.slash === "/create_case_timeline"));
     assert.ok(skills.skills.some((skill) => skill.slash === "/describe_sources"));
     assert.equal(
-      skills.skills.find((skill) => skill.slash === "/create_listofdates").runner_key,
-      "/create_listofdates",
+      skills.skills.find((skill) => skill.slash === "/create_case_timeline").runner_key,
+      "/create_case_timeline",
     );
     const initialIdeas = await getJson(baseUrl, "/api/skill-ideas");
     assert.equal(initialIdeas.schema_version, "skill-ideas/v1");
@@ -521,7 +521,7 @@ test("server API smoke test keeps public routes stable", async () => {
     sourceIndexJson.sources[0].label_status = "confirmed";
     sourceIndexJson.sources[0].label_revision = 2;
     await writeFile(sourceIndexPath, `${JSON.stringify(sourceIndexJson, null, 2)}\n`);
-    const refreshedListOfDates = await postJson(baseUrl, "/api/create-listofdates/refresh-labels", { dryRun: false });
+    const refreshedListOfDates = await postJson(baseUrl, "/api/case-timeline/refresh-labels", { dryRun: false });
     assert.equal(refreshedListOfDates.refreshMode, "label_refresh");
     assert.equal(refreshedListOfDates.counts.aiRequests, 0);
     assert.equal(refreshedListOfDates.entries[0].source_label, "Confirmed smoke matter source");
@@ -529,14 +529,14 @@ test("server API smoke test keeps public routes stable", async () => {
       userRequest: "Create a new list of dates skill",
     });
     assert.equal(skillIntent.decision, "needs_user_approval");
-    assert.equal(skillIntent.matched_skill, "/create_listofdates");
+    assert.equal(skillIntent.matched_skill, "/create_case_timeline");
     const duplicateChronologyIdea = await postJson(baseUrl, "/api/skill-ideas", {
       text: "new skill: create another chronology from extraction records",
       designBrief: {
         intendedUser: "Litigation team",
         problem: "Create a cited case chronology from extraction records.",
         expectedInputs: "Extraction records and Source Index.",
-        expectedOutputArtifact: "10_Library/List of Dates.md",
+        expectedOutputArtifact: "10_Library/Case Timeline.md",
         targetLane: "10_Library",
         paidPosture: "paid",
         riskLevel: "medium",
@@ -557,7 +557,7 @@ test("server API smoke test keeps public routes stable", async () => {
     });
     const duplicateCreatePayload = await duplicateCreateResponse.json();
     assert.equal(duplicateCreateResponse.status, 409);
-    assert.match(duplicateCreatePayload.error, /This may already be covered by \/create_listofdates/);
+    assert.match(duplicateCreatePayload.error, /This may already be covered by \/create_case_timeline/);
     assert.match(duplicateCreatePayload.error, /separate custom skill/);
     const commandInteraction = await postJson(baseUrl, "/api/command-interactions", {
       typed_input: "Create a new list of dates skill",
@@ -567,7 +567,7 @@ test("server API smoke test keeps public routes stable", async () => {
       matterName: "Inactive Legacy Matter",
       provider_run_invoked: true,
       router_decision: skillIntent,
-      terminal_lines: ["[ai-command] needs_user_approval -> /create_listofdates"],
+      terminal_lines: ["[ai-command] needs_user_approval -> /create_case_timeline"],
       apiKey: "sk-should-not-be-logged",
       copiedReviewPacket: "full copied packet should not be persisted",
     });
@@ -578,7 +578,7 @@ test("server API smoke test keeps public routes stable", async () => {
     assert.equal(commandLogRecord.matter.matter_name, "Inactive Legacy Matter");
     assert.equal(commandLogRecord.matter.folder_name, "Inactive Legacy Matter");
     assert.equal(commandLogRecord.matched_command, "router/check");
-    assert.equal(commandLogRecord.router_decision.matched_skill, "/create_listofdates");
+    assert.equal(commandLogRecord.router_decision.matched_skill, "/create_case_timeline");
     assert.equal(commandLogRecord.provider_run_invoked, true);
     assert.doesNotMatch(commandLog, /sk-should-not-be-logged|full copied packet/);
     const doctor = await postJson(baseUrl, "/api/doctor/scan");
@@ -700,7 +700,7 @@ test("create-listofdates API route uses OpenRouter-specific config when selected
     const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
     assert.equal(extract.counts.extracted, 1);
 
-    const listOfDates = await postJson(baseUrl, "/api/create-listofdates", {
+    const listOfDates = await postJson(baseUrl, "/api/case-timeline", {
       dryRun: false,
       model: "openai-body-model-should-not-be-used",
     });
@@ -810,7 +810,7 @@ test("create-listofdates API route ignores request-body model overrides", async 
     const extract = await postJson(baseUrl, "/api/extract", { dryRun: false });
     assert.equal(extract.counts.extracted, 1);
 
-    const listOfDates = await postJson(baseUrl, "/api/create-listofdates", {
+    const listOfDates = await postJson(baseUrl, "/api/case-timeline", {
       dryRun: false,
       model: "request-body-model-should-not-be-used",
     });

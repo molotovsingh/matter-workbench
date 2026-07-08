@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { createJobStatusService } from "../services/job-status-service.mjs";
 import { createSkillRunnerService } from "../services/skill-runner-service.mjs";
-import { createListOfDatesRunner } from "../skills/builtins/create_listofdates/runner.mjs";
+import { createListOfDatesRunner } from "../skills/builtins/create_case_timeline/runner.mjs";
 import {
   listOfDatesEntry,
   prepareExtractedMatter,
@@ -31,19 +31,19 @@ test("List of Dates runner records native skill stages and durable output receip
   });
 
   const run = await runnerService.start({
-    slash: "/create_listofdates",
+    slash: "/create_case_timeline",
     request: { matterName: "Mehta vs Skyline", matterRoot },
     mode: "inline",
   });
 
   assert.equal(run.job.status, "succeeded");
-  assert.equal(run.job.kind, "list_of_dates");
-  assert.equal(run.job.metadata.skill.slash, "/create_listofdates");
+  assert.equal(run.job.kind, "case_timeline");
+  assert.equal(run.job.metadata.skill.slash, "/create_case_timeline");
   assert.equal(run.job.metadata.skill.stageRetrySupported, false);
   assert.deepEqual(run.job.stages.map((stage) => stage.id), ["build_packet", "generate", "validate", "persist"]);
   assert.equal(run.job.stages[1].status, "succeeded");
   assert.equal(run.job.stages[1].salvageable, true);
-  assert.equal(run.receipt.slash, "/create_listofdates");
-  assert.equal(run.receipt.outputPaths.markdown, "10_Library/List of Dates.md");
+  assert.equal(run.receipt.slash, "/create_case_timeline");
+  assert.equal(run.receipt.outputPaths.markdown, "10_Library/Case Timeline.md");
   assert.equal(run.receipt.outputFileStatus, "present");
 });

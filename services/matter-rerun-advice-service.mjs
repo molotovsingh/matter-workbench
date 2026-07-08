@@ -1,10 +1,18 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { AI_RUN_STATUS_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
+import {
+  CASE_TIMELINE_SKILL_SLASH,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+} from "../shared/case-timeline-operation.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import {
   CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
   CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES,
+  LIST_OF_DATES_JSON_RELATIVE,
+  LIST_OF_DATES_MARKDOWN_RELATIVE,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import {
@@ -25,13 +33,12 @@ export {
 };
 
 // Compatibility exports for callers that still live in the native skill lane.
-export const LIST_OF_DATES_JSON_RELATIVE = CASE_TIMELINE_JSON_RELATIVE;
-export const LIST_OF_DATES_MARKDOWN_RELATIVE = CASE_TIMELINE_MARKDOWN_RELATIVE;
+export { LIST_OF_DATES_JSON_RELATIVE, LIST_OF_DATES_MARKDOWN_RELATIVE };
 
 export async function readRerunAdviceForSkill(skill, root) {
   const normalizedSkill = normalizeSkillName(skill);
   if (normalizedSkill === "/describe_sources") return describeSourcesRerunAdvice(root);
-  if (normalizedSkill === "/create_listofdates") return caseTimelineRerunAdvice(root);
+  if (normalizedSkill === CASE_TIMELINE_SKILL_SLASH) return caseTimelineRerunAdvice(root);
   throw makeHttpError(`Rerun advice is not available for ${skill || "unknown skill"}`, 400, "rerun_advice.unsupported_skill");
 }
 
@@ -53,8 +60,8 @@ export async function describeSourcesRerunAdvice(root) {
 
 export async function caseTimelineRerunAdvice(root) {
   const sourceSuppressionIndex = await readRerunSourceSuppressionIndex(root);
-  const markdownTarget = await readArtifact(root, CASE_TIMELINE_MARKDOWN_RELATIVE);
-  const jsonTarget = await readArtifact(root, CASE_TIMELINE_JSON_RELATIVE);
+  const markdownTarget = await readFirstArtifact(root, CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES);
+  const jsonTarget = await readFirstArtifact(root, CASE_TIMELINE_JSON_RELATIVE_CANDIDATES);
   const target = markdownTarget.exists ? {
     ...markdownTarget,
     json: jsonTarget.json,
@@ -66,7 +73,7 @@ export async function caseTimelineRerunAdvice(root) {
     : null;
   return buildRerunAdvice({
     root,
-    skill: "/create_listofdates",
+    skill: CASE_TIMELINE_SKILL_SLASH,
     label: "case timeline",
     target,
     upstreamInputs: [
@@ -333,6 +340,14 @@ async function readArtifact(root, relativePath, options = {}) {
   };
 }
 
+async function readFirstArtifact(root, relativePaths, options = {}) {
+  for (const relativePath of relativePaths) {
+    const artifact = await readArtifact(root, relativePath, options);
+    if (artifact.exists) return artifact;
+  }
+  return readArtifact(root, relativePaths[0], options);
+}
+
 async function inputFile(root, relativePath) {
   const filePath = path.join(root, relativePath);
   try {
@@ -540,7 +555,9 @@ function sourceFileId(source = {}) {
 }
 
 function normalizeSkillName(skill) {
-  return String(skill || "").trim();
+  const text = String(skill || "").trim();
+  if (text === LEGACY_LIST_OF_DATES_SKILL_SLASH) return CASE_TIMELINE_SKILL_SLASH;
+  return text;
 }
 
 function normalizeText(value) {

@@ -106,7 +106,7 @@ test("React API client redacts fallback URLs and payload secrets", async () => {
 
   try {
     await assert.rejects(
-      () => api.getFile("10_Library/List of Dates.md", "Smith v Jones"),
+      () => api.getFile("10_Library/Case Timeline.md", "Smith v Jones"),
       (error) => {
         assert.equal(error.statusCode, 404);
         assert.equal(error.message, "The server rejected this request (404 Not Found). Please check the form and try again.");

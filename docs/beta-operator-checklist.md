@@ -63,7 +63,7 @@ GEMINI_API_KEY=...
 
 Provider behavior is task-scoped. The Copilot model selector is for transient
 chat only. Durable skill creation, source-backed skills, validation, OCR, and
-List of Dates follow app policy and environment settings.
+Case Timeline follow app policy and environment settings.
 
 ## Start The App
 
@@ -277,8 +277,8 @@ Before destructive or broad tests:
    specifically about generated legal quality.
 
 Do not run broad real-matter preparation reruns casually. `Run preparation
-again` can call paid providers and can replace generated source labels and List
-of Dates artifacts.
+again` can call paid providers and can replace generated source labels and Case
+Timeline artifacts.
 
 ## Normal Beta Flow
 
@@ -292,7 +292,7 @@ For a matter test:
    activity strip.
 5. Review the Preparation Advisory.
 6. Open Source Labels / Document Index.
-7. Open List of Dates.
+7. Open Case Timeline.
 8. Ask one or two bounded Copilot questions from the matter record.
 9. Check Activity receipts for any custom-skill run outputs.
 10. Record anything that is confusing, wrong, slow, or legally weak.
@@ -314,7 +314,7 @@ Use care with:
 
 - `Run needed preparation` and especially advanced `Force full rebuild`;
 - Source Labels / Document Index reruns;
-- List of Dates reruns;
+- Case Timeline reruns;
 - OCR force refresh;
 - any path involving weak scans or provider repair.
 
@@ -331,7 +331,7 @@ For every bug or quality concern, capture:
 - command/button clicked;
 - active model/provider if visible;
 - exact error text or warning text;
-- whether the problem is UI, extraction, source labels, List of Dates,
+- whether the problem is UI, extraction, source labels, Case Timeline,
   Copilot, custom skill, Activity receipt, or Settings;
 - screenshot if the issue is visual;
 - generated artifact path if output quality is the problem.
@@ -341,8 +341,8 @@ Useful paths to inspect during local beta:
 ```text
 00_Inbox/
 10_Library/Source Index.json
-10_Library/List of Dates.md
-10_Library/List of Dates.json
+10_Library/Case Timeline.md
+10_Library/Case Timeline.json
 20_Workshop/
 30_Drafts/
 .local/command-interactions.jsonl
@@ -384,7 +384,7 @@ Stop and investigate before relying on output if:
 
 - extraction reports OCR warnings on material files;
 - Source Labels are missing or marked needs review;
-- List of Dates omits obviously central events;
+- Case Timeline omits obviously central events;
 - Activity says a custom-skill output is missing;
 - Copilot answers outside the matter record;
 - Settings reports provider configuration issues;

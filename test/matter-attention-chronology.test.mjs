@@ -31,7 +31,7 @@ test("matter attention chronology reports markdown missing and dependency advice
     root,
     status: {
       stages: [{
-        slash: "/create_listofdates",
+        slash: "/create_case_timeline",
         state: "present",
         rerunAdvice: {
           state: "stale",

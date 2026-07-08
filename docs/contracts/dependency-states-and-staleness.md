@@ -18,7 +18,7 @@ Do not collapse every changed input into "rerun AI."
 
 Source-backed legal artifacts depend on earlier matter preparation steps.
 
-For List of Dates, the key upstream dependency is Source Labels / Document
+For Case Timeline, the key upstream dependency is Source Labels / Document
 Index. When that upstream record changes, the app must decide whether the
 existing chronology can be safely re-rendered, should be lawyer-reviewed, or
 needs a fresh chronology generation.
@@ -34,7 +34,7 @@ That distinction matters because:
 
 ## Current Scope
 
-This contract currently governs List of Dates dependency handling.
+This contract currently governs Case Timeline dependency handling.
 
 It may later be generalized to other source-backed artifacts, but do not assume
 that every artifact has the same dependency semantics.
@@ -73,7 +73,7 @@ Typical cause:
 Expected behavior:
 
 - do not call the chronology model;
-- re-render the existing List of Dates with current labels;
+- re-render the existing Case Timeline with current labels;
 - preserve raw citations and chronology rows;
 - keep the result tied to the same source snapshot;
 - show this as a cheap refresh path, not a legal reasoning rerun.
@@ -118,7 +118,7 @@ Typical cause:
 Expected behavior:
 
 - warn that the chronology may not reflect current source material;
-- prefer a full List of Dates regeneration before downstream drafting;
+- prefer a full Case Timeline regeneration before downstream drafting;
 - preserve the old output until the user deliberately regenerates or full
   preparation reruns it;
 - do not silently rewrite final or dispatched artifacts.

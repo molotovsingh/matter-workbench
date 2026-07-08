@@ -11,7 +11,7 @@ test("runtime DB workspace read model builds a sorted matter-relative tree", () 
   const { root, fileCount, directoryCount } = buildRuntimeWorkspaceTree({
     matter: { name: "State - Rajesh Mehra" },
     objects: [
-      objectRow("State - Rajesh Mehra/10_Library/List of Dates.md", {
+      objectRow("State - Rajesh Mehra/10_Library/Case Timeline.md", {
         objectRole: "matter_artifact",
         sha256: "lod-sha",
         updatedAt: "2026-06-16T10:00:00.000Z",
@@ -34,7 +34,7 @@ test("runtime DB workspace read model builds a sorted matter-relative tree", () 
   assert.deepEqual(root.children.map((child) => child.name), ["00_Inbox", "10_Library"]);
 
   const library = root.children.find((node) => node.path === "10_Library");
-  assert.deepEqual(library.children.map((child) => child.name), ["List of Dates.md", "Source Index.json"]);
+  assert.deepEqual(library.children.map((child) => child.name), ["Case Timeline.md", "Source Index.json"]);
   assert.equal(library.children[0].previewKind, "text");
   assert.equal(library.children[0].sha256, "lod-sha");
   assert.equal(library.children[1].previewable, false);
@@ -47,9 +47,9 @@ test("runtime DB workspace read model public tree hides internal storage metadat
     path: "",
     children: [
       {
-        name: "List of Dates.md",
+        name: "Case Timeline.md",
         kind: "file",
-        path: "10_Library/List of Dates.md",
+        path: "10_Library/Case Timeline.md",
         size: 25,
         previewable: true,
         previewKind: "text",
@@ -66,9 +66,9 @@ test("runtime DB workspace read model public tree hides internal storage metadat
     path: "",
     children: [
       {
-        name: "List of Dates.md",
+        name: "Case Timeline.md",
         kind: "file",
-        path: "10_Library/List of Dates.md",
+        path: "10_Library/Case Timeline.md",
         size: 25,
         previewable: true,
         previewKind: "text",
@@ -80,7 +80,7 @@ test("runtime DB workspace read model public tree hides internal storage metadat
 test("runtime DB workspace read model normalizes DB row aliases and timestamps", () => {
   assert.deepEqual(
     normalizeRuntimeWorkspaceObjectRow({
-      object_key: "State - Rajesh Mehra/10_Library/List of Dates.md",
+      object_key: "State - Rajesh Mehra/10_Library/Case Timeline.md",
       object_role: "matter_artifact",
       mime_type: "text/markdown",
       size_bytes: "42",
@@ -94,7 +94,7 @@ test("runtime DB workspace read model normalizes DB row aliases and timestamps",
       duplicate_of: "FILE-0001",
     }),
     {
-      objectKey: "State - Rajesh Mehra/10_Library/List of Dates.md",
+      objectKey: "State - Rajesh Mehra/10_Library/Case Timeline.md",
       objectRole: "matter_artifact",
       mimeType: "text/markdown",
       sizeBytes: 42,

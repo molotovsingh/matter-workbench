@@ -11,7 +11,7 @@ const guardedWorkflowFiles = [
   {
     name: "List of Dates",
     path: "../react-ui/src/views/workflows/ListOfDatesResult.tsx",
-    skill: "/create_listofdates",
+    skill: "/create_case_timeline",
   },
 ];
 

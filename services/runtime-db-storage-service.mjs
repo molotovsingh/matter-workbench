@@ -11,7 +11,11 @@ import { buildCreateListOfDatesTwoPassFromRecords } from "../listofdates/two-pas
 import { isTwoPassListOfDatesEnabled } from "../listofdates/run-config.mjs";
 import { buildListOfDatesSourceLabelRefresh } from "./listofdates-label-refresh-service.mjs";
 import { buildSourceDescriptorsFromRecords } from "../source-descriptors-engine.mjs";
-import { CASE_TIMELINE_JSON_RELATIVE, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
+import {
+  CASE_TIMELINE_SKILL_SLASH,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+} from "../shared/case-timeline-operation.mjs";
+import { CASE_TIMELINE_JSON_RELATIVE_CANDIDATES, SOURCE_INDEX_RELATIVE } from "../shared/matter-artifacts.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import { planNewMatterIdentity } from "../shared/upload-intake-planner.mjs";
 import {
@@ -958,7 +962,7 @@ export function createRuntimeDbStorageService({
   async function readRerunAdvice(skill, matter) {
     ensureEnabled();
     const normalizedSkill = normalizeWorkflowSkill(skill);
-    if (!["/describe_sources", "/create_listofdates"].includes(normalizedSkill)) {
+    if (!["/describe_sources", CASE_TIMELINE_SKILL_SLASH].includes(normalizedSkill)) {
       throw makeHttpError(`Rerun advice is not available for ${skill || "unknown skill"}`, 400, "rerun_advice.unsupported_skill");
     }
     const normalizedMatter = normalizeMatter(matter);
@@ -1196,12 +1200,12 @@ export function createRuntimeDbStorageService({
       missingMessage: "matter.json is missing from DB payload custody. Run /matter-init first.",
       missingCode: "runtime_db.listofdates_refresh.matter_missing",
     });
-    const listJson = readRuntimeDbJsonPayload({
+    const listJson = readFirstRuntimeDbJsonPayload({
       matter: normalizedMatter,
-      relativePath: CASE_TIMELINE_JSON_RELATIVE,
+      relativePaths: CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
       label: "Case Timeline",
       readPayloadRow,
-      missingMessage: "Case Timeline artifact is missing from DB payload custody. Run /create_listofdates first.",
+      missingMessage: "Case Timeline artifact is missing from DB payload custody. Run /create_case_timeline first.",
       missingCode: "runtime_db.listofdates_refresh.list_missing",
     });
     const sourceIndex = readRuntimeDbJsonPayload({
@@ -1576,6 +1580,26 @@ function isoStringOrEmpty(value) {
   return Number.isFinite(time) ? new Date(time).toISOString() : String(value);
 }
 
+function readFirstRuntimeDbJsonPayload({
+  matter,
+  relativePaths = [],
+  label,
+  readPayloadRow,
+  missingMessage,
+  missingCode,
+} = {}) {
+  let lastMissing = null;
+  for (const relativePath of relativePaths) {
+    try {
+      return readRuntimeDbJsonPayload({ matter, relativePath, label, readPayloadRow, missingMessage, missingCode });
+    } catch (error) {
+      if (error?.statusCode !== 404) throw error;
+      lastMissing = error;
+    }
+  }
+  throw lastMissing || makeHttpError(missingMessage || `${label} is missing from DB payload custody.`, 404, missingCode || "runtime_db.json_payload.missing");
+}
+
 function readRuntimeDbJsonPayload({
   matter,
   relativePath,
@@ -1604,7 +1628,8 @@ function normalizeWorkflowSkill(value = "") {
   const text = String(value || "").trim();
   if (!text) return "";
   const withSlash = text.startsWith("/") ? text : `/${text}`;
-  return withSlash.replace(/-/g, "_");
+  const normalized = withSlash.replace(/-/g, "_");
+  return normalized === LEGACY_LIST_OF_DATES_SKILL_SLASH ? CASE_TIMELINE_SKILL_SLASH : normalized;
 }
 
 function normalizeMatterRelativePath(value) {

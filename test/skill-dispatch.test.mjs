@@ -20,6 +20,6 @@ test("builtin skill dispatch maps slash commands to injected runners", () => {
   assert.equal(dispatch["/describe_sources"](), "sources");
   assert.equal(dispatch["/context_preview"](), "preview");
   assert.equal(dispatch["/context_search"](), "search");
-  assert.equal(dispatch["/create_listofdates"](), "dates");
+  assert.equal(dispatch["/create_case_timeline"](), "dates");
   assert.equal(dispatch["/doctor"](), "doctor");
 });

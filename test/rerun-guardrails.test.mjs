@@ -8,25 +8,25 @@ import {
 
 test("rerun confirmation renders current artifact details without native confirm", () => {
   const html = renderRerunConfirmationHtml({
-    skill: "/create_listofdates",
+    skill: "/create_case_timeline",
     state: "current",
     shouldConfirm: true,
-    artifactPath: "10_Library/List of Dates.md",
+    artifactPath: "10_Library/Case Timeline.md",
     lastRunAt: "2026-05-11T02:38:05.118Z",
     provider: "OpenAI",
     model: "openai/gpt-4.1",
     message: "Existing artifact is current.\nRun it again anyway?",
   }, escapeHtml, {
-    title: "Review List of Dates before regenerating — Mehta vs Skyline",
-    confirmLabel: "Regenerate List of Dates",
-    cancelLabel: "Keep current List of Dates",
+    title: "Review Case Timeline before regenerating — Mehta vs Skyline",
+    confirmLabel: "Regenerate Case Timeline",
+    cancelLabel: "Keep current Case Timeline",
   });
 
-  assert.match(html, /Review List of Dates before regenerating|Review current output before regenerating/);
-  assert.match(html, /10_Library\/List of Dates\.md/);
+  assert.match(html, /Review Case Timeline before regenerating|Review current output before regenerating/);
+  assert.match(html, /10_Library\/Case Timeline\.md/);
   assert.match(html, /OpenAI \/ openai\/gpt-4\.1/);
-  assert.match(html, /Regenerate List of Dates/);
-  assert.match(html, /Keep current List of Dates/);
+  assert.match(html, /Regenerate Case Timeline/);
+  assert.match(html, /Keep current Case Timeline/);
   assert.match(html, /may replace the output document/);
   assert.match(html, /id="rerunConfirmCancel"/);
   assert.match(html, /id="rerunConfirmRun"/);
@@ -35,11 +35,11 @@ test("rerun confirmation renders current artifact details without native confirm
 
 test("rerun confirmation renders optional label-refresh action", () => {
   const html = renderRerunConfirmationHtml({
-    skill: "/create_listofdates",
+    skill: "/create_case_timeline",
     state: "stale",
     dependencyState: "label_refresh_needed",
     shouldConfirm: true,
-    artifactPath: "10_Library/List of Dates.md",
+    artifactPath: "10_Library/Case Timeline.md",
     message: "Source labels changed. Refresh labels or regenerate.",
   }, escapeHtml, {
     extraActions: [{ id: "refresh-labels", label: "Refresh labels only" }],
@@ -76,11 +76,11 @@ test("rerun confirmation resolves optional action id", async () => {
   globalThis.fetch = async () => ({
     ok: true,
     json: async () => ({
-      skill: "/create_listofdates",
+      skill: "/create_case_timeline",
       state: "stale",
       dependencyState: "label_refresh_needed",
       shouldConfirm: true,
-      artifactPath: "10_Library/List of Dates.md",
+      artifactPath: "10_Library/Case Timeline.md",
     }),
   });
   globalThis.document = {
@@ -97,7 +97,7 @@ test("rerun confirmation resolves optional action id", async () => {
         setActivityActive: () => {},
         setStatus: () => {},
       },
-      skill: "/create_listofdates",
+      skill: "/create_case_timeline",
       escapeHtml,
       extraActions: (advice) => advice.dependencyState === "label_refresh_needed"
         ? [{ id: "refresh-labels", label: "Refresh labels only" }]
@@ -167,7 +167,7 @@ test("rerun confirmation allows run without UI when artifact is missing or stale
   globalThis.fetch = async () => ({
     ok: true,
     json: async () => ({
-      skill: "/create_listofdates",
+      skill: "/create_case_timeline",
       state: "missing",
       shouldConfirm: false,
     }),
@@ -188,7 +188,7 @@ test("rerun confirmation allows run without UI when artifact is missing or stale
         setActivityActive: () => {},
         setStatus: () => {},
       },
-      skill: "/create_listofdates",
+      skill: "/create_case_timeline",
       escapeHtml,
     });
 

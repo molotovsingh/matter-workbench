@@ -302,7 +302,7 @@ const AI_TASK_STATUS_METADATA = Object.freeze([
   }),
   Object.freeze({
     task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
-    label: "/create_listofdates",
+    label: "/create_case_timeline",
     surface: "Case Timeline chronology",
   }),
   Object.freeze({

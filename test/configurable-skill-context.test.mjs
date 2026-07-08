@@ -37,7 +37,7 @@ test("configurable skill context compacts library artifacts instead of passing f
     evidence_blocks: [],
     library_artifacts: [
       {
-        path: "10_Library/List of Dates.json",
+        path: "10_Library/Case Timeline.json",
         kind: "list_of_dates",
         summary: "60 accepted chronology entries",
         entry_count: entries.length,
@@ -48,13 +48,13 @@ test("configurable skill context compacts library artifacts instead of passing f
         ai_run: {
           provider: "openrouter",
           model: "openai/gpt-4.1",
-          task: "create_listofdates",
+          task: "create_case_timeline",
           policyPromptVersion: "legal-workbench-policy/v1",
           usage: { input_tokens: 10_000 },
         },
       },
       {
-        path: "10_Library/List of Dates.md",
+        path: "10_Library/Case Timeline.md",
         kind: "list_of_dates_markdown",
         heading: "List of Dates",
         markdown: longMarkdown,
@@ -79,7 +79,7 @@ test("configurable skill context compacts library artifacts instead of passing f
   assert.deepEqual(listArtifact.ai_run, {
     provider: "openrouter",
     model: "openai/gpt-4.1",
-    task: "create_listofdates",
+    task: "create_case_timeline",
     policyPromptVersion: "legal-workbench-policy/v1",
   });
 

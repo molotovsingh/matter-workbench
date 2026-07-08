@@ -10,7 +10,8 @@ import process from "node:process";
 import { parseCsv } from "../shared/csv.mjs";
 import {
   CASE_TIMELINE_JSON_RELATIVE,
-  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
+  CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import { loadDatabaseScriptEnv } from "./db-env.mjs";
@@ -584,14 +585,16 @@ async function summarizeMatter(matterRoot) {
 
   const sourceIndexPath = path.join(matterRoot, SOURCE_INDEX_RELATIVE);
   const sourceIndex = await readOptionalJson(sourceIndexPath, warnings, SOURCE_INDEX_RELATIVE);
-  const caseTimelineJsonPath = path.join(matterRoot, CASE_TIMELINE_JSON_RELATIVE);
-  const caseTimeline = await readOptionalJson(caseTimelineJsonPath, warnings, CASE_TIMELINE_JSON_RELATIVE);
+  const caseTimelineJsonRelative = await firstExistingRelativePath(matterRoot, CASE_TIMELINE_JSON_RELATIVE_CANDIDATES) || CASE_TIMELINE_JSON_RELATIVE;
+  const caseTimelineJsonPath = path.join(matterRoot, caseTimelineJsonRelative);
+  const caseTimeline = await readOptionalJson(caseTimelineJsonPath, warnings, caseTimelineJsonRelative);
 
   const sourceDescriptors = sourceIndex ? extractSourceDescriptors(sourceIndex) : [];
   const sourceDescriptorRows = normalizeSourceDescriptorRows({ sourceDescriptors, matterId, documents: registerRows, extractions: extractionRows });
   const listEntries = Array.isArray(caseTimeline?.entries) ? caseTimeline.entries : [];
   const sourceIndexPresent = Boolean(sourceIndex);
-  const caseTimelinePresent = Boolean(caseTimeline) || await fileExists(path.join(matterRoot, CASE_TIMELINE_MARKDOWN_RELATIVE));
+  const caseTimelineMarkdownRelative = await firstExistingRelativePath(matterRoot, CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES);
+  const caseTimelinePresent = Boolean(caseTimeline) || Boolean(caseTimelineMarkdownRelative);
 
   return {
     id: matterId,
@@ -623,7 +626,7 @@ async function summarizeMatter(matterRoot) {
       },
       listOfDates: {
         present: caseTimelinePresent,
-        path: caseTimelinePresent ? CASE_TIMELINE_JSON_RELATIVE : "",
+        path: caseTimelinePresent ? caseTimelineJsonRelative : "",
         generatedAt: timestampOrEmpty(caseTimeline?.generated_at),
         aiRun: normalizeAiRun(caseTimeline?.ai_run),
       },
@@ -706,6 +709,13 @@ async function readCsv(filePath, warnings, label) {
     warnings.push(`${label} is unreadable: ${error.message}`);
     return [];
   }
+}
+
+async function firstExistingRelativePath(root, relativePaths = []) {
+  for (const relativePath of relativePaths) {
+    if (await fileExists(path.join(root, relativePath))) return relativePath;
+  }
+  return "";
 }
 
 async function fileExists(filePath) {

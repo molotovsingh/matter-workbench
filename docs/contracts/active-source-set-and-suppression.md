@@ -60,23 +60,23 @@ When a source is suppressed, these local read paths exclude it from active work:
 - generated Library artifact summaries inside Matter Context packets;
 - extraction runs reading `File Register.csv`;
 - Source Index generation;
-- List of Dates generation;
-- rerun/currentness advice for Source Index and List of Dates artifacts;
-- read-only artifact currentness projection for Source Index, List of Dates, and
+- Case Timeline generation;
+- rerun/currentness advice for Source Index and Case Timeline artifacts;
+- read-only artifact currentness projection for Source Index, Case Timeline, and
   Matter Story, plus source-removal currentness effect records for future
   source-backed custom-skill outputs;
 - non-routed local artifact-currentness manifest persistence for future
   transaction/journal wiring.
 
 Matter Context does not allow stale generated artifacts to reintroduce suppressed
-`FILE-NNNN` citations: List of Dates JSON entries that cite suppressed file ids
-are omitted from active context, List of Dates Markdown is skipped if it cites a
+`FILE-NNNN` citations: Case Timeline JSON entries that cite suppressed file ids
+are omitted from active context, Case Timeline Markdown is skipped if it cites a
 suppressed file id, and Source Index summary counts are reduced to active
 sources.
 
 Rerun/currentness advice must not treat a source-backed artifact as current when
-its Source Index descriptors or List of Dates source snapshot still reference a
-source that is no longer in the active source set. For List of Dates, that state
+its Source Index descriptors or Case Timeline source snapshot still reference a
+source that is no longer in the active source set. For Case Timeline, that state
 maps to `chronology_regeneration_needed`, not a cheap label refresh.
 
 Runtime DB mode also supports inactive source document statuses

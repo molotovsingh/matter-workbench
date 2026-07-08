@@ -65,16 +65,16 @@ test("React compact command activity mirrors terminal-style status lines", async
   const lines = stampActivityLines([
     "[one] first",
     "[ai-command] new skill -> matter status",
-    "[prepare] running: /create_listofdates",
+    "[prepare] running: /create_case_timeline",
     "[landing] loaded /Users/aksingh/matters-matter-workbench",
-    "[file] opened 10_Library/List of Dates.md",
+    "[file] opened 10_Library/Case Timeline.md",
     "[source-index] OPENAI_API_KEY=sk-strip-secret",
   ], () => "18:57:34");
 
   assert.deepEqual(latestCompactActivityRows(lines, 4), [
     { time: "18:57", message: "running: Build Case Timeline" },
     { time: "18:57", message: "loaded /Users/aksingh/matters-matter-workbench" },
-    { time: "18:57", message: "opened Case Timeline" },
+    { time: "18:57", message: "opened Source Record / Case Timeline" },
     { time: "18:57", message: "OPENAI_API_KEY=[redacted-secret]" },
   ]);
 });

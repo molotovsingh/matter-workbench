@@ -48,9 +48,9 @@ messy matter folder -> structured legal workspace -> source-backed legal work pr
 - Produce source records and lawyer-readable source labels.
 - Validate model output against server-owned file identity and citations.
 
-### List Of Dates / Chronology
+### Case Timeline / Neutral Chronology
 
-- Build a chronological List of Dates from the matter record.
+- Build a neutral Case Timeline from the matter record.
 - Preserve source references for review.
 - Flag stale dependencies and review needs.
 - Keep generated legal artifacts separate from originals and dispatch-ready outputs.
@@ -89,7 +89,7 @@ The app is designed to help lawyers review faster. It does not claim that genera
 
 ### Workflow, not chat
 
-Outputs are durable artifacts: source indexes, extracted records, lists of dates, skill receipts, and diagnostic reports. Work does not disappear into a chat transcript.
+Outputs are durable artifacts: source indexes, extracted records, case timelines, skill receipts, and diagnostic reports. Work does not disappear into a chat transcript.
 
 ### Local/private-cloud custody
 
@@ -118,11 +118,11 @@ Completed release checks include:
 - read-side active source suppression foundation wired before any file-removal UI;
 - stale generated artifact summaries prevented from reintroducing suppressed source citations;
 - runtime DB inactive source document statuses aligned with active-source suppression;
-- local rerun/currentness advice marks Source Index/List of Dates stale when suppressed sources are still referenced;
+- local rerun/currentness advice marks Source Index/Case Timeline stale when suppressed sources are still referenced;
 - runtime DB workspace/payload reads filter derived extraction/text payloads linked to inactive sources;
 - artifact currentness schema/projection foundation exists for future source-removal workflows;
 - non-routed source-removal mutation foundations, privilege-safe Matter Log rendering, a read-only impact preview endpoint, and non-destructive matter archive/reopen lifecycle exist, without source-delete/purge UI exposure;
-- Case Timeline presentation for the neutral chronology while preserving internal List of Dates command/artifact stability;
+- Case Timeline presentation, command, and artifact paths for the neutral chronology while preserving hidden legacy List of Dates compatibility;
 - automatic provisional Filing and Procedural Posture Diagnosis after Case Timeline and Matter Story;
 - lawyer confirmation/correction/not-sure controls for posture diagnosis;
 - Assistant readiness degradation remains visible with sanitized user-facing copy;

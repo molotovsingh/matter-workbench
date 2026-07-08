@@ -15,7 +15,7 @@ test("skill creation overlap helpers build router request from saved idea brief"
     designBrief: {
       problem: "Create a cited timeline.",
       expectedInputs: "Extraction records and Source Index.",
-      expectedOutputArtifact: "10_Library/List of Dates.md",
+      expectedOutputArtifact: "10_Library/Case Timeline.md",
       targetLane: "10_Library",
     },
   });
@@ -23,7 +23,7 @@ test("skill creation overlap helpers build router request from saved idea brief"
   assert.match(request, /new skill: build a chronology/);
   assert.match(request, /Problem: Create a cited timeline/);
   assert.match(request, /Inputs: Extraction records and Source Index/);
-  assert.match(request, /Output: 10_Library\/List of Dates\.md/);
+  assert.match(request, /Output: 10_Library\/Case Timeline\.md/);
   assert.match(request, /Lane: 10_Library/);
 });
 
@@ -52,11 +52,11 @@ test("skill creation overlap helpers distinguish improvement sessions from new s
 test("skill creation overlap helpers block duplicate decisions and parse justifications", () => {
   assert.equal(isBlockingSkillOverlapDecision({
     decision: "needs_user_approval",
-    matched_skill: "/create_listofdates",
+    matched_skill: "/create_case_timeline",
   }), true);
   assert.equal(isBlockingSkillOverlapDecision({
     decision: "needs_user_approval",
-    matched_skill: "/create_listofdates",
+    matched_skill: "/create_case_timeline",
     mece_violation: true,
   }, {
     overrideJustification: "separate workshop artifact and issue structure",
@@ -90,7 +90,7 @@ test("skill creation overlap helpers block duplicate decisions and parse justifi
 test("skill creation overlap gate rendering escapes router fields", () => {
   const html = renderSkillCreationOverlapGateHtml({
     decision: {
-      matched_skill: "/create_listofdates<script>",
+      matched_skill: "/create_case_timeline<script>",
       recommended_action: "modify_existing_skill",
       confidence: 0.91,
       reason: "Overlap <script>alert(1)</script>",
@@ -105,7 +105,7 @@ test("skill creation overlap gate rendering escapes router fields", () => {
   assert.match(html, /Improve existing skill/);
   assert.match(html, /Create separate skill anyway/);
   assert.match(html, /91%/);
-  assert.match(html, /\/create_listofdates&lt;script&gt;/);
+  assert.match(html, /\/create_case_timeline&lt;script&gt;/);
   assert.match(html, /Overlap &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(html, /create &lt;b&gt;timeline&lt;\/b&gt;/);
   assert.match(html, /distinct &lt;reason&gt;/);

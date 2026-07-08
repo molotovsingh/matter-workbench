@@ -13,7 +13,7 @@ async function makeWorkspaceFixture() {
   await writeFile(path.join(root, "matter.json"), "{}\n");
   await writeFile(path.join(otherRoot, "matter.json"), "{}\n");
   await writeFile(path.join(root, ".env"), "OPENAI_API_KEY=secret\n");
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n");
   await writeFile(path.join(root, "10_Library", "Service Email.eml"), [
     "From: client@example.com",
     "To: lawyer@example.com",
@@ -22,7 +22,7 @@ async function makeWorkspaceFixture() {
     "Please see attached calculation sheets.",
     "",
   ].join("\n"));
-  await writeFile(path.join(otherRoot, "10_Library", "List of Dates.md"), "# Other Matter Dates\n");
+  await writeFile(path.join(otherRoot, "10_Library", "Case Timeline.md"), "# Other Matter Dates\n");
   const matterStore = {
     ensureMatterRoot: () => root,
     readMatterMetadata: async (matterRoot = root) => ({ matterName: path.basename(matterRoot) }),
@@ -34,7 +34,7 @@ async function makeWorkspaceFixture() {
 test("workspace service previews ordinary files but blocks hidden direct paths", async () => {
   const { service } = await makeWorkspaceFixture();
 
-  const preview = await service.readFilePreview("10_Library/List of Dates.md");
+  const preview = await service.readFilePreview("10_Library/Case Timeline.md");
   assert.equal(preview.content, "# List of Dates\n");
 
   await assert.rejects(
@@ -124,11 +124,11 @@ test("workspace service can read an explicit matter root without changing active
   assert.equal(workspace.folderName, path.basename(otherRoot));
   assert.equal(workspace.metadata.matterName, path.basename(otherRoot));
 
-  const preview = await service.readFilePreview("10_Library/List of Dates.md", otherRoot);
+  const preview = await service.readFilePreview("10_Library/Case Timeline.md", otherRoot);
   assert.equal(preview.content, "# Other Matter Dates\n");
-  assert.equal(preview.path, "10_Library/List of Dates.md");
+  assert.equal(preview.path, "10_Library/Case Timeline.md");
 
-  const activePreview = await service.readFilePreview("10_Library/List of Dates.md");
+  const activePreview = await service.readFilePreview("10_Library/Case Timeline.md");
   assert.equal(activePreview.content, "# List of Dates\n");
   assert.equal(path.basename(root).startsWith("matter-workspace-service-"), true);
 });

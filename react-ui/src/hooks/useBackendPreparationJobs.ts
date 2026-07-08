@@ -30,7 +30,7 @@ const PREPARATION_JOB_STEPS: PreparationJobStep[] = [
   { kind: 'matter_init', id: 'matter-init', label: 'Registering files' },
   { kind: 'extract', id: 'extract', label: 'Reading documents' },
   { kind: 'source_labels', id: 'describe-sources', label: 'Preparing source record' },
-  { kind: 'case_timeline', id: 'create-listofdates', label: 'Building Case Timeline' },
+  { kind: 'case_timeline', id: 'case-timeline', label: 'Building Case Timeline' },
   { kind: 'matter_story', id: 'dispute-story', label: 'Writing dispute story' },
   { kind: 'posture_diagnosis', id: 'procedural-posture-diagnosis', label: 'Diagnosing procedural posture' },
 ];

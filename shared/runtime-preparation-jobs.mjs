@@ -1,10 +1,15 @@
+import {
+  CASE_TIMELINE_SKILL_SLASH,
+  LEGACY_LIST_OF_DATES_SKILL_SLASH,
+} from "./case-timeline-operation.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "./preparation-stage-actions.mjs";
 
 export const RUNTIME_PREPARATION_JOB_KIND_BY_SLASH = Object.freeze({
   "/matter-init": "matter_init",
   "/extract": "extract",
   "/describe_sources": "source_labels",
-  "/create_listofdates": "case_timeline",
+  [CASE_TIMELINE_SKILL_SLASH]: "case_timeline",
+  [LEGACY_LIST_OF_DATES_SKILL_SLASH]: "case_timeline",
   "/the_story": "matter_story",
   "/procedural_posture_diagnosis": "posture_diagnosis",
 });
@@ -13,7 +18,7 @@ export const RUNTIME_PREPARATION_STAGE_SLASHES = Object.freeze([
   "/matter-init",
   "/extract",
   "/describe_sources",
-  "/create_listofdates",
+  CASE_TIMELINE_SKILL_SLASH,
   "/the_story",
   "/procedural_posture_diagnosis",
 ]);
@@ -25,9 +30,11 @@ const RUNTIME_PREPARATION_STAGE_ALIASES = Object.freeze({
   "describe-sources": "/describe_sources",
   describe_sources: "/describe_sources",
   source_labels: "/describe_sources",
-  "create-listofdates": "/create_listofdates",
-  create_listofdates: "/create_listofdates",
-  case_timeline: "/create_listofdates",
+  "case-timeline": CASE_TIMELINE_SKILL_SLASH,
+  create_case_timeline: CASE_TIMELINE_SKILL_SLASH,
+  case_timeline: CASE_TIMELINE_SKILL_SLASH,
+  "create-listofdates": CASE_TIMELINE_SKILL_SLASH,
+  create_listofdates: CASE_TIMELINE_SKILL_SLASH,
   "dispute-story": "/the_story",
   the_story: "/the_story",
   matter_story: "/the_story",
@@ -63,6 +70,7 @@ export function normalizeRuntimePreparationStageSelector(value) {
   const text = String(value || "").trim();
   if (!text) return "";
   if (RUNTIME_PREPARATION_STAGE_SLASHES.includes(text)) return text;
+  if (text === LEGACY_LIST_OF_DATES_SKILL_SLASH) return CASE_TIMELINE_SKILL_SLASH;
   const key = text.replace(/^\/+/, "").trim();
   return RUNTIME_PREPARATION_STAGE_ALIASES[key] || "";
 }

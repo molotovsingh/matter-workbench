@@ -18,7 +18,7 @@ test("runtime DB preparation read model derives status and current rerun advice 
       objectRole: "extraction_payload",
     }),
     objectRow("DB Matter/10_Library/Source Index.json", "2026-06-07T11:00:00.000Z"),
-    objectRow("DB Matter/10_Library/List of Dates.md", "2026-06-07T12:00:00.000Z"),
+    objectRow("DB Matter/10_Library/Case Timeline.md", "2026-06-07T12:00:00.000Z"),
   ];
   const tree = buildRuntimeWorkspaceTree({ matter, objects });
 
@@ -32,12 +32,12 @@ test("runtime DB preparation read model derives status and current rerun advice 
     [
       "00_Inbox/Intake 01/_extracted/FILE-0001.json",
       "00_Inbox/Intake 01/File Register.csv",
-      "10_Library/List of Dates.md",
+      "10_Library/Case Timeline.md",
       "10_Library/Source Index.json",
     ],
   );
   assert.equal(status.stages.find((stage) => stage.slash === "/describe_sources").rerunAdvice.state, "current");
-  assert.equal(status.stages.find((stage) => stage.slash === "/create_listofdates").rerunAdvice.state, "current");
+  assert.equal(status.stages.find((stage) => stage.slash === "/create_case_timeline").rerunAdvice.state, "current");
 });
 
 test("runtime DB preparation read model marks downstream paid stages stale from newer DB inputs", () => {
@@ -48,7 +48,7 @@ test("runtime DB preparation read model marks downstream paid stages stale from 
       objectRole: "extraction_payload",
     }),
     objectRow("DB Matter/10_Library/Source Index.json", "2026-06-07T11:00:00.000Z"),
-    objectRow("DB Matter/10_Library/List of Dates.md", "2026-06-07T10:00:00.000Z"),
+    objectRow("DB Matter/10_Library/Case Timeline.md", "2026-06-07T10:00:00.000Z"),
   ];
   const tree = buildRuntimeWorkspaceTree({ matter, objects });
   const status = runtimeMatterStatusFromWorkspaceState({ matter, objects, tree });
@@ -62,11 +62,11 @@ test("runtime DB preparation read model marks downstream paid stages stale from 
     status,
   });
 
-  const listStage = plan.stages.find((stage) => stage.slash === "/create_listofdates");
+  const listStage = plan.stages.find((stage) => stage.slash === "/create_case_timeline");
   assert.equal(listStage.state, "stale");
   assert.equal(listStage.action, "confirm_paid_run");
   assert.equal(listStage.rerunAdvice.newestInputPath, "10_Library/Source Index.json");
-  assert.equal(plan.nextStep.slash, "/create_listofdates");
+  assert.equal(plan.nextStep.slash, "/create_case_timeline");
   assert.deepEqual(plan.metadata.missing, ["Client name", "Matter name", "Opposite party", "Jurisdiction"]);
 });
 
@@ -88,7 +88,7 @@ test("runtime DB preparation read model reruns extraction when added files have 
       documentSha: "b".repeat(64),
     }),
     objectRow("DB Matter/10_Library/Source Index.json", "2026-06-07T11:00:00.000Z"),
-    objectRow("DB Matter/10_Library/List of Dates.md", "2026-06-07T12:00:00.000Z"),
+    objectRow("DB Matter/10_Library/Case Timeline.md", "2026-06-07T12:00:00.000Z"),
   ];
   const tree = buildRuntimeWorkspaceTree({ matter, objects });
   const status = runtimeMatterStatusFromWorkspaceState({ matter, objects, tree });

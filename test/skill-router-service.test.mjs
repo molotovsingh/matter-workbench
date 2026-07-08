@@ -25,9 +25,9 @@ test("skill registry lists current slash skills", async () => {
   assert.equal(registry.schema_version, "skill-registry/v1");
   assert.deepEqual(
     registry.skills.map((skill) => skill.slash),
-    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
+    ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_case_timeline", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
   );
-  assert.equal(registry.skills.find((skill) => skill.slash === "/create_listofdates").category, "Analyze");
+  assert.equal(registry.skills.find((skill) => skill.slash === "/create_case_timeline").category, "Analyze");
 });
 
 test("direct MECE overlap requires user approval instead of creating a duplicate skill", async () => {
@@ -39,17 +39,17 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
       assert.match(payload.userRequest, /timeline|chronology/i);
       assert.deepEqual(
         payload.registry.skills.map((skill) => skill.slash),
-        ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_listofdates", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
+        ["/matter-init", "/prepare_matter", "/extract", "/describe_sources", "/context_preview", "/context_search", "/create_case_timeline", "/the_story", "/procedural_posture_diagnosis", "/doctor"],
       );
-      assert.ok(payload.registry.skills.some((skill) => skill.slash === "/create_listofdates"));
+      assert.ok(payload.registry.skills.some((skill) => skill.slash === "/create_case_timeline"));
       return {
         decision: "modify_existing_skill",
         recommended_action: "modify_existing_skill",
-        matched_skill: "/create_listofdates",
+        matched_skill: "/create_case_timeline",
         confidence: 0.94,
-        reason: "The request asks for the same chronology workflow already handled by /create_listofdates.",
+        reason: "The request asks for the same chronology workflow already handled by /create_case_timeline.",
         user_gate_required: false,
-        suggested_next_action: "Ask the user to approve modifying /create_listofdates.",
+        suggested_next_action: "Ask the user to approve modifying /create_case_timeline.",
         mece_violation: true,
         legal_setting: legalSetting(),
         override_requires: ["distinct output contract", "distinct workflow stage"],
@@ -64,7 +64,7 @@ test("direct MECE overlap requires user approval instead of creating a duplicate
   assert.equal(calls.length, 1);
   assert.equal(result.decision, "needs_user_approval");
   assert.equal(result.recommended_action, "modify_existing_skill");
-  assert.equal(result.matched_skill, "/create_listofdates");
+  assert.equal(result.matched_skill, "/create_case_timeline");
   assert.equal(result.mece_violation, true);
   assert.deepEqual(result.user_gate_choices, ["Use or improve existing skill", "Create separate skill with reason"]);
 });
@@ -313,11 +313,11 @@ test("create intent cannot silently reroute to run existing skill", async () => 
     aiProvider: async () => ({
       decision: "run_existing_skill",
       recommended_action: "run_existing_skill",
-      matched_skill: "/create_listofdates",
+      matched_skill: "/create_case_timeline",
       confidence: 0.9,
       reason: "The existing skill already handles list-of-dates generation.",
       user_gate_required: false,
-      suggested_next_action: "Run /create_listofdates.",
+      suggested_next_action: "Run /create_case_timeline.",
       mece_violation: false,
       legal_setting: legalSetting(),
       override_requires: [],

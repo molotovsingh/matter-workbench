@@ -58,11 +58,11 @@ test("skill idea review packet keeps clear incomplete-ready wording", () => {
       intendedUser: "Lawyer",
       problem: "Improve chronology",
       expectedInputs: "List of Dates",
-      expectedOutputArtifact: "10_Library/List of Dates.md",
+      expectedOutputArtifact: "10_Library/Case Timeline.md",
       targetLane: "10_Library",
       paidPosture: "paid",
       riskLevel: "high",
-      notes: "Target skill: /create_listofdates",
+      notes: "Target skill: /create_case_timeline",
     },
     readiness: {
       ready: true,
@@ -71,12 +71,12 @@ test("skill idea review packet keeps clear incomplete-ready wording", () => {
       items: [{ label: "Workspace area selected", passed: true }],
     },
   }, {
-    skills: [{ slash: "/create_listofdates" }],
+    skills: [{ slash: "/create_case_timeline" }],
   });
 
   assert.match(packet, /Status: Draft complete - ready to mark for review/);
   assert.match(packet, /Checklist: Complete/);
-  assert.match(packet, /Suggested classification: modification candidate \(\/create_listofdates\)/);
+  assert.match(packet, /Suggested classification: modification candidate \(\/create_case_timeline\)/);
   assert.match(packet, /This is not yet a usable skill/);
 });
 

@@ -15,10 +15,10 @@ test("workspace path policy keeps generated internals operator-only without hidi
   assert.equal(isOperatorOnlyWorkspacePath("00_Inbox/Intake 01 - Initial/File Register.csv"), true);
   assert.equal(isOperatorOnlyWorkspacePath("00_Inbox/Intake 01 - Initial/Extraction Log.csv"), true);
   assert.equal(isOperatorOnlyWorkspacePath("10_Library/Source Index.json"), true);
-  assert.equal(isOperatorOnlyWorkspacePath("10_Library/List of Dates.json"), true);
+  assert.equal(isOperatorOnlyWorkspacePath("10_Library/Case Timeline.json"), true);
   assert.equal(isOperatorOnlyWorkspacePath("20_Workshop/The Story.json"), true);
 
-  assert.equal(isOperatorOnlyWorkspacePath("10_Library/List of Dates.md"), false);
+  assert.equal(isOperatorOnlyWorkspacePath("10_Library/Case Timeline.md"), false);
   assert.equal(isOperatorOnlyWorkspacePath("00_Inbox/Intake 01 - Initial/Originals/client-ledger.csv"), false);
   assert.equal(isOperatorOnlyWorkspacePath("00_Inbox/Intake 01 - Initial/Originals/client-data.json"), false);
 });
@@ -35,8 +35,8 @@ test("workspace tree filter removes empty technical branches for lawyer users", 
         kind: "directory",
         path: "10_Library",
         children: [
-          { name: "List of Dates.md", kind: "file", path: "10_Library/List of Dates.md" },
-          { name: "List of Dates.json", kind: "file", path: "10_Library/List of Dates.json" },
+          { name: "Case Timeline.md", kind: "file", path: "10_Library/Case Timeline.md" },
+          { name: "Case Timeline.json", kind: "file", path: "10_Library/Case Timeline.json" },
           { name: "Source Index.json", kind: "file", path: "10_Library/Source Index.json" },
         ],
       },
@@ -73,7 +73,7 @@ test("workspace tree filter removes empty technical branches for lawyer users", 
 
   assert.deepEqual(paths, [
     "10_Library",
-    "10_Library/List of Dates.md",
+    "10_Library/Case Timeline.md",
     "20_Workshop",
     "20_Workshop/The Story.md",
     "00_Inbox",
@@ -91,7 +91,7 @@ test("private beta file preview blocks operator-only files for tester accounts",
   await mkdir(path.join(matterRoot, "10_Library"), { recursive: true });
   await writeFile(path.join(matterRoot, "matter.json"), JSON.stringify({ matterName: "Guard Matter" }));
   await writeFile(path.join(matterRoot, "10_Library", "Source Index.json"), "{}\n");
-  await writeFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "# List of Dates\n");
+  await writeFile(path.join(matterRoot, "10_Library", "Case Timeline.md"), "# List of Dates\n");
 
   const app = await createWorkbenchServer({
     appDir,
@@ -117,14 +117,14 @@ test("private beta file preview blocks operator-only files for tester accounts",
     assert.equal(workspace.status, 200);
     assert.deepEqual(flattenTreePaths((await workspace.json()).tree), [
       "10_Library",
-      "10_Library/List of Dates.md",
+      "10_Library/Case Timeline.md",
     ]);
 
     const blocked = await fetch(`${baseUrl}/api/file?matter=Guard%20Matter&path=matter.json`);
     assert.equal(blocked.status, 403);
     assert.match((await blocked.json()).error, /not available to this account/i);
 
-    const allowed = await fetch(`${baseUrl}/api/file?matter=Guard%20Matter&path=10_Library/List%20of%20Dates.md`);
+    const allowed = await fetch(`${baseUrl}/api/file?matter=Guard%20Matter&path=10_Library/Case%20Timeline.md`);
     assert.equal(allowed.status, 200);
     assert.equal((await allowed.json()).content, "# List of Dates\n");
   } finally {

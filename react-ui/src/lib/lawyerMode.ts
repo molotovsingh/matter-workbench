@@ -11,6 +11,8 @@ const OPERATOR_ONLY_BASENAMES = new Set([
   'File Register.csv',
   'Intake Log.csv',
   'Source Index.json',
+  'Case Timeline.json',
+  'Case Timeline.csv',
   'List of Dates.json',
   'List of Dates.csv',
 ]);

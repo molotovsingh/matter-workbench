@@ -42,7 +42,7 @@ export function prepareCreateListOfDatesInputsFromRecords(options = {}) {
   const env = options.env || process.env;
   const matterJson = options.matterJson || {};
   const records = Array.isArray(options.records) ? options.records : [];
-  if (!records.length) throw new Error("No extraction records found. Run /extract before /create_listofdates.");
+  if (!records.length) throw new Error("No extraction records found. Run /extract before /create_case_timeline.");
 
   const fileIndex = options.fileIndex instanceof Map ? options.fileIndex : new Map();
   const blocks = buildSourceBlocks(records, fileIndex);
@@ -59,7 +59,7 @@ export function prepareCreateListOfDatesInputsFromRecords(options = {}) {
   const chunks = chunkBlocks(chronologyBlocks);
   const filteredBlockCount = blocks.length - chronologyBlocks.length;
   const outputLines = [
-    `> workbench.run /create_listofdates${dryRun ? " (dry-run)" : ""}`,
+    `> workbench.run /create_case_timeline${dryRun ? " (dry-run)" : ""}`,
     `[listofdates] read ${records.length} extraction record(s)`,
     `[listofdates] sending ${chronologyBlocks.length} source block(s) in ${chunks.length} AI request(s)`,
   ];

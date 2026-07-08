@@ -32,7 +32,8 @@ export function filePreviewTitle(path: string): string {
 }
 
 export function isListOfDatesMarkdownPath(path: string): boolean {
-  return normalizedPath(path) === '10_library/list of dates.md';
+  const normalized = normalizedPath(path);
+  return normalized === '10_library/case timeline.md' || normalized === '10_library/list of dates.md';
 }
 
 export function parseListOfDatesMarkdown(markdown = ''): ParsedListOfDatesMarkdown {

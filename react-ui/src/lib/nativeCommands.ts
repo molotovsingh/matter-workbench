@@ -72,7 +72,7 @@ export const NATIVE_COMMANDS: NativeCommandDefinition[] = [
     showInCommandPanel: true,
   },
   {
-    command: '/create_listofdates',
+    command: '/create_case_timeline',
     label: 'Build Case Timeline',
     description: 'Build the source-backed chronology',
     view: 'list-of-dates',

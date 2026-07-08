@@ -119,7 +119,7 @@ test("AI settings expose read-only provider status without secrets", async () =>
   assert.equal(copilot.model, "openai/gpt-4.1");
   assert.equal(copilot.ready, true);
   const listOfDates = settings.aiTasks.find((task) => task.task === "source_backed_analysis");
-  assert.equal(listOfDates.label, "/create_listofdates");
+  assert.equal(listOfDates.label, "/create_case_timeline");
   assert.equal(listOfDates.provider, "openrouter");
   assert.equal(listOfDates.model, "meta-llama/listofdates-model");
   assert.equal(listOfDates.maxOutputTokens, 3000);

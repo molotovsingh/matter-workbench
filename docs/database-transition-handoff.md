@@ -44,7 +44,7 @@ Without those flags, the local beta remains filesystem-backed.
   document identity, blob rows, and import history into Postgres without
   creating a live matter folder.
 - Preparation/workflow routes use DB-native custody helpers for setup,
-  extraction, source labels, List of Dates, label refresh, doctor scan/fix,
+  extraction, source labels, Case Timeline, label refresh, doctor scan/fix,
   matter context, matter story, and custom-skill execution. They fail closed
   when a required helper is missing instead of rebuilding a temporary full
   matter folder.
@@ -464,7 +464,7 @@ those queues.
 
 This closes the `worker_process_owner_and_recovery` blocker for the
 local/private foreground runtime. It is not a hosted worker supervisor decision.
-Because extraction, source labels, List of Dates, copilot/context, and custom
+Because extraction, source labels, Case Timeline, copilot/context, and custom
 skill execution now have DB-native foreground custody helpers, the remaining
 hosted question is process ownership, restart policy, dead-worker recovery, and
 operator visibility for non-foreground execution.
@@ -683,7 +683,7 @@ Stop before hosted/cloud runtime cutover if any of these are still unresolved:
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   storage beyond the accepted local/private runtime bridge;
 - hosted DB-claimed worker path for preparation, extraction, source labels,
-  List of Dates, copilot/context, and skill execution;
+  Case Timeline, copilot/context, and skill execution;
 - explicit runtime-storage approval recorded before setting
   `MWB_DB_RUNTIME_CUTOVER_APPROVED=yes`.
 

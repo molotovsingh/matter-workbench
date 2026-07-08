@@ -17,7 +17,7 @@ export const AUTO_PREPARATION_STEPS: PreparationProgressStep[] = [
   { id: 'matter-init', label: 'Registering files', state: 'pending' },
   { id: 'extract', label: 'Reading documents', state: 'pending' },
   { id: 'describe-sources', label: 'Preparing source record', state: 'pending' },
-  { id: 'create-listofdates', label: 'Building Case Timeline', state: 'pending' },
+  { id: 'case-timeline', label: 'Building Case Timeline', state: 'pending' },
   { id: 'dispute-story', label: 'Writing dispute story', state: 'pending' },
   { id: 'procedural-posture-diagnosis', label: 'Diagnosing procedural posture', state: 'pending' },
   { id: 'advisory', label: 'Checking advisory', state: 'pending' },
@@ -62,7 +62,7 @@ const FULL_PREPARATION_STAGES: PreparationStage[] = [
   { id: 'matter-init', slash: '/matter-init', label: 'Set Up Matter', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'extract', slash: '/extract', label: 'Extract Documents', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'describe-sources', slash: '/describe_sources', label: 'Label Sources', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
-  { id: 'create-listofdates', slash: '/create_listofdates', label: 'Build Case Timeline', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
+  { id: 'case-timeline', slash: '/create_case_timeline', label: 'Build Case Timeline', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'dispute-story', slash: '/the_story', label: 'The Story', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
   { id: 'procedural-posture-diagnosis', slash: '/procedural_posture_diagnosis', label: 'Diagnose procedural posture', state: '', action: PREPARATION_STAGE_ACTIONS.RUN },
 ];
@@ -437,7 +437,7 @@ function jobKindForQueuedStage(stage: PreparationStage): string {
   if (stage.slash === '/matter-init') return 'matter_init';
   if (stage.slash === '/extract') return 'extract';
   if (stage.slash === '/describe_sources') return 'source_labels';
-  if (stage.slash === '/create_listofdates') return 'case_timeline';
+  if (normalizePreparationStartStage(stage.slash) === '/create_case_timeline') return 'case_timeline';
   if (stage.slash === '/the_story') return 'matter_story';
   if (stage.slash === '/procedural_posture_diagnosis') return 'posture_diagnosis';
   return '';
@@ -531,7 +531,7 @@ export async function runPreparationStage(
   if (stage.slash === '/matter-init') return api.runMatterInit(body);
   if (stage.slash === '/extract') return api.runExtract({ ...body, forceRefresh: options.forceExtractRefresh === true });
   if (stage.slash === '/describe_sources') return api.runDescribeSources(body);
-  if (stage.slash === '/create_listofdates') {
+  if (normalizePreparationStartStage(stage.slash) === '/create_case_timeline') {
     if (!options.forceCaseTimelineRegeneration && stage.rerunAdvice?.dependencyState === CASE_TIMELINE_DEPENDENCY_STATES.LABEL_REFRESH_NEEDED) {
       return api.refreshListOfDatesLabels({ matterName, dryRun: false });
     }
@@ -574,7 +574,7 @@ const PREPARATION_STAGE_SLASHES = [
   '/matter-init',
   '/extract',
   '/describe_sources',
-  '/create_listofdates',
+  '/create_case_timeline',
   '/the_story',
   '/procedural_posture_diagnosis',
 ];
@@ -586,9 +586,11 @@ const PREPARATION_STAGE_ALIASES: Record<string, string> = {
   'describe-sources': '/describe_sources',
   describe_sources: '/describe_sources',
   source_labels: '/describe_sources',
-  'create-listofdates': '/create_listofdates',
-  create_listofdates: '/create_listofdates',
-  case_timeline: '/create_listofdates',
+  'case-timeline': '/create_case_timeline',
+  create_case_timeline: '/create_case_timeline',
+  case_timeline: '/create_case_timeline',
+  'create-listofdates': '/create_case_timeline',
+  create_listofdates: '/create_case_timeline',
   'dispute-story': '/the_story',
   the_story: '/the_story',
   matter_story: '/the_story',
@@ -635,7 +637,7 @@ function firstBlockedStage(plan: PreparationPlan): PreparationStage | null {
 function stageLabelForStart(startStage = ''): string {
   const normalized = normalizePreparationStartStage(startStage);
   if (normalized === '/describe_sources') return 'Source Labels';
-  if (normalized === '/create_listofdates') return 'Case Timeline';
+  if (normalized === '/create_case_timeline') return 'Case Timeline';
   if (normalized === '/the_story') return 'Matter Story';
   if (normalized === '/procedural_posture_diagnosis') return 'Procedural Diagnosis';
   if (normalized === '/extract') return 'document reading';
@@ -731,12 +733,12 @@ function markStep(status: PreparationRunStatus, stepId: string | null, state: Pr
 }
 
 function stepIdForStage(stage: PreparationStage): string | null {
-  if (stage.id === 'create-listofdates') return 'create-listofdates';
+  if (stage.id === 'case-timeline') return 'case-timeline';
   if (stage.id) return stage.id;
   if (stage.slash === '/matter-init') return 'matter-init';
   if (stage.slash === '/extract') return 'extract';
   if (stage.slash === '/describe_sources') return 'describe-sources';
-  if (stage.slash === '/create_listofdates') return 'create-listofdates';
+  if (normalizePreparationStartStage(stage.slash) === '/create_case_timeline') return 'case-timeline';
   if (stage.slash === '/the_story') return 'dispute-story';
   if (stage.slash === '/procedural_posture_diagnosis') return 'procedural-posture-diagnosis';
   return null;

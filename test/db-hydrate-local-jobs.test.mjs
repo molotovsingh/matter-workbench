@@ -177,7 +177,7 @@ function matterPlanFixture() {
       id: "matter_alpha",
       artifacts: {
         sourceIndex: { present: true, path: "10_Library/Source Index.json" },
-        listOfDates: { present: true, path: "10_Library/List of Dates.json" },
+        listOfDates: { present: true, path: "10_Library/Case Timeline.json" },
       },
     }],
   };

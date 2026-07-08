@@ -2,7 +2,7 @@ import { routePrivateBetaFeedbackTriage } from "../services/private-beta-feedbac
 import { redactSensitiveText, redactSensitiveValues } from "../shared/secret-redaction.mjs";
 
 const RELATED_SIGNAL_WINDOW_MS = 2 * 60 * 60 * 1000;
-const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|create_listofdates|list of dates|label sources|source labels?/;
+const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|create_case_timeline|create_listofdates|case timeline|list of dates|label sources|source labels?/;
 const ACTION_LANES = Object.freeze(["fix_now", "investigate", "product_decision", "watch"]);
 const SEVERITIES = Object.freeze(["blocker", "error", "warning", "info"]);
 const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);

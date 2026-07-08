@@ -3,9 +3,10 @@ import path from "node:path";
 import { parseCsv } from "../shared/csv.mjs";
 import { classifyFile } from "../shared/matter-contract.mjs";
 import {
-  CASE_TIMELINE_JSON_RELATIVE,
-  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
+  CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES,
   SOURCE_INDEX_RELATIVE,
+  isCaseTimelineReadModelPath,
 } from "../shared/matter-artifacts.mjs";
 import { AI_RUN_CONTEXT_FIELDS, normalizeAiRunMetadata } from "../shared/ai-run-metadata.mjs";
 import {
@@ -334,22 +335,30 @@ function readExtractionRecords({ intakes, paths, readText, warnings, sourceSuppr
 }
 
 function readLibraryArtifactSummaries({ pathByRelative, readText, limits, warnings, sourceSuppressionIndex }) {
-  const candidates = [
-    SOURCE_INDEX_RELATIVE,
-    CASE_TIMELINE_JSON_RELATIVE,
-    CASE_TIMELINE_MARKDOWN_RELATIVE,
+  const candidateGroups = [
+    [SOURCE_INDEX_RELATIVE],
+    CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
+    CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES,
   ];
   const summaries = [];
-  for (const relativePath of candidates) {
+  for (const relativePaths of candidateGroups) {
     if (summaries.length >= limits.maxLibraryArtifacts) break;
+    const summary = summarizeFirstExistingLibraryArtifact({ pathByRelative, readText, relativePaths, limits, warnings, sourceSuppressionIndex });
+    if (summary) summaries.push(summary);
+  }
+  return summaries;
+}
+
+function summarizeFirstExistingLibraryArtifact({ pathByRelative, readText, relativePaths, limits, warnings, sourceSuppressionIndex }) {
+  for (const relativePath of relativePaths) {
     const item = pathByRelative.get(relativePath);
     if (!item) continue;
     const body = readText(relativePath);
     if (!body) continue;
     const summary = summarizeLibraryArtifact({ relativePath, body, updatedAt: item.updatedAt, limits, warnings, sourceSuppressionIndex });
-    if (summary) summaries.push(summary);
+    if (summary) return summary;
   }
-  return summaries;
+  return null;
 }
 
 function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warnings, sourceSuppressionIndex }) {
@@ -362,7 +371,7 @@ function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warni
     }
   }
   if (relativePath.endsWith(".md")) {
-    if (relativePath === CASE_TIMELINE_MARKDOWN_RELATIVE && hasSuppressedCitation(body, sourceSuppressionIndex)) {
+    if (isCaseTimelineReadModelPath(relativePath) && hasSuppressedCitation(body, sourceSuppressionIndex)) {
       warnings.push(`Skipped ${relativePath}: cites suppressed source(s)`);
       return null;
     }
@@ -370,7 +379,7 @@ function summarizeLibraryArtifact({ relativePath, body, updatedAt, limits, warni
     const markdown = boundedText(body, maxChars);
     return {
       path: relativePath,
-      kind: relativePath === CASE_TIMELINE_MARKDOWN_RELATIVE ? "list_of_dates_markdown" : "markdown",
+      kind: isCaseTimelineReadModelPath(relativePath) ? "list_of_dates_markdown" : "markdown",
       heading: firstMarkdownHeading(body),
       markdown,
       markdown_truncated: markdown.length < normalizeText(body).length,
@@ -401,7 +410,7 @@ function summarizeJsonArtifact(relativePath, json, updatedAt, limits = {}, warni
       mtime: isoOrEmpty(updatedAt),
     };
   }
-  if (relativePath === CASE_TIMELINE_JSON_RELATIVE) {
+  if (isCaseTimelineReadModelPath(relativePath)) {
     const entries = Array.isArray(json.entries) ? json.entries : [];
     const activeEntries = entries.filter((entry) => !chronologyEntryHasSuppressedCitation(entry, sourceSuppressionIndex));
     const suppressedCount = entries.length - activeEntries.length;

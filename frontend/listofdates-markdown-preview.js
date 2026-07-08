@@ -3,7 +3,7 @@ import { lawyerFacingSourceFragment } from "./source-citation-display.js";
 
 export function renderListOfDatesPreviewActions(filePath, escape) {
   if (!isListOfDatesMarkdownPath(filePath)) return "";
-  const fileName = filePath.split("/").pop() || "List of Dates.md";
+  const fileName = filePath.split("/").pop() || "Case Timeline.md";
   const rawUrl = `/api/file-raw?path=${encodeURIComponent(filePath)}`;
   return `
     <div class="artifact-actions document-actions" data-listofdates-preview-actions>
@@ -27,8 +27,8 @@ export function renderListOfDatesPreviewActions(filePath, escape) {
 export function renderListOfDatesMarkdownPreview(result, escape) {
   const content = String(result?.content || "");
   const parsed = parseListOfDatesMarkdown(content);
-  const filePath = result?.path || "10_Library/List of Dates.md";
-  const fileName = result?.name || filePath.split("/").pop() || "List of Dates.md";
+  const filePath = result?.path || "10_Library/Case Timeline.md";
+  const fileName = result?.name || filePath.split("/").pop() || "Case Timeline.md";
   const actions = renderListOfDatesPreviewActions(filePath, escape);
 
   if (!parsed.entries.length) {
@@ -214,7 +214,8 @@ function stripExtension(name = "") {
 }
 
 export function isListOfDatesMarkdownPath(filePath) {
-  return normalizedPath(filePath) === "10_library/list of dates.md";
+  const normalized = normalizedPath(filePath);
+  return normalized === "10_library/case timeline.md" || normalized === "10_library/list of dates.md";
 }
 
 function normalizedPath(filePath = "") {

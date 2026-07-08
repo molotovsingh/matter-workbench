@@ -159,7 +159,7 @@ fails, the rendered result includes redacted failed stage evidence for handoff.
 
 `db:hydrate:dry-run` is a shadow-hydration rehearsal. It scans the local matter
 folder, reads existing `matter.json`, `File Register.csv`, `Extraction Log.csv`,
-`Source Index.json`, and `List of Dates.json` metadata, and reports the
+`Source Index.json`, and `Case Timeline.json` metadata, and reports the
 control-plane rows that would be needed. It does not connect to Postgres, does
 not read original source file bodies, and does not write database rows.
 
@@ -221,7 +221,7 @@ text file preview, raw file delivery, matter status, prepare plan, and latest
 advisory snapshot use DB storage payloads instead of live matter folders.
 
 `db:provider-runs:hydrate:dry-run` rehearses the provider-run ledger from
-existing AI metadata on Source Index/List of Dates artifacts, skill samples, and
+existing AI metadata on Source Index/Case Timeline artifacts, skill samples, and
 custom-skill run receipts. It stores provider/model/task/status/token/cost
 metadata where available, and links rows back to the owning artifact, sample, or
 run. It does not store prompts, context packets, model outputs, or generated
@@ -229,7 +229,7 @@ legal work product.
 
 `db:jobs:hydrate:dry-run` rehearses the processing-job ledger only where local
 evidence already exists: mirrored provider runs. It creates completed/running
-shadow `processing_jobs` rows for provider-backed source-label, List of Dates,
+shadow `processing_jobs` rows for provider-backed source-label, Case Timeline,
 skill-creation, and skill-execution work, then links `provider_runs.job_id`.
 It deliberately does not invent `job_outbox` rows or a full historical
 preparation queue, because local V1 does not have a durable worker queue ledger.
@@ -457,7 +457,7 @@ explicitly:
 - hosted rollback/degraded-mode behavior once Postgres becomes live product
   write storage;
 - hosted DB-claimed worker path for preparation, extraction, source labels,
-  List of Dates, copilot/context, and skill execution.
+  Case Timeline, copilot/context, and skill execution.
 
 After those decisions are approved, run the stop-check with an explicit approval
 flag:
@@ -480,7 +480,7 @@ npm run db:runtime:smoke
 Expected storage-slice behavior: `/api/matters`, matter switching,
 `/api/workspace`, file previews, raw file delivery, matter status,
 `/api/prepare-matter`, and `/api/matter-attention` use Postgres. Preparation,
-extraction, source labels, List of Dates generation, copilot/context, doctor
+extraction, source labels, Case Timeline generation, copilot/context, doctor
 fixes, matter story, and skill execution now use DB-native custody helpers when
 runtime DB storage mode is enabled. Hosted DB-claimed workers are still pending;
 do not describe the runtime route helpers as a hosted worker supervisor.

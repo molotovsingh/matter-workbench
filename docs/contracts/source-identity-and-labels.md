@@ -135,13 +135,13 @@ rather than inventing a nicer source.
 
 ## Relationship To List Of Dates
 
-List of Dates entries should be proved by raw citations and rendered with
+Case Timeline entries should be proved by raw citations and rendered with
 readable labels where available.
 
 The label does not prove the event. The event is proved by the cited extracted
 block.
 
-If Source Index changes only in lawyer-facing labels, List of Dates can use a
+If Source Index changes only in lawyer-facing labels, Case Timeline can use a
 label refresh path. If source content or material source metadata changes, the
 chronology may need review or regeneration.
 

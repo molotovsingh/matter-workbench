@@ -225,7 +225,7 @@ This applies especially to:
 
 - OCR quality;
 - source labels;
-- List of Dates;
+- Case Timeline;
 - Copilot answers;
 - custom skill outputs;
 - matter/user isolation.

@@ -21,8 +21,8 @@
   "legal_setting_scope": "general",
   "markdown_first": true,
   "inputs": [
-    "10_Library/List of Dates.md",
-    "10_Library/List of Dates.json",
+    "10_Library/Case Timeline.md",
+    "10_Library/Case Timeline.json",
     "20_Workshop/The Story.md",
     "10_Library/Source Index.json"
   ],
@@ -32,7 +32,7 @@
     "20_Workshop/Case Analysis/Case Analysis Q&A.md"
   ],
   "upstream": [
-    "/create_listofdates",
+    "/create_case_timeline",
     "/the_story"
   ],
   "downstream": [],

@@ -290,9 +290,9 @@ test("runtime DB postgres storage mode serves workspace and files without local 
             kind: "directory",
             path: "",
             children: [{
-              name: "List of Dates.md",
+              name: "Case Timeline.md",
               kind: "file",
-              path: "10_Library/List of Dates.md",
+              path: "10_Library/Case Timeline.md",
               size: 15,
               previewable: true,
               previewKind: "text",
@@ -304,7 +304,7 @@ test("runtime DB postgres storage mode serves workspace and files without local 
         calls.push(["preview", matter.name, relativePath]);
         return {
           path: relativePath,
-          name: "List of Dates.md",
+          name: "Case Timeline.md",
           ext: "md",
           content: "# List of Dates",
         };
@@ -363,7 +363,7 @@ test("runtime DB postgres storage mode serves workspace and files without local 
     const currentWorkspace = await getJson(baseUrl, "/api/workspace");
     assert.equal(currentWorkspace.inputLabel, "postgres:DB Listed Matter");
 
-    const preview = await getJson(baseUrl, "/api/file?path=10_Library/List%20of%20Dates.md");
+    const preview = await getJson(baseUrl, "/api/file?path=10_Library/Case%20Timeline.md");
     assert.equal(preview.content, "# List of Dates");
 
     const status = await getJson(baseUrl, "/api/matter-status");
@@ -392,7 +392,7 @@ test("runtime DB postgres storage mode serves workspace and files without local 
     assert.deepEqual(calls, [
       ["workspace", "DB Listed Matter"],
       ["workspace", "DB Listed Matter"],
-      ["preview", "DB Listed Matter", "10_Library/List of Dates.md"],
+      ["preview", "DB Listed Matter", "10_Library/Case Timeline.md"],
       ["status", "DB Listed Matter"],
       ["prepare", "DB Listed Matter"],
       ["attention", "DB Listed Matter"],
@@ -419,15 +419,15 @@ test("runtime DB file API returns stable read-side codes for DB payload misses",
   });
 
   try {
-    const missing = await fetch(`${server.baseUrl}/api/file?matter=${encodeURIComponent(matter.matterName)}&path=${encodeURIComponent("10_Library/List of Dates.md")}`);
+    const missing = await fetch(`${server.baseUrl}/api/file?matter=${encodeURIComponent(matter.matterName)}&path=${encodeURIComponent("10_Library/Case Timeline.md")}`);
     const missingPayload = await missing.json();
     assert.equal(missing.status, 404);
     assert.equal(missingPayload.code, "runtime_db.read.file_not_found");
-    assert.match(missingPayload.error, /10_Library\/List of Dates\.md/);
+    assert.match(missingPayload.error, /10_Library\/Case Timeline\.md/);
 
     const sql = calls.map((call) => call.input || "").join("\n");
-    assert.match(sql, /DB Listed Matter\/10_Library\/List of Dates\.md/);
-    assert.match(sql, /Legal Caption\/10_Library\/List of Dates\.md/);
+    assert.match(sql, /DB Listed Matter\/10_Library\/Case Timeline\.md/);
+    assert.match(sql, /Legal Caption\/10_Library\/Case Timeline\.md/);
     assert.doesNotMatch(sql, /postgres:/i);
 
     const escaped = await fetch(`${server.baseUrl}/api/file?matter=${encodeURIComponent(matter.matterName)}&path=${encodeURIComponent("../secret.txt")}`);
@@ -461,10 +461,10 @@ test("runtime DB prepare-matter run queues the next needed backend stage", async
           matterName: currentMatter.name,
           stages: [
             { id: "describe-sources", slash: "/describe_sources", label: "Label sources", state: "current", action: "skip_current" },
-            { id: "create-listofdates", slash: "/create_listofdates", label: "Build Case Timeline", state: "missing", action: "confirm_paid_run" },
+            { id: "case-timeline", slash: "/create_case_timeline", label: "Build Case Timeline", state: "missing", action: "confirm_paid_run" },
             { id: "dispute-story", slash: "/the_story", label: "Write dispute story", state: "blocked", action: "blocked", reason: "Case Timeline is required first." },
           ],
-          nextStep: { state: "needs_run", label: "Build Case Timeline", stage: "create-listofdates", slash: "/create_listofdates" },
+          nextStep: { state: "needs_run", label: "Build Case Timeline", stage: "case-timeline", slash: "/create_case_timeline" },
         };
       },
       async listProcessingJobs(filters) {
@@ -495,7 +495,7 @@ test("runtime DB prepare-matter run queues the next needed backend stage", async
     assert.equal(result.schema_version, "prepare-matter-run/v1");
     assert.equal(result.state, "queued");
     assert.equal(result.kind, "case_timeline");
-    assert.equal(result.stage.slash, "/create_listofdates");
+    assert.equal(result.stage.slash, "/create_case_timeline");
     assert.equal(result.job.id, "job-case-timeline");
     assert.equal(result.alreadyQueued, false);
     assert.deepEqual(calls, [
@@ -531,7 +531,7 @@ test("runtime DB prepare-matter run can start from a selected preparation stage"
           matterName: matter.name,
           stages: [
             { id: "describe-sources", slash: "/describe_sources", label: "Label sources", state: "current", action: "skip_current" },
-            { id: "create-listofdates", slash: "/create_listofdates", label: "Build Case Timeline", state: "stale", action: "confirm_paid_run" },
+            { id: "case-timeline", slash: "/create_case_timeline", label: "Build Case Timeline", state: "stale", action: "confirm_paid_run" },
             { id: "dispute-story", slash: "/the_story", label: "Write dispute story", state: "missing", action: "confirm_paid_run" },
             { id: "procedural-posture-diagnosis", slash: "/procedural_posture_diagnosis", label: "Diagnose procedural posture", state: "blocked", action: "blocked", reason: "Write Story first." },
           ],
@@ -555,7 +555,7 @@ test("runtime DB prepare-matter run can start from a selected preparation stage"
     });
 
     assert.equal(blocked.state, "blocked");
-    assert.equal(blocked.stage.slash, "/create_listofdates");
+    assert.equal(blocked.stage.slash, "/create_case_timeline");
     assert.match(blocked.message, /Cannot start preparation from Matter Story/i);
 
     const result = await postJson(server.baseUrl, "/api/prepare-matter/run", {
@@ -566,9 +566,9 @@ test("runtime DB prepare-matter run can start from a selected preparation stage"
     });
 
     assert.equal(result.state, "queued");
-    assert.equal(result.startStage, "/create_listofdates");
+    assert.equal(result.startStage, "/create_case_timeline");
     assert.equal(result.kind, "case_timeline");
-    assert.equal(queuedInput.metadata.requestedStartStage, "/create_listofdates");
+    assert.equal(queuedInput.metadata.requestedStartStage, "/create_case_timeline");
     assert.equal(queuedInput.idempotencyKey, `manual-prepare:${matter.id}:target_case_timeline:case_timeline`);
   } finally {
     await server.close();
@@ -653,8 +653,8 @@ test("runtime DB prepare-matter run returns an active stage job instead of dupli
         return {
           schema_version: "prepare-matter-plan/v1",
           matterName: matter.name,
-          stages: [{ id: "create-listofdates", slash: "/create_listofdates", label: "Build Case Timeline", state: "missing", action: "run" }],
-          nextStep: { state: "needs_run", label: "Build Case Timeline", stage: "create-listofdates", slash: "/create_listofdates" },
+          stages: [{ id: "case-timeline", slash: "/create_case_timeline", label: "Build Case Timeline", state: "missing", action: "run" }],
+          nextStep: { state: "needs_run", label: "Build Case Timeline", stage: "case-timeline", slash: "/create_case_timeline" },
         };
       },
       async listProcessingJobs(filters) {
@@ -1236,15 +1236,15 @@ test("runtime DB postgres storage mode runs create-listofdates from DB-native cu
           operationResult: {
             counts: { recordsRead: 1, entries: 1 },
             outputPaths: {
-              json: "10_Library/List of Dates.json",
-              csv: "10_Library/List of Dates.csv",
-              markdown: "10_Library/List of Dates.md",
+              json: "10_Library/Case Timeline.json",
+              csv: "10_Library/Case Timeline.csv",
+              markdown: "10_Library/Case Timeline.md",
             },
           },
           persisted: [
-            { relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" },
-            { relativePath: "10_Library/List of Dates.csv", objectRole: "matter_artifact" },
-            { relativePath: "10_Library/List of Dates.md", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.json", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.csv", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.md", objectRole: "matter_artifact" },
           ],
         };
       },
@@ -1258,7 +1258,7 @@ test("runtime DB postgres storage mode runs create-listofdates from DB-native cu
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/create-listofdates", {
+    const result = await postJson(baseUrl, "/api/case-timeline", {
       matterName: "Legal Caption",
     });
 
@@ -1266,9 +1266,9 @@ test("runtime DB postgres storage mode runs create-listofdates from DB-native cu
     assert.equal(result.counts.entries, 1);
     assert.equal(result.matterRoot, "postgres:DB Direct Chronology Matter");
     assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
-      "10_Library/List of Dates.json",
-      "10_Library/List of Dates.csv",
-      "10_Library/List of Dates.md",
+      "10_Library/Case Timeline.json",
+      "10_Library/Case Timeline.csv",
+      "10_Library/Case Timeline.md",
     ]);
     assert.deepEqual(calls, [["create-list", "DB Direct Chronology Matter", "Legal Caption", false]]);
   } finally {
@@ -1308,17 +1308,17 @@ test("runtime DB postgres storage mode runs two-pass create-listofdates from DB-
             generationMode: "two_pass",
             counts: { recordsRead: 1, entries: 1 },
             outputPaths: {
-              candidates: "10_Library/List of Dates Candidates.json",
-              json: "10_Library/List of Dates.json",
-              csv: "10_Library/List of Dates.csv",
-              markdown: "10_Library/List of Dates.md",
+              candidates: "10_Library/Case Timeline Candidates.json",
+              json: "10_Library/Case Timeline.json",
+              csv: "10_Library/Case Timeline.csv",
+              markdown: "10_Library/Case Timeline.md",
             },
           },
           persisted: [
-            { relativePath: "10_Library/List of Dates Candidates.json", objectRole: "matter_artifact" },
-            { relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" },
-            { relativePath: "10_Library/List of Dates.csv", objectRole: "matter_artifact" },
-            { relativePath: "10_Library/List of Dates.md", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline Candidates.json", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.json", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.csv", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.md", objectRole: "matter_artifact" },
           ],
         };
       },
@@ -1332,17 +1332,17 @@ test("runtime DB postgres storage mode runs two-pass create-listofdates from DB-
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/create-listofdates", {
+    const result = await postJson(baseUrl, "/api/case-timeline", {
       matterName: "Legal Caption",
     });
 
     assert.equal(result.generationMode, "two_pass");
     assert.equal(result.matterRoot, "postgres:DB Direct Two Pass Chronology Matter");
     assert.deepEqual(result.dbPersistence.persisted.map((item) => item.relativePath), [
-      "10_Library/List of Dates Candidates.json",
-      "10_Library/List of Dates.json",
-      "10_Library/List of Dates.csv",
-      "10_Library/List of Dates.md",
+      "10_Library/Case Timeline Candidates.json",
+      "10_Library/Case Timeline.json",
+      "10_Library/Case Timeline.csv",
+      "10_Library/Case Timeline.md",
     ]);
     assert.deepEqual(calls, [["create-list", "DB Direct Two Pass Chronology Matter", "Legal Caption", "1"]]);
   } finally {
@@ -1397,8 +1397,8 @@ test("runtime DB postgres storage mode fails closed without DB-native List of Da
         return {
           operationResult,
           persisted: [
-            { relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" },
-            { relativePath: "10_Library/List of Dates.md", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.json", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.md", objectRole: "matter_artifact" },
           ],
         };
       },
@@ -1409,7 +1409,7 @@ test("runtime DB postgres storage mode fails closed without DB-native List of Da
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const response = await fetch(`${baseUrl}/api/create-listofdates`, {
+    const response = await fetch(`${baseUrl}/api/case-timeline`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ matterName: "Legal Caption" }),
@@ -1457,8 +1457,8 @@ test("runtime DB postgres storage mode fails closed without DB-native List of Da
         return {
           operationResult,
           persisted: [
-            { relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" },
-            { relativePath: "10_Library/List of Dates.md", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.json", objectRole: "matter_artifact" },
+            { relativePath: "10_Library/Case Timeline.md", objectRole: "matter_artifact" },
           ],
         };
       },
@@ -1469,7 +1469,7 @@ test("runtime DB postgres storage mode fails closed without DB-native List of Da
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const response = await fetch(`${baseUrl}/api/create-listofdates/refresh-labels`, {
+    const response = await fetch(`${baseUrl}/api/case-timeline/refresh-labels`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ matterName: "Legal Caption" }),
@@ -1515,9 +1515,9 @@ test("runtime DB postgres storage mode refreshes List of Dates labels through DB
           operationResult: {
             refreshMode: "label_refresh",
             counts: { refreshedEntries: 1 },
-            outputPaths: { json: "10_Library/List of Dates.json" },
+            outputPaths: { json: "10_Library/Case Timeline.json" },
           },
-          persisted: [{ relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" }],
+          persisted: [{ relativePath: "10_Library/Case Timeline.json", objectRole: "matter_artifact" }],
         };
       },
       async runMaterializedMatterWrite() {
@@ -1530,14 +1530,14 @@ test("runtime DB postgres storage mode refreshes List of Dates labels through DB
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const result = await postJson(baseUrl, "/api/create-listofdates/refresh-labels", {
+    const result = await postJson(baseUrl, "/api/case-timeline/refresh-labels", {
       matterName: "Legal Caption",
     });
 
     assert.equal(result.refreshMode, "label_refresh");
     assert.equal(result.matterRoot, "postgres:DB Direct Refresh Matter");
     assert.deepEqual(result.dbPersistence.persisted, [
-      { relativePath: "10_Library/List of Dates.json", objectRole: "matter_artifact" },
+      { relativePath: "10_Library/Case Timeline.json", objectRole: "matter_artifact" },
     ]);
     assert.deepEqual(calls, [["db-refresh", "DB Direct Refresh Matter", "Legal Caption", false]]);
   } finally {
@@ -1876,11 +1876,11 @@ test("runtime DB postgres storage mode reads rerun advice from DB-native status 
       async readRerunAdvice(skill, matter) {
         calls.push(["advice", skill, matter.name, matter.matterName]);
         return {
-          skill: "/create_listofdates",
+          skill: "/create_case_timeline",
           label: "list of dates",
           state: "current",
           shouldConfirm: true,
-          artifactPath: "10_Library/List of Dates.md",
+          artifactPath: "10_Library/Case Timeline.md",
         };
       },
       async runMaterializedMatterRead() {
@@ -1892,12 +1892,12 @@ test("runtime DB postgres storage mode reads rerun advice from DB-native status 
   await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
-    const advice = await getJson(baseUrl, "/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_listofdates");
+    const advice = await getJson(baseUrl, "/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_case_timeline");
 
     assert.equal(advice.state, "current");
     assert.equal(advice.matterRoot, "postgres:DB Direct Advice Matter");
     assert.equal(advice.matterName, "Legal Caption");
-    assert.deepEqual(calls, [["advice", "/create_listofdates", "DB Direct Advice Matter", "Legal Caption"]]);
+    assert.deepEqual(calls, [["advice", "/create_case_timeline", "DB Direct Advice Matter", "Legal Caption"]]);
   } finally {
     app.server.close();
   }
@@ -1941,7 +1941,7 @@ test("runtime DB postgres storage mode fails closed without DB-native status and
   try {
     const baseUrl = `http://127.0.0.1:${app.server.address().port}`;
 
-    const adviceResponse = await fetch(`${baseUrl}/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_listofdates`);
+    const adviceResponse = await fetch(`${baseUrl}/api/rerun-advice?matter=Legal%20Caption&skill=%2Fcreate_case_timeline`);
     const advicePayload = await adviceResponse.json();
     assert.equal(adviceResponse.status, 409);
     assert.equal(advicePayload.code, "matter_workflow.status_required");
@@ -2446,7 +2446,7 @@ test("runtime DB postgres storage mode runs procedural posture diagnosis from DB
   const persisted = [];
   const packet = directRuntimeDbMatterContextPacket(runtimeMatter);
   packet.library_artifacts.push({
-    path: "10_Library/List of Dates.json",
+    path: "10_Library/Case Timeline.json",
     kind: "list_of_dates",
     entry_count: 1,
     entries: [{
@@ -2490,8 +2490,8 @@ test("runtime DB postgres storage mode runs procedural posture diagnosis from DB
       },
       async artifactStat(matter, relativePath) {
         const known = new Set([
-          "10_Library/List of Dates.md",
-          "10_Library/List of Dates.json",
+          "10_Library/Case Timeline.md",
+          "10_Library/Case Timeline.json",
           "10_Library/Source Index.json",
           "20_Workshop/The Story.md",
         ]);
@@ -3666,7 +3666,7 @@ async function writeListOfDatesRefreshMatter(matterRoot, matter) {
     generated_at: "2026-04-28T10:00:00.000Z",
     sources: [source],
   }, null, 2)}\n`);
-  await writeFile(path.join(libraryDir, "List of Dates.json"), `${JSON.stringify({
+  await writeFile(path.join(libraryDir, "Case Timeline.json"), `${JSON.stringify({
     schema_version: "list-of-dates/v1",
     engine_version: "create-listofdates-v1-ai",
     generated_at: "2026-04-28T10:00:00.000Z",

@@ -12,7 +12,7 @@ test("runtime DB artifact policy classifies materialized storage roles", () => {
   assert.equal(runtimeArtifactRoleForPath("matter.json"), "matter_artifact");
   assert.equal(runtimeArtifactRoleForPath("00_Inbox/Intake 01/File Register.csv"), "matter_artifact");
   assert.equal(runtimeArtifactRoleForPath("00_Inbox/Intake 01/_extracted/FILE-0001.json"), "extraction_payload");
-  assert.equal(runtimeArtifactRoleForPath("10_Library/List of Dates.md"), "matter_artifact");
+  assert.equal(runtimeArtifactRoleForPath("10_Library/Case Timeline.md"), "matter_artifact");
   assert.equal(runtimeArtifactRoleForPath("30_Drafts/Demand Notice.docx"), "matter_artifact");
   assert.equal(runtimeArtifactRoleForPath("00_Inbox/Intake 01/Originals/notice.pdf"), "source_original");
   assert.equal(runtimeArtifactRoleForPath("00_Inbox/Intake 01/Source Files/notice.pdf"), "source_working_copy");
@@ -25,7 +25,7 @@ test("runtime DB artifact policy derives canonical matter artifact metadata", ()
     { family: "source_index", mode: "default", profileKey: "default", format: "json" },
   );
   assert.deepEqual(
-    runtimeArtifactMetadataForRow({ objectRole: "matter_artifact", relativePath: "10_Library/List of Dates.md" }),
+    runtimeArtifactMetadataForRow({ objectRole: "matter_artifact", relativePath: "10_Library/Case Timeline.md" }),
     { family: "list_of_dates", mode: "default", profileKey: "default", format: "md" },
   );
   assert.deepEqual(

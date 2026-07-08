@@ -7,7 +7,7 @@ Matter Workbench is a local-first legal workflow system for turning messy matter
 It is no longer just a shell prototype. The core pipeline is implemented and tested:
 
 ```text
-/matter-init -> /extract -> /describe_sources -> /create_listofdates
+/matter-init -> /extract -> /describe_sources -> /create_case_timeline
 ```
 
 ## What Is Running Today
@@ -17,7 +17,7 @@ It is no longer just a shell prototype. The core pipeline is implemented and tes
 - Deterministic extraction record generation (`extraction-record/v1`) for supported file types.
 - Optional OCR path for scanned PDFs with explicit provider gating.
 - Source descriptor generation to `10_Library/Source Index.json`.
-- Lawyer-facing List of Dates generation to JSON/CSV/Markdown with source-backed citations.
+- Neutral Case Timeline generation to JSON/CSV/Markdown with source-backed citations.
 - Rerun guardrails for paid/provider-backed skills.
 - Local context preview and local context search over bounded matter context.
 - Governance layer for configurable skills (idea -> interview -> sample -> approval -> runnable skill).
@@ -32,7 +32,7 @@ It is no longer just a shell prototype. The core pipeline is implemented and tes
 - `/describe_sources`
 - `/context_preview`
 - `/context_search`
-- `/create_listofdates`
+- `/create_case_timeline`
 - `/doctor`
 
 ### Command rail behavior
@@ -54,9 +54,9 @@ A matter folder is treated as durable legal workflow state, not transient UI sta
 - `00_Inbox/Intake NN - .../Extraction Log.csv`
 - `00_Inbox/Intake NN - .../_extracted/FILE-NNNN.json`
 - `10_Library/Source Index.json`
-- `10_Library/List of Dates.json`
-- `10_Library/List of Dates.csv`
-- `10_Library/List of Dates.md`
+- `10_Library/Case Timeline.json`
+- `10_Library/Case Timeline.csv`
+- `10_Library/Case Timeline.md`
 
 ## What Changed vs Old Summary
 
@@ -75,6 +75,6 @@ A matter folder is treated as durable legal workflow state, not transient UI sta
 ## Where To Look Next
 
 - Architecture map: `docs/codebase-diagram.md`
-- Beta operations workflow: `docs/beta-testing-list-of-dates.md`
+- Beta operations workflow: `docs/beta-testing-list-of-dates.md` (legacy-titled; now covers Case Timeline review)
 - Model/provider routing controls: `docs/model-routing.md`
 - Refactor sequencing: `docs/refactor-staging-plan.md`

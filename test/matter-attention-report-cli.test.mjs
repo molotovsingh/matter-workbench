@@ -127,8 +127,8 @@ async function writeClearMatter(root) {
       },
     ],
   })}\n`);
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n");
-  await writeFile(path.join(root, "10_Library", "List of Dates.json"), `${JSON.stringify({
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.json"), `${JSON.stringify({
     entries: [],
   })}\n`);
 }

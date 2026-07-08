@@ -26,15 +26,15 @@ test("runtime DB setup and analysis write routes stay DB-native", async () => {
   );
   const labelsSource = await readRouteSource(
     'exactRoute("POST", "/api/describe-sources"',
-    'exactRoute("POST", "/api/create-listofdates"',
+    'exactRoute("POST", CASE_TIMELINE_API_ROUTE',
   );
   const listSource = await readRouteSource(
-    'exactRoute("POST", "/api/create-listofdates"',
-    'exactRoute("POST", "/api/create-listofdates/refresh-labels"',
+    'exactRoute("POST", CASE_TIMELINE_API_ROUTE',
+    'exactRoute("POST", LEGACY_LIST_OF_DATES_API_ROUTE',
   );
   const refreshSource = await readRouteSource(
-    'exactRoute("POST", "/api/create-listofdates/refresh-labels"',
-    'exactRoute("POST", "/api/matter-story"',
+    'exactRoute("POST", CASE_TIMELINE_REFRESH_LABELS_API_ROUTE',
+    'exactRoute("POST", LEGACY_LIST_OF_DATES_REFRESH_LABELS_API_ROUTE',
   );
   const fullSource = await readFile(matterWorkflowRoutesPath, "utf8");
   const labelsHelperSource = fullSource.slice(
@@ -62,14 +62,15 @@ test("runtime DB setup and analysis write routes stay DB-native", async () => {
   assert.doesNotMatch(labelsSource, /runRuntimeDbMaterializedWorkflow/);
   assert.doesNotMatch(labelsSource, /runMaterializedMatterWrite/);
 
-  assert.match(listSource, /runListOfDatesSkill/);
+  assert.match(listSource, /runCaseTimelineApi/);
   assert.match(listHelperSource, /assertRuntimeDbCreateListOfDatesAvailable/);
   assert.match(listHelperSource, /createListOfDates/);
   assert.doesNotMatch(listSource, /runRuntimeDbMaterializedWorkflow/);
   assert.doesNotMatch(listSource, /runMaterializedMatterWrite/);
 
-  assert.match(refreshSource, /assertRuntimeDbListOfDatesLabelRefreshAvailable/);
-  assert.match(refreshSource, /refreshListOfDatesSourceLabels/);
+  assert.match(refreshSource, /refreshCaseTimelineLabelsApi/);
+  assert.match(fullSource, /assertRuntimeDbListOfDatesLabelRefreshAvailable/);
+  assert.match(fullSource, /refreshListOfDatesSourceLabels/);
   assert.doesNotMatch(refreshSource, /runRuntimeDbMaterializedWorkflow/);
   assert.doesNotMatch(refreshSource, /runMaterializedMatterWrite/);
 });

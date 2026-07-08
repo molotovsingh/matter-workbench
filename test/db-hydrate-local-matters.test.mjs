@@ -471,7 +471,7 @@ async function writeMatter({
     await writeFile(path.join(matterRoot, "10_Library", "Source Index.json"), `${JSON.stringify(sourceIndex, null, 2)}\n`);
   }
   if (listOfDates) {
-    await writeFile(path.join(matterRoot, "10_Library", "List of Dates.json"), `${JSON.stringify(listOfDates, null, 2)}\n`);
-    await writeFile(path.join(matterRoot, "10_Library", "List of Dates.md"), "# List of Dates\n");
+    await writeFile(path.join(matterRoot, "10_Library", "Case Timeline.json"), `${JSON.stringify(listOfDates, null, 2)}\n`);
+    await writeFile(path.join(matterRoot, "10_Library", "Case Timeline.md"), "# List of Dates\n");
   }
 }

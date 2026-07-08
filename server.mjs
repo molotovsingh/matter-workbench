@@ -65,7 +65,7 @@ import { handleApiRequest } from "./routes/api-routes.mjs";
 import { sendJson } from "./routes/http-utils.mjs";
 import { handlePrivateBetaAuthApiRequest, requirePrivateBetaAuth } from "./routes/private-beta-auth-routes.mjs";
 import { serveStatic } from "./routes/static-routes.mjs";
-import { createListOfDatesRunner } from "./skills/builtins/create_listofdates/runner.mjs";
+import { createListOfDatesRunner } from "./skills/builtins/create_case_timeline/runner.mjs";
 import { createDescribeSourcesRunner } from "./skills/builtins/describe_sources/runner.mjs";
 import { createProceduralPostureDiagnosisRunner } from "./skills/builtins/procedural_posture_diagnosis/runner.mjs";
 import { createMatterStoryRunner } from "./skills/builtins/the_story/runner.mjs";
@@ -355,6 +355,7 @@ export async function createWorkbenchServer(options = {}) {
       runners: {
         [describeSourcesRunner.slash]: describeSourcesRunner,
         [listOfDatesRunner.slash]: listOfDatesRunner,
+        ["/create_listofdates"]: listOfDatesRunner,
         [matterStoryRunner.slash]: matterStoryRunner,
         [postureDiagnosisRunner.slash]: postureDiagnosisRunner,
       },
@@ -839,7 +840,7 @@ async function safeReadTelemetryLedger(reader) {
 }
 
 function isLikelySilentWaitPath(pathname = "") {
-  return /\/api\/(matter-copilot|configurable-skills\/run|extract|describe-sources|create-listofdates)/.test(pathname);
+  return /\/api\/(matter-copilot|configurable-skills\/run|extract|describe-sources|case-timeline|create-listofdates)/.test(pathname);
 }
 
 function safeErrorCode(value) {

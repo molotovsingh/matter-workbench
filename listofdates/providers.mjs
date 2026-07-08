@@ -47,7 +47,7 @@ export const LIST_OF_DATES_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "Do not repeat raw FILE-NNNN pX.bY citations inside event or legal_relevance text.",
   "Return one compact JSON object only, matching the requested schema.",
 ], {
-  nativeSkill: "create_listofdates",
+  nativeSkill: "create_case_timeline",
 });
 
 export const LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
@@ -63,7 +63,7 @@ export const LIST_OF_DATES_CANDIDATE_SYSTEM_PROMPT = legalWorkbenchSystemPrompt(
   "Mark OCR suspicion and date uncertainty instead of hiding it.",
   "Return one compact JSON object only, matching the requested schema.",
 ], {
-  nativeSkill: "create_listofdates",
+  nativeSkill: "create_case_timeline",
 });
 
 export const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
@@ -79,7 +79,7 @@ export const LIST_OF_DATES_EDITOR_SYSTEM_PROMPT = legalWorkbenchSystemPrompt([
   "Use needs_review=true if OCR noise, ambiguity, or low source confidence makes the event uncertain.",
   "Return one compact JSON object only, matching the requested schema.",
 ], {
-  nativeSkill: "create_listofdates",
+  nativeSkill: "create_case_timeline",
 });
 
 export function createListOfDatesProvider({ task = AI_TASKS.SOURCE_BACKED_ANALYSIS, providerConfig, apiKey, env, fetchImpl, prompt = {}, providerService = null }) {
@@ -129,7 +129,7 @@ export function createOpenAiProvider({
   });
   return async function openAiListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, candidates, schema }) {
     if (!apiKey && !providerService) {
-      const error = new Error("OPENAI_API_KEY is required for /create_listofdates");
+      const error = new Error("OPENAI_API_KEY is required for /create_case_timeline");
       error.statusCode = 409;
       throw error;
     }
@@ -179,12 +179,12 @@ export function createOpenRouterProvider({
   });
   return async function openRouterListOfDatesProvider({ matter, chunk, chunkIndex, chunkCount, candidates, schema }) {
     if (!apiKey && !providerService) {
-      const error = new Error("OPENROUTER_API_KEY is required for /create_listofdates");
+      const error = new Error("OPENROUTER_API_KEY is required for /create_case_timeline");
       error.statusCode = 409;
       throw error;
     }
     if (!model) {
-      const error = new Error("OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL is required for /create_listofdates");
+      const error = new Error("OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL is required for /create_case_timeline");
       error.statusCode = 409;
       throw error;
     }

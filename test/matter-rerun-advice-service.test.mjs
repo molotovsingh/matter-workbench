@@ -56,7 +56,7 @@ test("Case Timeline rerun advice marks chronology regeneration needed when snaps
   ]);
   await writeSourceTombstones(root, [{ file_id: "FILE-0002", status: "removed_from_active_record" }]);
 
-  const advice = await readRerunAdviceForSkill("/create_listofdates", root);
+  const advice = await readRerunAdviceForSkill("/create_case_timeline", root);
 
   assert.equal(advice.state, "stale");
   assert.equal(advice.dependencyState, "chronology_regeneration_needed");
@@ -108,7 +108,7 @@ async function writeSourceIndex(root, sources) {
 
 async function writeListOfDates(root, sourceSnapshot) {
   await writeFile(
-    path.join(root, "10_Library", "List of Dates.json"),
+    path.join(root, "10_Library", "Case Timeline.json"),
     `${JSON.stringify({
       schema_version: "list-of-dates/v1",
       generated_at: "2026-06-26T00:00:00.000Z",
@@ -116,7 +116,7 @@ async function writeListOfDates(root, sourceSnapshot) {
       entries: [{ date_iso: "2026-04-20", event: "Fixture event", citation: "FILE-0001 p1.b1" }],
     }, null, 2)}\n`,
   );
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# List of Dates\n\nFixture chronology.\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# List of Dates\n\nFixture chronology.\n");
 }
 
 async function writeSourceTombstones(root, sources) {

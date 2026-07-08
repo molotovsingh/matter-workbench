@@ -45,7 +45,7 @@ test("React automatic preparation runner includes Case Timeline, story, posture 
   const runner = await readFile(runnerPath, "utf8");
   const prepareMatter = await readFile(prepareMatterPath, "utf8");
 
-  assert.match(runner, /id: 'create-listofdates', label: 'Building Case Timeline'/);
+  assert.match(runner, /id: 'case-timeline', label: 'Building Case Timeline'/);
   assert.match(runner, /id: 'dispute-story', label: 'Writing dispute story'/);
   assert.match(runner, /id: 'procedural-posture-diagnosis', label: 'Diagnosing procedural posture'/);
   assert.match(runner, /api\.runCreateListOfDates\(body\)/);
@@ -113,7 +113,7 @@ test("React matter overview runs needed preparation by default", async () => {
 
   assert.match(runner, /mode = 'needed'/);
   assert.match(runner, /const FULL_PREPARATION_STAGES: PreparationStage\[\] = \[/);
-  assert.match(runner, /slash: '\/matter-init'[\s\S]*slash: '\/extract'[\s\S]*slash: '\/describe_sources'[\s\S]*slash: '\/create_listofdates'[\s\S]*slash: '\/the_story'[\s\S]*slash: '\/procedural_posture_diagnosis'/);
+  assert.match(runner, /slash: '\/matter-init'[\s\S]*slash: '\/extract'[\s\S]*slash: '\/describe_sources'[\s\S]*slash: '\/create_case_timeline'[\s\S]*slash: '\/the_story'[\s\S]*slash: '\/procedural_posture_diagnosis'/);
   assert.match(runner, /if \(mode === 'full'\) \{/);
   assert.match(runner, /const finalPlan = await api\.getPrepareMatter\(matterName\)/);
   assert.doesNotMatch(runner, /setupStage && isCurrentPreparationStage\(setupStage\)/);

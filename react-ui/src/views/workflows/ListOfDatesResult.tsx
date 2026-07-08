@@ -94,7 +94,7 @@ export default function ListOfDatesResult() {
       {confirming && (
         <div style={{ marginTop: 20 }}>
           <RerunConfirmDialog
-            skill="/create_listofdates"
+            skill="/create_case_timeline"
             title={`Review Case Timeline before regenerating — ${state.activeMatter?.name}`}
             matterName={state.activeMatter?.name}
             confirmLabel="Regenerate Case Timeline"

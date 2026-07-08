@@ -45,7 +45,7 @@ source-backed Library artifacts, and lawyer-owned drafts.
 It is not the same thing as a native skill.
 
 Native skills create governed, repeatable artifacts such as Source Labels /
-Document Index and List of Dates. Co-pilot helps the lawyer do transient matter
+Document Index and Case Timeline. Co-pilot helps the lawyer do transient matter
 work: locate, explain, compare, strategize, test framing, draft small passages,
 or amend an existing draft when an explicit draft/amendment workflow exists.
 

@@ -1,7 +1,7 @@
 {
   "schema_version": "built-in-skill/v1",
-  "id": "create_listofdates",
-  "slash": "/create_listofdates",
+  "id": "create_case_timeline",
+  "slash": "/create_case_timeline",
   "title": "Build Case Timeline",
   "display": {
     "action": "Build Case Timeline",
@@ -34,6 +34,6 @@
   ],
   "downstream": [],
   "default_lane": "10_Library",
-  "runner_key": "/create_listofdates",
+  "runner_key": "/create_case_timeline",
   "version": 1
 }

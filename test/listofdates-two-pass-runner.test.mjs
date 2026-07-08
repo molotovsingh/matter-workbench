@@ -122,7 +122,7 @@ test("List of Dates two-pass runner returns candidate ledger and final entries",
     rejectedCandidates: 0,
     rejectedEntries: 0,
   });
-  assert.equal(result.outputPaths.candidates, "10_Library/List of Dates Candidates.json");
+  assert.equal(result.outputPaths.candidates, "10_Library/Case Timeline Candidates.json");
   assert.equal(result.candidateLedger.status, "succeeded");
   assert.equal(result.candidateLedger.final_entry_count, 1);
   assert.equal(result.aiRun.provider, "two-pass");

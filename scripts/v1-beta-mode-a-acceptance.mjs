@@ -48,8 +48,8 @@ export async function runModeAAcceptance(options = {}) {
     await runStep(matterReport, "prepare plan", () => getJson(baseUrl, "/api/prepare-matter"));
     await runStep(matterReport, "extract", () => postJson(baseUrl, "/api/extract", { dryRun: false }));
     await runStep(matterReport, "source labels", () => postJson(baseUrl, "/api/describe-sources", { dryRun: false }));
-    await runStep(matterReport, "list of dates", () => postJson(baseUrl, "/api/create-listofdates", { dryRun: false }));
-    await runStep(matterReport, "preview list of dates", () => getJson(baseUrl, `/api/file?path=${encodeURIComponent("10_Library/List of Dates.md")}`));
+    await runStep(matterReport, "case timeline", () => postJson(baseUrl, "/api/case-timeline", { dryRun: false }));
+    await runStep(matterReport, "preview case timeline", () => getJson(baseUrl, `/api/file?path=${encodeURIComponent("10_Library/Case Timeline.md")}`));
     await runStep(matterReport, "developer attention", async () => {
       const attention = await getJson(baseUrl, "/api/matter-attention");
       matterReport.attention = summarizeAttention(attention);
@@ -121,7 +121,7 @@ async function summarizeArtifacts(matterRoot) {
     provider: json.ai_run?.provider || "",
     model: json.ai_run?.model || "",
   }));
-  const listJson = await readJsonSummary(path.join(matterRoot, "10_Library", "List of Dates.json"), (json) => ({
+  const listJson = await readJsonSummary(path.join(matterRoot, "10_Library", "Case Timeline.json"), (json) => ({
     schema_version: json.schema_version || "",
     entry_count: Array.isArray(json.entries) ? json.entries.length : 0,
     source_record_count: json.source_record_count || 0,
@@ -131,8 +131,8 @@ async function summarizeArtifacts(matterRoot) {
   return {
     sourceIndex,
     listOfDatesJson: listJson,
-    listOfDatesMarkdown: await fileSummary(path.join(matterRoot, "10_Library", "List of Dates.md")),
-    listOfDatesCsv: await fileSummary(path.join(matterRoot, "10_Library", "List of Dates.csv")),
+    caseTimelineMarkdown: await fileSummary(path.join(matterRoot, "10_Library", "Case Timeline.md")),
+    caseTimelineCsv: await fileSummary(path.join(matterRoot, "10_Library", "Case Timeline.csv")),
   };
 }
 

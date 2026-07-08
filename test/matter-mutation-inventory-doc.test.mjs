@@ -6,6 +6,7 @@ const inventoryPath = new URL("../docs/matter-mutation-inventory.md", import.met
 const matterWorkflowRoutesPath = new URL("../routes/matter-workflow-routes.mjs", import.meta.url);
 const appShellRoutesPath = new URL("../routes/app-shell-routes.mjs", import.meta.url);
 const skillFactoryRoutesPath = new URL("../routes/skill-factory-routes.mjs", import.meta.url);
+const caseTimelineOperationPath = new URL("../shared/case-timeline-operation.mjs", import.meta.url);
 
 const TRACKED_MUTATION_ROUTES = [
   "/api/matters/new",
@@ -16,8 +17,8 @@ const TRACKED_MUTATION_ROUTES = [
   "/api/matter-init",
   "/api/extract",
   "/api/describe-sources",
-  "/api/create-listofdates",
-  "/api/create-listofdates/refresh-labels",
+  "/api/case-timeline",
+  "/api/case-timeline/refresh-labels",
   "/api/matter-story",
   "/api/doctor/fix",
   "/api/skill-ideas",
@@ -69,6 +70,7 @@ async function readRouteSources() {
     await readFile(matterWorkflowRoutesPath, "utf8"),
     await readFile(appShellRoutesPath, "utf8"),
     await readFile(skillFactoryRoutesPath, "utf8"),
+    await readFile(caseTimelineOperationPath, "utf8"),
   ].join("\n");
 }
 

@@ -60,9 +60,9 @@ test("List of Dates artifact helper builds stable output paths", () => {
   assert.deepEqual(outputPaths, {
     directory: "10_Library",
     candidates: `10_Library/${CANDIDATE_LEDGER_FILE}`,
-    json: "10_Library/List of Dates.json",
-    csv: "10_Library/List of Dates.csv",
-    markdown: "10_Library/List of Dates.md",
+    json: "10_Library/Case Timeline.json",
+    csv: "10_Library/Case Timeline.csv",
+    markdown: "10_Library/Case Timeline.md",
   });
 });
 

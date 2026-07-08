@@ -1,6 +1,11 @@
 import {
-  CASE_TIMELINE_JSON_RELATIVE,
-  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_SKILL_SLASH,
+  CASE_TIMELINE_STAGE_ID,
+} from "../shared/case-timeline-operation.mjs";
+import {
+  CASE_TIMELINE_JSON_RELATIVE_CANDIDATES,
+  CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES,
+  CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES,
   SOURCE_INDEX_RELATIVE,
   isCaseTimelineReadModelPath,
 } from "../shared/matter-artifacts.mjs";
@@ -8,7 +13,6 @@ import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.m
 import { RERUN_ADVICE_STATES } from "../shared/rerun-advice-states.mjs";
 import { missingMetadataLabels, prepareStageDefinition, warningsForPlan } from "../shared/preparation-stages.mjs";
 import {
-  DISPUTE_STORY_BASIS_RELATIVE,
   DISPUTE_STORY_OUTPUT_RELATIVE,
   isMatterWorkbenchStorySource,
 } from "./matter-story-service.mjs";
@@ -47,8 +51,8 @@ export function runtimeMatterStatusFromWorkspaceState({ matter, objects = [], tr
       rerunAdvice: runtimeSourceLabelsRerunAdvice(runtimeInputs),
     }),
     statusStage({
-      id: "create-listofdates",
-      slash: "/create_listofdates",
+      id: CASE_TIMELINE_STAGE_ID,
+      slash: CASE_TIMELINE_SKILL_SLASH,
       label: "Build Case Timeline",
       present: paths.some((item) => isCaseTimelineReadModelPath(item.path)),
       artifacts: paths
@@ -70,7 +74,7 @@ export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, stat
   const setup = prepareStage("/matter-init", stageBySlash.get("/matter-init"));
   const extraction = prepareStage("/extract", stageBySlash.get("/extract"), setup);
   const sourceLabels = prepareStage("/describe_sources", stageBySlash.get("/describe_sources"), extraction);
-  const caseTimeline = prepareStage("/create_listofdates", stageBySlash.get("/create_listofdates"), sourceLabels);
+  const caseTimeline = prepareStage(CASE_TIMELINE_SKILL_SLASH, stageBySlash.get(CASE_TIMELINE_SKILL_SLASH), sourceLabels);
   const disputeStoryStage = disputeStory?.hasActiveSkill
     ? runtimeDisputeStoryStage({ storyStatus: runtimeDisputeStoryStatus({ workspaceFiles, matterJson: disputeStory.matterJson || {} }), caseTimelineStage: caseTimeline })
     : null;
@@ -117,10 +121,9 @@ export function runtimePrepareMatterPlanFromStatus({ matter, dbMatter = {}, stat
 function runtimeDisputeStoryStatus({ workspaceFiles = [], matterJson = {} } = {}) {
   const byPath = new Map((workspaceFiles || []).map((item) => [item.path, item]));
   const story = byPath.get(DISPUTE_STORY_OUTPUT_RELATIVE) || null;
-  const caseTimeline = newestWorkspaceFile([
-    byPath.get(DISPUTE_STORY_BASIS_RELATIVE),
-    byPath.get(CASE_TIMELINE_JSON_RELATIVE),
-  ].filter(Boolean));
+  const caseTimeline = newestWorkspaceFile(CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES
+    .map((relativePath) => byPath.get(relativePath))
+    .filter(Boolean));
   return {
     storyMarkdownPresent: Boolean(story),
     storyStale: Boolean(story && caseTimeline && (Date.parse(caseTimeline.updatedAt || "") || 0) > (Date.parse(story.updatedAt || "") || 0) + 1),
@@ -194,10 +197,9 @@ function runtimeProceduralPostureDiagnosisStage({ workspaceFiles = [], disputeSt
   const markdown = byPath.get(PROCEDURAL_POSTURE_DIAGNOSIS_OUTPUT_RELATIVE) || null;
   const json = byPath.get(PROCEDURAL_POSTURE_DIAGNOSIS_JSON_RELATIVE) || null;
   const diagnosis = newestWorkspaceFile([markdown, json].filter(Boolean));
-  const timeline = newestWorkspaceFile([
-    byPath.get(DISPUTE_STORY_BASIS_RELATIVE),
-    byPath.get(CASE_TIMELINE_JSON_RELATIVE),
-  ].filter(Boolean));
+  const timeline = newestWorkspaceFile(CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES
+    .map((relativePath) => byPath.get(relativePath))
+    .filter(Boolean));
   const story = byPath.get(DISPUTE_STORY_OUTPUT_RELATIVE) || null;
   const base = {
     id: definition.id,
@@ -284,9 +286,17 @@ function runtimeStatusInputs({ matter, objects = [] } = {}) {
     sourceInputs: runtimeSourceInputs(rows),
     extractionInputs,
     sourceIndex: byPath.get(SOURCE_INDEX_RELATIVE) || null,
-    caseTimelineMarkdown: byPath.get(CASE_TIMELINE_MARKDOWN_RELATIVE) || null,
-    caseTimelineJson: byPath.get(CASE_TIMELINE_JSON_RELATIVE) || null,
+    caseTimelineMarkdown: firstByPath(byPath, CASE_TIMELINE_MARKDOWN_RELATIVE_CANDIDATES),
+    caseTimelineJson: firstByPath(byPath, CASE_TIMELINE_JSON_RELATIVE_CANDIDATES),
   };
+}
+
+function firstByPath(byPath, relativePaths = []) {
+  for (const relativePath of relativePaths) {
+    const item = byPath.get(relativePath);
+    if (item) return item;
+  }
+  return null;
 }
 
 function runtimeSourceInputs(rows = []) {
@@ -383,7 +393,7 @@ function runtimeCaseTimelineRerunAdvice(inputs = {}) {
     ...(inputs.sourceIndex ? [runtimeInput(inputs.sourceIndex, "source_index")] : []),
   ];
   return buildRuntimeRerunAdvice({
-    skill: "/create_listofdates",
+    skill: CASE_TIMELINE_SKILL_SLASH,
     label: "case timeline",
     target,
     upstreamInputs,

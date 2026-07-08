@@ -924,7 +924,7 @@ function PrivateBetaAuthLoading({ error }: { error: string }) {
 
 function preparationStartStageLabel(startStage = ''): string {
   if (startStage === '/describe_sources' || startStage === 'source_labels' || startStage === 'describe-sources') return 'Source Labels';
-  if (startStage === '/create_listofdates' || startStage === 'case_timeline' || startStage === 'create-listofdates') return 'Case Timeline';
+  if (startStage === '/create_case_timeline' || startStage === '/create_listofdates' || startStage === 'case_timeline' || startStage === 'case-timeline' || startStage === 'create-listofdates') return 'Case Timeline';
   if (startStage === '/the_story' || startStage === 'matter_story' || startStage === 'dispute-story') return 'Matter Story';
   if (startStage === '/procedural_posture_diagnosis' || startStage === 'posture_diagnosis' || startStage === 'procedural-posture-diagnosis') return 'Procedural Diagnosis';
   if (startStage === '/extract' || startStage === 'extract') return 'document reading';

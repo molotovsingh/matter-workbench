@@ -27,8 +27,8 @@ async function matterRoot() {
     matter_type: "Civil",
     jurisdiction: "India",
   }, null, 2)}\n`);
-  await writeFile(path.join(root, "10_Library", "List of Dates.md"), "# Case Timeline\n\n| Date | Event | Legal Relevance | Source |\n| --- | --- | --- | --- |\n| 2026-01-01 | Notice issued. | Records notice. | Notice |\n");
-  await writeFile(path.join(root, "10_Library", "List of Dates.json"), `${JSON.stringify({
+  await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# Case Timeline\n\n| Date | Event | Legal Relevance | Source |\n| --- | --- | --- | --- |\n| 2026-01-01 | Notice issued. | Records notice. | Notice |\n");
+  await writeFile(path.join(root, "10_Library", "Case Timeline.json"), `${JSON.stringify({
     schema_version: "list-of-dates/v1",
     entries: [{ date_iso: "2026-01-01", event: "Notice issued.", legal_relevance: "Records notice before filing.", citation: "FILE-0001 p1.b1" }],
   }, null, 2)}\n`);
@@ -47,7 +47,7 @@ const contextPacket = {
   evidence_blocks: [{ citation: "FILE-0001 p1.b1", source_label: "Notice", text: "Notice issued on 1 January 2026." }],
   library_artifacts: [{
     kind: "list_of_dates",
-    path: "10_Library/List of Dates.json",
+    path: "10_Library/Case Timeline.json",
     entry_count: 1,
     entries: [{ date_iso: "2026-01-01", event: "Notice issued.", legal_relevance: "Records notice before filing.", citation: "FILE-0001 p1.b1" }],
   }],

@@ -4,15 +4,15 @@ import { readWorkspaceFile, readWorkspaceTextFile } from "../frontend/workspace-
 
 test("workspace file helper reads preview payloads through encoded file API path", async () => {
   const restoreFetch = mockFetch(async (url) => {
-    assert.equal(url, "/api/file?path=10_Library%2FList%20of%20Dates.md");
+    assert.equal(url, "/api/file?path=10_Library%2FCase%20Timeline.md");
     return jsonResponse({
-      path: "10_Library/List of Dates.md",
-      content: "# List of Dates",
+      path: "10_Library/Case Timeline.md",
+      content: "# Case Timeline",
     });
   });
 
   try {
-    assert.equal(await readWorkspaceTextFile("10_Library/List of Dates.md"), "# List of Dates");
+    assert.equal(await readWorkspaceTextFile("10_Library/Case Timeline.md"), "# Case Timeline");
   } finally {
     restoreFetch();
   }
@@ -29,10 +29,10 @@ test("workspace file helper maps file API errors to readable messages", async ()
 });
 
 test("workspace file helper rejects non-text preview payloads for markdown copy", async () => {
-  const restoreFetch = mockFetch(async () => jsonResponse({ path: "10_Library/List of Dates.md" }));
+  const restoreFetch = mockFetch(async () => jsonResponse({ path: "10_Library/Case Timeline.md" }));
 
   try {
-    await assert.rejects(() => readWorkspaceTextFile("10_Library/List of Dates.md"), /did not include text content/);
+    await assert.rejects(() => readWorkspaceTextFile("10_Library/Case Timeline.md"), /did not include text content/);
   } finally {
     restoreFetch();
   }

@@ -207,7 +207,7 @@ test("command box treats freeform text as a skill idea after new skill mode", as
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What I understood/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1/);
   assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Question 1 of \d+/);
-  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /\/create_case_timeline/);
   assert.doesNotMatch(ctx.elements.editorContent.innerHTML, /Router decision/);
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.statusCalls.at(-1).bar, "Skill Idea Interview");
@@ -551,7 +551,7 @@ test("command box renders router fallback inside the rail without replacing the 
       return {
         decision: "modification_candidate",
         recommended_action: "Review existing skill before adding anything new.",
-        matched_skill: "/create_listofdates",
+        matched_skill: "/create_case_timeline",
         confidence: 0.72,
         reason: "The request sounds close to chronology output.",
         suggested_next_action: "Clarify whether this changes an existing skill.",
@@ -567,7 +567,7 @@ test("command box renders router fallback inside the rail without replacing the 
   assert.equal(ctx.elements.editorContent.innerHTML, "<h1>Existing matter overview</h1>");
   assert.equal(ctx.elements.aiCommandSession.hidden, false);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /This may already be covered/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_case_timeline/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /72%/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Open full result/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Use or improve existing skill/);
@@ -576,7 +576,7 @@ test("command box renders router fallback inside the rail without replacing the 
   assert.equal(interactionLogs[0].matched_command, "router/check");
   assert.equal(interactionLogs[0].rendered_state, "router/check");
   assert.equal(interactionLogs[0].status, "router_checked");
-  assert.equal(interactionLogs[0].router_decision.matched_skill, "/create_listofdates");
+  assert.equal(interactionLogs[0].router_decision.matched_skill, "/create_case_timeline");
   assert.equal(interactionLogs[0].provider_run_invoked, true);
 });
 
@@ -649,7 +649,7 @@ test("command box skill idea interview session saves answers into a design brief
       copied = text;
     },
     skillDispatch: {
-      "/create_listofdates": async (command) => calls.push(command),
+      "/create_case_timeline": async (command) => calls.push(command),
     },
   });
 
@@ -1092,7 +1092,7 @@ test("command box lets a freeform distinct justification override a repeated ove
         status: "incomplete",
         designBrief: {
           ...body.designBrief,
-          expectedOutputArtifact: "10_Library/List of Dates.md",
+          expectedOutputArtifact: "10_Library/Case Timeline.md",
           targetLane: "10_Library",
         },
         readiness: completeReadiness(),
@@ -1136,10 +1136,10 @@ test("command box lets a freeform distinct justification override a repeated ove
       return {
         decision: "needs_user_approval",
         recommended_action: "modify_existing_skill",
-        matched_skill: "/create_listofdates",
+        matched_skill: "/create_case_timeline",
         confidence: 0.97,
         reason: "This chronology request overlaps with the existing list-of-dates skill.",
-        suggested_next_action: "Improve /create_listofdates instead of creating another chronology skill.",
+        suggested_next_action: "Improve /create_case_timeline instead of creating another chronology skill.",
         user_gate_required: true,
         mece_violation: true,
       };
@@ -1177,7 +1177,7 @@ test("command box lets a freeform distinct justification override a repeated ove
   assert.equal(routerCalls.length, 1);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /This may already be covered/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Create separate skill anyway/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_case_timeline/);
   assert.equal(ctx.statusCalls.at(-1).bar, "Review Existing Skill");
 
   await box.handleCommand({ userRequest: "this produces a workshop issue review, not the library chronology artifact" });
@@ -1367,7 +1367,7 @@ test("command box interview detects adjacent list-of-dates improvement", async (
   const ctx = fakeCtx({ form, inputValue: "can list of dates also flag limitation issues" });
   const box = createAiCommandBox(ctx, {
     skillDispatch: {
-      "/create_listofdates": async (command) => calls.push(command),
+      "/create_case_timeline": async (command) => calls.push(command),
     },
   });
 
@@ -1376,7 +1376,7 @@ test("command box interview detects adjacent list-of-dates improvement", async (
 
   assert.deepEqual(calls, []);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Likely related skill/);
-  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_listofdates/);
+  assert.match(ctx.elements.aiCommandSession.innerHTML, /\/create_case_timeline/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /Question 1/);
   assert.doesNotMatch(ctx.elements.aiCommandSession.innerHTML, /Question 1 of 3/);
   assert.match(ctx.elements.aiCommandSession.innerHTML, /What should change/);

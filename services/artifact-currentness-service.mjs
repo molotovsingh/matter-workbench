@@ -2,8 +2,8 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  CASE_TIMELINE_JSON_RELATIVE,
   CASE_TIMELINE_MARKDOWN_RELATIVE,
+  CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES,
   SOURCE_INDEX_RELATIVE,
 } from "../shared/matter-artifacts.mjs";
 import { CASE_TIMELINE_DEPENDENCY_STATES } from "../shared/case-timeline-dependency-states.mjs";
@@ -14,10 +14,7 @@ import {
   describeSourcesRerunAdvice,
   isNewerByTrustedMtime,
 } from "./matter-rerun-advice-service.mjs";
-import {
-  DISPUTE_STORY_BASIS_RELATIVE,
-  DISPUTE_STORY_OUTPUT_RELATIVE,
-} from "./matter-story-service.mjs";
+import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
 
 export const ARTIFACT_CURRENTNESS_RECORD_SCHEMA_VERSION = "artifact-currentness-record/v1";
 export const ARTIFACT_CURRENTNESS_PROJECTION_SCHEMA_VERSION = "artifact-currentness-projection/v1";
@@ -240,10 +237,7 @@ export function normalizeArtifactCurrentnessRecords(records = [], options = {}) 
 
 async function readLocalMatterStoryCurrentness(root, { chronologyAdvice = {}, matterName = "", observedAt = "" } = {}) {
   const story = await statIfFile(path.join(root, DISPUTE_STORY_OUTPUT_RELATIVE));
-  const listBasis = await newestStat([
-    path.join(root, DISPUTE_STORY_BASIS_RELATIVE),
-    path.join(root, CASE_TIMELINE_JSON_RELATIVE),
-  ]);
+  const listBasis = await newestStat(CASE_TIMELINE_READ_MODEL_RELATIVE_CANDIDATES.map((relativePath) => path.join(root, relativePath)));
   if (!story) {
     return normalizeArtifactCurrentnessRecord({
       matterName,

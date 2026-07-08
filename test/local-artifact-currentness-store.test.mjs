@@ -22,12 +22,12 @@ test("local artifact currentness store upserts normalized records atomically", a
     {
       matterName: "Demo Matter",
       artifactFamily: "list_of_dates",
-      artifactPath: "10_Library/List of Dates.md",
+      artifactPath: "10_Library/Case Timeline.md",
       state: "stale",
       dependencyState: "chronology_regeneration_needed",
       reasonCode: "source_removal.chronology_regeneration_needed",
       affectedFileIds: ["file-0007"],
-      metadata: { skill: "/create_listofdates", sourceText: "must not persist" },
+      metadata: { skill: "/create_case_timeline", sourceText: "must not persist" },
     },
   ]);
 

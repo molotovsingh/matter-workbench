@@ -104,6 +104,8 @@
     "matter-attention:report": "node scripts/matter-attention-report.mjs",
     "v1-beta:mode-a-reset": "node scripts/v1-beta-mode-a-reset.mjs",
     "v1-beta:mode-a-acceptance": "node scripts/v1-beta-mode-a-acceptance.mjs",
+    "case-timeline:dry-run": "node create-listofdates-engine.mjs",
+    "case-timeline": "node create-listofdates-engine.mjs --apply",
     "create-listofdates:dry-run": "node create-listofdates-engine.mjs",
     "create-listofdates": "node create-listofdates-engine.mjs --apply"
   },

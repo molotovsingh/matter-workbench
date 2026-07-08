@@ -1,9 +1,9 @@
-# Beta Testing: Lawyer-Facing List of Dates
+# Beta Testing: Case Timeline
 
 This is the supervised beta handoff for the current app workflow:
 
 ```text
-open app -> pick matter -> prepare matter/status -> source labels -> create List of Dates -> review Library output
+open app -> pick matter -> prepare matter/status -> source labels -> build Case Timeline -> review Library output
 ```
 
 The pipeline is ready for real-matter testing with lawyer review. It is not court-ready without review. Treat the generated chronology as lawyer-review-ready work product: useful, source-backed, and auditable, but still requiring professional judgment before use.
@@ -14,8 +14,8 @@ Use the app on real matters with the checklist below. The expected output is:
 
 - extraction records for supported source files;
 - `10_Library/Source Index.json` with readable source labels;
-- `10_Library/List of Dates.json`, `.csv`, and `.md`;
-- lawyer-facing chronology rows with readable source labels;
+- `10_Library/Case Timeline.json`, `.csv`, and `.md`;
+- reviewable neutral chronology rows with readable source labels;
 - raw `FILE-NNNN pX.bY` citations preserved beside those labels.
 
 The most important review question is no longer "does the app run?" The question is now whether the generated chronology is useful to a lawyer reviewing the matter.
@@ -59,10 +59,10 @@ is parked in [Matter Co-pilot Product Policy](copilot-qna-contract.md).
 1. Pick a matter from Home or the matter picker.
 2. Type `status` in the command panel.
    - Confirm the matter pipeline panel appears.
-   - Check whether `/extract`, `/describe_sources`, and `/create_listofdates` are current, stale, missing, or not run.
+   - Check whether `/extract`, `/describe_sources`, and `/create_case_timeline` are current, stale, missing, or not run.
 3. Type `open library`.
    - This opens `10_Library` / Analysis Library.
-   - Existing source labels and List of Dates artifacts should be visible there.
+   - Existing source labels and Case Timeline artifacts should be visible there.
 4. Run `/extract`.
    - This updates extraction records and `Extraction Log.csv`.
    - If Mistral OCR is enabled, scanned PDFs may make Mistral OCR calls.
@@ -70,8 +70,8 @@ is parked in [Matter Co-pilot Product Policy](copilot-qna-contract.md).
    - This writes `10_Library/Source Index.json`.
    - If the existing artifact is current, the app shows a rerun warning before making a paid provider call.
    - Cancel should leave the existing artifact unchanged.
-6. Run `/create_listofdates`.
-   - This writes `10_Library/List of Dates.json`, `.csv`, and `.md`.
+6. Run `/create_case_timeline`.
+   - This writes `10_Library/Case Timeline.json`, `.csv`, and `.md`.
    - If the existing artifact is current, the app shows a rerun warning before making a paid provider call.
    - If upstream inputs are stale or missing, the app may allow the run without an overwrite warning.
 7. Review outputs in `open library`.
@@ -83,7 +83,7 @@ is parked in [Matter Co-pilot Product Policy](copilot-qna-contract.md).
    - The report should include matter name, folder, typed command, matched command, status, provider/model when available, artifact paths, and latest visible terminal lines.
    - It should not include API keys, `.env`, raw source document text, or full extraction records.
 10. Use `open skills` when you want to inspect available capabilities.
-    - The native legal spine is still Source Labels / Document Index and List of Dates.
+    - The native legal spine is still Source Labels / Document Index and Case Timeline.
     - The custom skill factory is available for supervised experiments, but it is not the V1 legal spine.
     - Do not treat a custom skill as trusted until its sample has been reviewed and approved.
 
@@ -94,7 +94,7 @@ Useful command panel inputs:
 /describe_sources
 /context_preview
 /context_search
-/create_listofdates
+/create_case_timeline
 find payment
 search notice
 status
@@ -123,8 +123,8 @@ Then inspect:
 ```text
 00_Inbox/Intake 01 - Initial/Extraction Log.csv
 10_Library/Source Index.json
-10_Library/List of Dates.json
-10_Library/List of Dates.md
+10_Library/Case Timeline.json
+10_Library/Case Timeline.md
 ```
 
 ## Where Outputs Live
@@ -136,9 +136,9 @@ The durable artifacts testers should inspect are:
 00_Inbox/Intake */File Register.csv        canonical file ids and hashes
 _extracted/                                extraction-record/v1 JSON records
 10_Library/Source Index.json               source-index/v1 readable source labels
-10_Library/List of Dates.json              structured lawyer-facing chronology
-10_Library/List of Dates.csv               spreadsheet review copy
-10_Library/List of Dates.md                lawyer-facing review artifact
+10_Library/Case Timeline.json              structured neutral chronology
+10_Library/Case Timeline.csv               spreadsheet review copy
+10_Library/Case Timeline.md                reviewable Case Timeline artifact
 ```
 
 The app may show friendly lane labels:
@@ -160,7 +160,7 @@ The current pipeline has crossed the beta threshold because:
 - `/extract` is stable on the available matters;
 - Mistral OCR is available behind an explicit local gate for scanned PDFs;
 - `/describe_sources` writes source labels and fails closed on bad provider output;
-- `/create_listofdates` produces lawyer-facing chronology fields;
+- `/create_case_timeline` produces reviewable neutral chronology fields;
 - manifest, README, and index-style source noise is filtered before AI input;
 - repeated chronology rows are clustered without deleting raw citations;
 - payment discrepancies are explicit and reviewable;
@@ -206,7 +206,7 @@ The beta goal is to learn whether the chronology helps the lawyer see the case f
 - OpenRouter can still return malformed JSON or transient provider errors.
 - `/describe_sources` may need a retry if the provider returns metadata that fails local validation.
 - Source descriptors may need rerun if extraction records or source hashes shift.
-- `/create_listofdates` may run without confirmation when upstream inputs are newer than the existing artifact. That is intentional: the artifact is stale, not current.
+- `/create_case_timeline` may run without confirmation when upstream inputs are newer than the existing artifact. That is intentional: the artifact is stale, not current.
 - Reviewers must check for missing events and overstated legal relevance.
 - Cluster completeness needs human review, especially for payment and discrepancy clusters.
 - The command panel has local context search, but it is not legal Q&A, semantic search, chat, or drafting copilot yet.
@@ -221,22 +221,22 @@ The merged pipeline was smoke-tested on two local matters.
 
 - `/extract`: 8 cached, 18 duplicate skips, 1 unsupported-format, 0 failed.
 - `/describe_sources`: wrote `Source Index.json`.
-- `/create_listofdates`: accepted 8 events and rendered 5 clustered rows.
+- `/create_case_timeline`: accepted 8 events and rendered 5 clustered rows.
 - Raw citations were preserved.
 - Readable source labels were present for all chronology rows.
-- `/create_listofdates` used OpenRouter and returned provider `Friendli`.
+- `/create_case_timeline` used OpenRouter and returned provider `Friendli`.
 
 ### Mehta vs Skyline
 
 - `/extract`: 10 cached, 2 unsupported-format, 0 failed.
 - First `/describe_sources`: failed closed on a `sha256` mismatch.
 - Retry `/describe_sources`: succeeded and wrote fresh `Source Index.json`.
-- `/create_listofdates`: accepted 53 events and rendered 42 clustered rows.
+- `/create_case_timeline`: accepted 53 events and rendered 42 clustered rows.
 - Cluster output included 32 `single_event`, 8 `corroborated_event`, 1 `payment_discrepancy`, and 1 `source_repeat`.
 - The payment discrepancy row preserved three supporting sources: bank statement, email chain, and payment receipts.
 - Raw citations were preserved.
 - Readable source labels were present for all chronology rows.
-- `/create_listofdates` used OpenRouter and returned provider `Friendli`.
+- `/create_case_timeline` used OpenRouter and returned provider `Friendli`.
 
 ## Review Posture
 
