@@ -125,3 +125,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.119](releases/v1.0.0-beta.119.md) | **Page Frame** | Release note present. |
 | [v1.0.0-beta.120](releases/v1.0.0-beta.120.md) | **Type Rule** | Release note present. |
 | [v1.0.0-beta.121](releases/v1.0.0-beta.121.md) | **Statute Lantern** | Release note present. |
+| [v1.0.0-beta.122](releases/v1.0.0-beta.122.md) | **Corpus Ledger** | Release note present. |
