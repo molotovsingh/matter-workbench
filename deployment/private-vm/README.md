@@ -137,6 +137,64 @@ It does not accept password arguments. Use SSH keys, an interactive SSH
 session, or your normal SSH agent flow. Tracked uncommitted changes are rejected
 unless you explicitly pass `--allow-dirty`.
 
+### Repeatable Legal Source Sidecar deploy
+
+Workbench releases do not vendor the statutes corpus or the standalone Legal
+Source Sidecar. To refresh the loopback Research sidecars on a VM, use the
+sidecar deploy helper from the Mac:
+
+```bash
+npm run private-vm:legal-source-sidecar-deploy -- \
+  --host 172.16.37.128 \
+  --user aks \
+  --sidecar-root /home/aks/matter-workbench-sidecars \
+  --legal-source-dir /Users/aksingh/legal-source-service \
+  --statutes-dir /Users/aksingh/statutes \
+  --configure-workbench-env
+```
+
+For a command preview without touching the VM:
+
+```bash
+npm run private-vm:legal-source-sidecar-deploy -- \
+  --host 172.16.37.128 \
+  --user aks \
+  --dry-run
+```
+
+The helper syncs the standalone sidecar source and the statutes server source
+plus `corpus/`, excluding `.git/`, `node_modules/`, local databases, and private
+environment files. It installs a user-local Node 22 runtime under
+`$HOME/matter-workbench-sidecars/node`, builds the statutes DB from the synced
+corpus with `npm run build:corpus`, writes `mwb-statutes.service` and
+`mwb-legal-source.service`, restarts them, and verifies loopback health.
+
+Default loopback ports are:
+
+```text
+127.0.0.1:8788  statutes service
+127.0.0.1:8790  legal-source sidecar
+```
+
+Port `8788` is the default because `8787` may already be occupied on the beta VM
+by another loopback service. Override it with `--statutes-port` only after
+checking the VM port map.
+
+`--configure-workbench-env` updates only the non-secret Research settings in
+`$HOME/.config/matter-workbench/runtime.env` and restarts
+`matter-workbench-runtime.service`:
+
+```text
+COPILOT_WEB_RESEARCH_ENABLED=1
+COPILOT_WEB_RESEARCH_PROVIDER=legal_source_sidecar
+COPILOT_LEGAL_SOURCE_SERVICE_URL=http://127.0.0.1:8790
+```
+
+The helper deliberately does not accept password, token, or secret command-line
+arguments. Keep any future sidecar token in protected VM env files instead.
+Sidecar web/Exa mode remains disabled in the generated unit unless an operator
+intentionally changes the service environment.
+
 ### Explicit rollback to a previous release
 
 Use rollback only when you have identified the previous release to restore.

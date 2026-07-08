@@ -113,9 +113,10 @@ make Matter Workbench a thin Research consumer. The statutes repo reports
 `python3 examples/statutes_api_tour.py --spawn` successfully after that commit.
 
 Practical deployment note: existing statutes deployments should run `npm run
-build` after updating. Old indexes degrade to `null` for new metadata fields; a
-rebuild populates `source_url`, act provenance, `built_at`, and
-`corpus_fingerprint`.
+build:corpus` after updating the real corpus. `npm run build` may build only a
+fixture/small local corpus depending on the checkout. Old indexes degrade to
+`null` for new metadata fields; a rebuild populates `source_url`, act
+provenance, `built_at`, and `corpus_fingerprint`.
 
 ### 1. Hydrated section search — shipped
 

@@ -23,6 +23,7 @@
     "ui:accept": "npm run ui:build && npm run ui:smoke",
     "private-vm:serve": "node scripts/start-runtime-server.mjs --host 0.0.0.0 --port 4191",
     "private-vm:rsync-deploy": "node scripts/private-vm-rsync-deploy.mjs",
+    "private-vm:legal-source-sidecar-deploy": "node scripts/private-vm-legal-source-sidecar-deploy.mjs",
     "private-vm:rollback": "node scripts/private-vm-rollback.mjs",
     "private-vm:service-check": "node scripts/private-vm-service-check.mjs",
     "private-vm:ops-pack": "node scripts/private-vm-ops-pack.mjs",

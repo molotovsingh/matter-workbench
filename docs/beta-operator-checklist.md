@@ -86,7 +86,26 @@ The root path serves the React shell. `/react/` is only a compatibility alias.
 Research mode can use the loopback Legal Source Sidecar for statute sources.
 This is optional; ordinary Ask remains matter-record-only.
 
-Start statutes first:
+For the private VM, prefer the repeatable sidecar deploy helper:
+
+```bash
+npm run private-vm:legal-source-sidecar-deploy -- \
+  --host 139.59.74.9 \
+  --user aks \
+  --sidecar-root /home/aks/matter-workbench-sidecars \
+  --legal-source-dir /Users/aksingh/legal-source-service \
+  --statutes-dir /Users/aksingh/statutes \
+  --configure-workbench-env
+```
+
+The helper syncs sidecar/statutes source, installs a user-local Node 22 runtime,
+builds the statutes DB from the real `corpus/` with `npm run build:corpus`,
+installs `mwb-statutes.service` and `mwb-legal-source.service`, restarts them,
+and checks loopback health. It defaults to `127.0.0.1:8788` for statutes and
+`127.0.0.1:8790` for the legal-source sidecar because `8787` may already be
+occupied on the beta VM.
+
+For local development without systemd, start statutes first:
 
 ```bash
 cd /Users/aksingh/statutes
