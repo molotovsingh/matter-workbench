@@ -1,3 +1,4 @@
+import { isStatuteSourceId } from '../../../shared/legal-source-ids.mjs';
 import { USER_FACING_ASSISTANT_UNAVAILABLE_MESSAGE, containsUserFacingRestrictedAiLanguage, isAssistantAvailabilityError } from '../../../shared/user-facing-ai-language-policy.js';
 import { redactSensitiveText } from './secretRedaction';
 import type { MatterCopilotAnswer, MatterCopilotResearchAnswer } from '../types';
@@ -150,7 +151,7 @@ function visiblePublicSourceLabels(answer: MatterCopilotResearchAnswer, group: '
   const seen = new Set<string>();
   for (const source of answer.public_sources || []) {
     const sourceType = normalizeText(source.source_type).toLowerCase();
-    const isStatute = sourceType === 'official_statute' || /^STATUTE-\d{4}$/i.test(normalizeText(source.id));
+    const isStatute = sourceType === 'official_statute' || isStatuteSourceId(source.id);
     if (group === 'official_statute' && !isStatute) continue;
     if (group === 'non_statute' && isStatute) continue;
     const id = normalizeText(source.id);

@@ -6,6 +6,7 @@ import { containsUserFacingRestrictedAiLanguage, USER_FACING_ASSISTANT_UNAVAILAB
 
 const matterCopilotAnswerPath = new URL("../react-ui/src/lib/matterCopilotAnswer.ts", import.meta.url);
 const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
+const legalSourceIdsUrl = new URL("../shared/legal-source-ids.mjs", import.meta.url).href;
 const userFacingPolicyUrl = new URL("../shared/user-facing-ai-language-policy.js", import.meta.url).href;
 
 async function loadMatterCopilotAnswerModule() {
@@ -17,6 +18,10 @@ async function loadMatterCopilotAnswerModule() {
       target: ts.ScriptTarget.ES2020,
     },
   }).outputText
+    .replace(
+      /from ['"]\.\.\/\.\.\/\.\.\/shared\/legal-source-ids\.mjs['"];/,
+      `from '${legalSourceIdsUrl}';`,
+    )
     .replace(
       /from ['"]\.\.\/\.\.\/\.\.\/shared\/user-facing-ai-language-policy\.js['"];/,
       `from '${userFacingPolicyUrl}';`,

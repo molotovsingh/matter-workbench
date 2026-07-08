@@ -1,5 +1,6 @@
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { normalizeLegalSourceId } from "../shared/legal-source-ids.mjs";
 import { normalizeLegalSourceMetadata } from "./legal-source-metadata.mjs";
 
 export const LEGAL_SOURCE_SEARCH_SCHEMA_VERSION = "legal-source-search-request/v1";
@@ -11,7 +12,6 @@ const MAX_QUESTION_LENGTH = 1200;
 const MAX_WARNING_LENGTH = 500;
 const MAX_TITLE_LENGTH = 500;
 const MAX_URL_LENGTH = 2000;
-const VALID_LEGAL_SOURCE_ID = /^(?:WEB|STATUTE)-\d{4}$/;
 
 export function createLegalSourceSidecarProvider({
   baseUrl,
@@ -139,8 +139,8 @@ function normalizeLegalSource(source = {}, { maxResultChars }) {
   if (!source || typeof source !== "object" || Array.isArray(source)) {
     return { source: null, warning: "Dropped malformed legal source from sidecar." };
   }
-  const id = String(source.id || "").trim().toUpperCase();
-  if (!VALID_LEGAL_SOURCE_ID.test(id)) {
+  const id = normalizeLegalSourceId(source.id);
+  if (!id) {
     return { source: null, warning: "Dropped legal source with malformed source ID." };
   }
   const metadata = normalizeLegalSourceMetadata(source.metadata);

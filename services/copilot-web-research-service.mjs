@@ -10,6 +10,7 @@ import {
 } from "./web-research-providers.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import { extractLegalSourceIds } from "../shared/legal-source-ids.mjs";
 import {
   extractCorpusFingerprintsFromSources,
   normalizeLegalSourceMetadata,
@@ -206,7 +207,7 @@ function validatePublicSources(modelSources, publicSources, answerMarkdown = "")
   if (Array.isArray(modelSources)) {
     for (const source of modelSources) addRequestedId(source?.id);
   }
-  for (const id of referencedPublicSourceIds(answerMarkdown)) addRequestedId(id);
+  for (const id of extractLegalSourceIds(answerMarkdown)) addRequestedId(id);
   if (!requestedIds.length) {
     for (const source of publicSources) addRequestedId(source?.id);
   }
@@ -232,10 +233,6 @@ function validatePublicSources(modelSources, publicSources, answerMarkdown = "")
     sources.push(source);
   }
   return { sources, warnings };
-}
-
-function referencedPublicSourceIds(value = "") {
-  return [...String(value || "").matchAll(/\b(?:WEB|STATUTE)-\d{4}\b/gi)].map((match) => match[0].toUpperCase());
 }
 
 function normalizeResearchMetadata({ provider, query, resultCount, sources = [] } = {}) {
