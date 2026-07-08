@@ -1170,6 +1170,7 @@ export interface MatterCopilotPublicSource {
   published_at?: string;
   source_type?: string;
   snippet?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MatterCopilotConversationTurn {

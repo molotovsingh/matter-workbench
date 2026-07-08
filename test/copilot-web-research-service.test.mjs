@@ -167,7 +167,25 @@ test("copilot web research validates public source IDs in structured output and 
       sources: [
         { id: "WEB-0001", title: "IBC", url: "https://example.test/ibc", sourceType: "official", snippet: "Section 60(5)." },
         { id: "WEB-0002", title: "NCLT", url: "https://example.test/nclt", sourceType: "court", snippet: "NCLT direction." },
-        { id: "STATUTE-0001", title: "Section 60, IBC", url: "https://example.test/statute", sourceType: "official_statute", snippet: "NCLT jurisdiction." },
+        {
+          id: "STATUTE-0001",
+          title: "Section 60, IBC",
+          url: "https://example.test/statute",
+          sourceType: "official_statute",
+          snippet: "NCLT jurisdiction.",
+          metadata: {
+            provider: "statutes",
+            slug: "insolvency-and-bankruptcy-code-2016",
+            section: "60",
+            act: "Insolvency and Bankruptcy Code, 2016",
+            corpus_fingerprint: "corpus-sha256:test-fingerprint",
+            built_at: "2026-07-08T02:29:12.998Z",
+            provenance: {
+              source: { name: "India Code", tier: "official", url: "https://indiacode.nic.in", retrieved_at: "2026-07-01" },
+              authenticity_anchor: { status: "archived", archive_url: "https://archive.example.test" },
+            },
+          },
+        },
       ],
       warnings: ["Statutes service used stored corpus; verify currency. token=sidecar-secret"],
     }),
@@ -185,6 +203,19 @@ test("copilot web research validates public source IDs in structured output and 
 
   assert.deepEqual(answer.public_sources.map((source) => source.id), ["WEB-0002", "STATUTE-0001"]);
   assert.equal(answer.public_sources[1].source_type, "official_statute");
+  assert.deepEqual(answer.public_sources[1].metadata, {
+    provider: "statutes",
+    slug: "insolvency-and-bankruptcy-code-2016",
+    section: "60",
+    act: "Insolvency and Bankruptcy Code, 2016",
+    corpus_fingerprint: "corpus-sha256:test-fingerprint",
+    built_at: "2026-07-08T02:29:12.998Z",
+    provenance: {
+      source: { name: "India Code", tier: "official", url: "https://indiacode.nic.in", retrieved_at: "2026-07-01" },
+      authenticity_anchor: { status: "archived", archive_url: "https://archive.example.test" },
+    },
+  });
+  assert.deepEqual(answer.research.corpus_fingerprints, ["corpus-sha256:test-fingerprint"]);
   assert.match(answer.warnings.join("\n"), /Dropped unsupported public source WEB-9999/);
   assert.match(answer.warnings.join("\n"), /Dropped unsupported public source STATUTE-9999/);
   assert.match(answer.warnings.join("\n"), /Statutes service used stored corpus/);

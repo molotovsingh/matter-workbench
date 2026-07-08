@@ -68,6 +68,50 @@ test("legal source sidecar provider posts the search request and bearer token", 
   }]);
 });
 
+test("legal source sidecar provider preserves safe statute metadata", () => {
+  const normalized = normalizeLegalSourceResponse({
+    query: "section 69A Indian Partnership Act",
+    sources: [{
+      id: "STATUTE-0001",
+      title: "Section 69A, Indian Partnership Act, 1932",
+      source_type: "official_statute",
+      snippet: "Repayment of premium on premature dissolution.",
+      metadata: {
+        provider: "statutes",
+        slug: "indian-partnership-act-1932",
+        section: "69A",
+        act: "Indian Partnership Act, 1932",
+        act_number: "9 of 1932",
+        heading: "Suits between partners and firms",
+        corpus_fingerprint: "corpus-sha256:abc123",
+        built_at: "2026-07-08T02:29:12.998Z",
+        last_refreshed: "2026-07-03T11:04:34.725Z",
+        ignored: "not exported",
+        provenance: {
+          source: { name: "India Code", tier: "official", url: "https://example.test", retrieved_at: "2026-07-01" },
+          authenticity_anchor: { status: "archived", archive_url: "https://archive.example.test" },
+        },
+      },
+    }],
+  });
+
+  assert.deepEqual(normalized.sources[0].metadata, {
+    provider: "statutes",
+    slug: "indian-partnership-act-1932",
+    section: "69A",
+    act: "Indian Partnership Act, 1932",
+    act_number: "9 of 1932",
+    heading: "Suits between partners and firms",
+    corpus_fingerprint: "corpus-sha256:abc123",
+    built_at: "2026-07-08T02:29:12.998Z",
+    last_refreshed: "2026-07-03T11:04:34.725Z",
+    provenance: {
+      source: { name: "India Code", tier: "official", url: "https://example.test", retrieved_at: "2026-07-01" },
+      authenticity_anchor: { status: "archived", archive_url: "https://archive.example.test" },
+    },
+  });
+});
+
 test("legal source sidecar provider preserves WEB IDs and normalizes STATUTE IDs", async () => {
   const provider = createLegalSourceSidecarProvider({
     baseUrl: "http://127.0.0.1:8790",

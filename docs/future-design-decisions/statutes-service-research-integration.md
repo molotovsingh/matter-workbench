@@ -224,8 +224,9 @@ statutes service owns the legal/citation/provenance fields.
 ### 5. Explicit corpus health — shipped
 
 `/health` now includes `built_at` and `corpus_fingerprint`, a sha256 over the
-built corpus. Workbench should record the fingerprint in Research metadata or
-receipts when a statute source is used.
+built corpus. Workbench records statute metadata on validated `public_sources`
+and also copies unique corpus fingerprints into `research.corpus_fingerprints`
+for receipt/audit traceability.
 
 ### 6. Nice-to-have later: related sections
 
@@ -467,10 +468,11 @@ Mapping from a hydrated statutes record should be:
 | `sourceType` / `source_type` | `official_statute` |
 | `snippet` | full `text` truncated to Workbench budget; include `heading` prefix if helpful |
 
-Keep extra statute metadata internally on the normalized source while composing
-the answer payload if useful: `citation`, `slug`, `section`, `requested_section`,
-`act_number`, `corpus_fingerprint`, and provenance summary. Do not expose
-unsupported fields to the frontend unless the TypeScript type is widened.
+Keep extra statute metadata on the normalized source while composing the answer
+payload: `citation`, `slug`, `section`, `requested_section`, `act_number`,
+`corpus_fingerprint`, and provenance summary. The frontend type now allows a
+bounded `metadata` object on public sources; display should stay concise while
+receipts preserve corpus/provenance traceability.
 
 ### Required source-ID validation update
 
