@@ -29,6 +29,17 @@ Sources
 
 The existing `/create_listofdates` remains the neutral source-backed Case Timeline. The new MW List of Dates is a downstream Case Analysis artifact shaped by the diagnosed court/forum, procedural posture, client side, priority remedy, and working legal objective.
 
+## Second-Pass Decision Summary
+
+This is the intended implementation reading:
+
+1. **Do not retrofit `/create_listofdates` into the advocacy artifact.** Keep it as the Case Timeline and preserve its existing internal paths.
+2. **Make MW LoD a Case Analysis operation, not a Core Preparation default.** In the first implementation, it should be manually triggered after diagnosis review. It can appear as a Case Analysis row/card, but automatic preparation should not silently spend another model run or generate advocacy-framed chronology before the lawyer has seen the diagnosis.
+3. **Gate on procedural diagnosis.** Missing/stale diagnosis blocks. Unconfirmed diagnosis blocks by default, with an explicit `proceed unconfirmed` escape hatch only if the owner accepts that beta behavior.
+4. **Transform from Case Timeline rows in V1.** Do not reopen the full source document set or run legal research inside MW LoD. This prevents a second, competing fact spine.
+5. **Show lawyer-facing source labels in Markdown.** Internal handles stay in JSON/receipts/operator detail, not in the default lawyer-visible Markdown.
+6. **Keep court-facing export separate.** The MW LoD is working analysis; an SLP/writ/court-facing List of Dates is a later export profile.
+
 ## Correct Reading Of The Older Notes
 
 The older `lawyer-facing-list-of-dates.md` and `native-skill-chronology-list-of-dates.md` notes correctly captured many chronology rules, but their language predates the sharper Case Analysis split.
@@ -314,7 +325,30 @@ Rationale:
 - reduces token cost;
 - keeps source grounding stable;
 - prevents the MW LoD from becoming a competing fact spine;
+- avoids mixing Research/public-law retrieval into a matter-bound drafting artifact;
 - lets validation prove every MW LoD row maps back to one or more Case Timeline/source rows.
+
+### V1 source-mapping contract
+
+The provider should not receive an unconstrained instruction to "write a List of Dates" from raw matter context. It should receive a bounded row-selection packet.
+
+If the existing Case Timeline JSON has no stable row IDs, the MW LoD packet builder should assign request-local IDs:
+
+```text
+CT-0001, CT-0002, CT-0003, ...
+```
+
+Each request-local ID should also carry a deterministic row fingerprint derived from date, event text, source citation(s), and row ordinal. The fingerprint lets validation and receipts identify exactly which Case Timeline row was used even if the visible row label is later refreshed.
+
+Provider output should be constrained to:
+
+- selected Case Timeline row IDs;
+- row treatment/classification;
+- relevance to the diagnosed working posture/remedy;
+- concise lawyer-facing framing that does not add new facts;
+- review sections for adverse/difficult or de-emphasized facts.
+
+The renderer should prefer the original Case Timeline event text unless the model supplies a conservative `framed_event` that passes support validation against the selected row text. The model must not introduce new dates, actors, reliefs, admissions, findings, statutes, annexure labels, or procedural steps that are absent from the provided packet.
 
 ### Candidate row construction
 
@@ -336,6 +370,7 @@ Before calling the model, build a bounded packet:
   "case_timeline_rows": [
     {
       "timeline_row_id": "CT-0001",
+      "row_fingerprint": "sha256:...",
       "date": "",
       "event": "",
       "actor_or_posture": "",
@@ -346,7 +381,11 @@ Before calling the model, build a bounded packet:
     }
   ],
   "matter_story_excerpt": "",
-  "case_analysis_qa_relevant_entries": []
+  "case_analysis_qa_relevant_entries": [],
+  "packet_limits": {
+    "max_rows": 120,
+    "row_text_policy": "truncate-long-rows-with-source-preserving-summary"
+  }
 }
 ```
 
@@ -452,9 +491,9 @@ This is an MW-authored working List of Dates for lawyer review. It is not a cour
 - [ ] Missing documents/facts addressed or deliberately parked
 - [ ] Sources checked before court-facing use
 
-## Internal Source Handles
+## Source Audit Note
 
-For audit and regeneration only.
+Internal source handles and row fingerprints are stored in the JSON sidecar and run receipt for audit/regeneration. They are not shown in this default lawyer-visible Markdown.
 ```
 
 ### Markdown source display rule
@@ -469,7 +508,7 @@ Builder's Reply Notice dated 04.05.2024
 Bank Statement for May 2022
 ```
 
-Keep these in JSON / internal source section / operator-only details:
+Keep these out of the default Markdown and store them in JSON / run receipts / operator-only details:
 
 ```text
 FILE-0008 p.12 block 4
@@ -477,9 +516,10 @@ source_id
 hash
 storage path
 extraction id
+row_fingerprint
 ```
 
-Court-facing export later must remove internal source handles entirely.
+Court-facing export later must remove internal source handles entirely. The MW LoD Markdown should already avoid them by default so the later export profile starts from a safer document.
 
 ## JSON Sidecar Contract
 
@@ -543,6 +583,7 @@ Draft shape:
       "relevance_to_working_posture": "",
       "source_display": [],
       "case_timeline_row_ids": [],
+      "case_timeline_row_fingerprints": [],
       "internal_source_handles": [],
       "adverse_or_difficult": false,
       "needs_lawyer_review": false,
@@ -645,6 +686,26 @@ Receipt should include:
 - output paths;
 - recovery hint on failure.
 
+### Observability and privacy
+
+Matter-local receipts may reference generated artifacts and validation summaries. Private-beta/global observability must remain metadata-only:
+
+- no full Case Timeline rows;
+- no MW LoD prose;
+- no source excerpts;
+- no prompts or provider payloads;
+- no client facts in ambient Activity/toast copy;
+- no secrets or tokens.
+
+Activity and terminal lines should say things like:
+
+```text
+[mw-lod] validating source mapping
+[mw-lod] completed — 18 row(s), 3 review item(s)
+```
+
+not quote the legal work product itself.
+
 ## Service Responsibilities
 
 Proposed new service:
@@ -681,7 +742,9 @@ Rules:
 
 ## UI Contract
 
-### Matter Overview / Preparation
+### Matter Overview / Case Analysis
+
+First-slice UX should be a **manual Case Analysis action**, not an automatic Core Preparation step.
 
 Add a Case Analysis card/row after Procedural Posture Diagnosis:
 
@@ -691,6 +754,8 @@ Status: Missing / Blocked / Ready / Current / Needs refresh
 Based on: Case Timeline, Story, Diagnosis
 Action: Create / Refresh / Open
 ```
+
+The row can sit visually with preparation/currentness surfaces, but the first implementation should not auto-run it as part of `Prepare Matter`. Rationale: MW LoD is advocacy-framed and paid-provider-backed; it should wait until the lawyer/operator has at least seen the procedural diagnosis or deliberately proceeds unconfirmed.
 
 If diagnosis is unconfirmed:
 
@@ -802,6 +867,22 @@ AI_TASKS.MW_LIST_OF_DATES
 
 A dedicated task is recommended before broad release if cost/quality needs separate routing.
 
+## Output Quality Rubric
+
+Use this rubric when reviewing real matter outputs before enabling the feature beyond local/operator testing.
+
+| Dimension | Good output | Failure smell |
+| --- | --- | --- |
+| Procedural alignment | Dates selected and relevance framed around the diagnosed forum, posture, filing/remedy, and objective. | Reads like a generic chronology with no connection to the working path. |
+| Source fidelity | Every row maps to Case Timeline row IDs and source labels; disputed facts are attributed. | New facts, conclusions, admissions, or dates appear without source-row support. |
+| Chronological discipline | Rows remain in time order; same-day order is sensible. | Challenged order is pulled to the top or facts are grouped argumentatively out of time. |
+| Advocacy judgment | Central, introductory, procedural, and adverse facts are proportionately emphasized. | Every row is equal-weight, or helpful facts are over-amplified while adverse facts vanish. |
+| Adverse-fact handling | Difficult facts are included or explicitly parked for lawyer review. | Material adverse facts disappear without explanation. |
+| Lawyer usability | The table can be read as a working brief for the next filing/remedy. | The output is too verbose, too terse, or duplicates Case Timeline without added judgment. |
+| Boundary clarity | It says MW-authored working material, not court-ready. | It sounds like final legal advice or a filing copy. |
+
+A first beta implementation should be judged on this rubric before adding court-facing exports. If the output merely rephrases the Case Timeline, the feature is not ready; if it adds unsupported advocacy, it is unsafe.
+
 ## Test Plan
 
 ### Service / runner tests
@@ -909,20 +990,22 @@ A dedicated task is recommended before broad release if cost/quality needs separ
 | Where artifact lives? | `20_Workshop/Case Analysis/`. |
 | Stable current path? | Yes: `MW List of Dates.md/json`. |
 | Archive previous versions? | Yes, under `Case Analysis/archive/`. |
+| Automatic preparation? | No for first slice; manual Case Analysis action after diagnosis review. |
 | Require diagnosis? | Yes. |
 | Require confirmed diagnosis? | Yes by default, with explicit proceed-unconfirmed escape hatch in beta. |
 | Use original source docs directly? | No in V1; transform from Case Timeline/source labels. |
 | Court-facing output? | Later export profile, not this slice. |
+| Default Markdown includes raw internal handles? | No; source labels only, handles in JSON/receipt/operator detail. |
 | Lawyer edits current MW LoD? | No; regenerate or edit downstream draft/export. |
 | Adverse facts? | Include or explain in review section; never silently suppress. |
 
 ## Open Questions
 
 1. Should the first beta UI allow `Proceed unconfirmed`, or should it strictly block until procedural diagnosis confirmation UI exists?
-2. Should MW LoD be part of automatic preparation, or manually triggered after diagnosis review?
-3. Should the runner read Case Analysis Q&A in V1, or wait until confirmation/correction UI is more mature?
-4. Should current Markdown visible source column include app source IDs for clickability, or only lawyer-facing labels with IDs in JSON?
-5. Should the output table include `Treatment` visibly, or keep treatment as metadata and write it into relevance prose?
+2. Should the runner read Case Analysis Q&A in V1, or wait until confirmation/correction UI is more mature?
+3. Should source clickability in Markdown be handled by visible lawyer-facing labels only, or by UI affordances that map labels back to JSON source handles?
+4. Should the output table include `Treatment` visibly, or keep treatment as metadata and write it into relevance prose?
+5. What is the minimum row count/coverage expectation for real matters before the feature is beta-worthy?
 6. Should the first court-facing export profile be SLP, writ, or generic filing chronology?
 
 ## Acceptance Criteria For First Implementation
