@@ -18,4 +18,12 @@ Deployment surface:
 https://mwb-beta.139.59.74.9.sslip.io
 ```
 
+Current live statutes sidecar corpus:
+
+```text
+acts=846
+sections=36176
+corpus_fingerprint=corpus-sha256:68d990c1a82e4e9e8d2513299b6fb7f79524344d04436b91c9a6984d027688a6
+```
+
 Updated: 2026-07-09
