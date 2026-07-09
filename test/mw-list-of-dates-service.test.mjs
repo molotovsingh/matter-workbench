@@ -114,6 +114,10 @@ test("MW List of Dates writes downstream Case Analysis Markdown and JSON without
   assert.equal(result.sidecar.schema_version, "mw-list-of-dates/v1");
   assert.equal(result.sidecar.rows[0].case_timeline_row_ids[0], "CT-0001");
   assert.match(result.markdown, /# MW List of Dates/);
+  assert.match(result.markdown, /## Chapter 1 — Working List of Dates/);
+  assert.match(result.markdown, /## Chapter 2 — Basis, Assumptions, and Review Notes/);
+  assert.match(result.markdown, /01\/01\/2026/);
+  assert.match(result.markdown, /Relevance for the client's case/);
   assert.match(result.markdown, /Demand Notice/);
   assert.doesNotMatch(result.markdown, /<br>/i);
   assert.doesNotMatch(result.markdown, /FILE-0001/);

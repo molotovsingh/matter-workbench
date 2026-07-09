@@ -641,7 +641,8 @@ export function renderMwListOfDatesMarkdown(sidecar = {}) {
   const proceeded = sidecar.based_on?.procedural_diagnosis?.proceeded_unconfirmed;
   const statusLine = proceeded
     ? "Provisional — based on unconfirmed procedural diagnosis"
-    : "Provisional — lawyer review required";
+    : "Working draft — subject to lawyer review";
+  const clientSide = clientSideDisplay(frame.client_side || sidecar.matter?.client_side || "");
   return [
     "# MW List of Dates",
     "",
@@ -650,47 +651,52 @@ export function renderMwListOfDatesMarkdown(sidecar = {}) {
     `Version: v${sidecar.version || 1}`,
     `Generated: ${generated}`,
     `Matter: ${sidecar.matter?.name || "Matter"}`,
-    `Based on: Case Timeline, Matter Story, Filing and Procedural Posture Diagnosis`,
+    `Prepared from: Case Timeline, Matter Story, and Filing and Procedural Posture Diagnosis`,
     `Diagnosis confirmation state: ${confirmationState}${proceeded ? " (proceeded unconfirmed)" : ""}`,
+    `Apparent client position: ${clientSide}`,
     "",
-    "## Working Legal Frame",
+    "## Chapter 1 — Working List of Dates",
     "",
-    `- Client side: ${frame.client_side || sidecar.matter?.client_side || "To confirm"}`,
+    "This chapter is the lawyer-facing working chronology. It is selected from the Case Timeline and framed for the apparent client position, while preserving disputed facts as disputed and respondent assertions as assertions.",
+    "",
+    "| Date | Event | Relevance for the client's case | Source |",
+    "| --- | --- | --- | --- |",
+    ...rows.map((row) => `| ${mdCell(formatDisplayDate(row.date_iso, row.display_date))} | ${mdCell(formatEventDisplay(row))} | ${mdCell(row.relevance_to_working_posture)} | ${mdCell(formatSourceDisplay(row.source_display))} |`),
+    "",
+    "## Chapter 2 — Basis, Assumptions, and Review Notes",
+    "",
+    "### Working Legal Frame",
+    "",
+    `- Apparent client position: ${clientSide}`,
     `- Court/forum: ${frame.court_forum || "To confirm"}`,
     `- Procedural posture: ${frame.procedural_posture || "To confirm"}`,
     `- Priority filing/remedy: ${frame.priority_filing_or_remedy || "To confirm"}`,
     `- Main objective: ${frame.main_objective || "To confirm"}`,
     `- Governing law / framework: ${Array.isArray(frame.governing_law) && frame.governing_law.length ? frame.governing_law.join("; ") : "To confirm"}`,
     "",
-    "## How To Read This Document",
+    "### How To Read This Document",
     "",
     "This is an MW-authored working List of Dates for lawyer review. It is not a court-facing filing copy. It is derived from the Case Timeline and the current procedural diagnosis. Verify sources and posture before relying on it.",
     "",
-    "## List of Dates",
-    "",
-    "| Date | Event | Treatment | Relevance to working posture / remedy | Source |",
-    "| --- | --- | --- | --- | --- |",
-    ...rows.map((row) => `| ${mdCell(row.display_date || row.date_iso)} | ${mdCell(row.event)} | ${mdCell(labelForTreatment(row.treatment))} | ${mdCell(row.relevance_to_working_posture)} | ${mdCell(formatSourceDisplay(row.source_display))} |`),
-    "",
-    "## Adverse Or Difficult Facts To Handle",
+    "### Difficult Facts Requiring Attention",
     "",
     renderReviewList(sidecar.adverse_or_difficult_facts, "No separate adverse or difficult facts were identified beyond the table above."),
     "",
-    "## Facts Considered But Not Emphasized",
+    "### Facts Considered But Not Emphasized",
     "",
     "> Internal lawyer-review section. Do not copy into court-facing drafts without lawyer decision.",
     "",
     renderReviewList(sidecar.facts_considered_but_not_emphasized, "No additional facts were parked by the selector."),
     "",
-    "## Missing Information / Documents",
+    "### Missing Material Before Court-Facing Use",
     "",
     renderStringList(sidecar.missing_information_or_documents, "No additional missing information was identified."),
     "",
-    "## Lawyer Review Checklist",
+    "### Lawyer Review Checklist",
     "",
     ...lawyerReviewChecklist().map((item) => `- [ ] ${item}`),
     "",
-    "## Source Audit Note",
+    "### Source Audit Note",
     "",
     "Internal source handles and row fingerprints are stored in the JSON sidecar and run receipt for audit/regeneration. They are not shown in this default lawyer-visible Markdown.",
     "",
@@ -707,6 +713,10 @@ export function buildMwListOfDatesPrompts() {
       "Select and frame rows for the diagnosed working path; do not rediscover facts from source documents.",
       "Cite only supplied case_timeline_rows[].timeline_row_id values.",
       "Do not invent dates, actors, procedural steps, filings, statutes, annexure labels, source labels, page numbers, or findings.",
+      "Chapter 1 is the lawyer-facing client chronology. Frame it with subtle client-favouring advocacy for the apparent client side, while remaining source-grounded.",
+      "Use disciplined advocacy words such as despite, continued to demand, disputed, sought documentation, respondent alleges, respondent asserts, and must be tested, where supported by the row.",
+      "Do not use final-finding words such as illegal, fraudulent, mala fide, false, or wrongful unless the supplied row itself states that as an allegation.",
+      "In framed_event, do not repeat the date at the start; the date appears in a separate Date column.",
       "Preserve adverse or difficult material facts responsibly; include them in rows or the adverse-fact review section.",
       "Distinguish allegations, denials, records, orders, and findings. Do not convert disputed allegations into established facts.",
       "Each output row must cite exactly one case_timeline_rows[].timeline_row_id. Do not group multiple dates, ranges, or long phases into one row.",
@@ -959,7 +969,108 @@ function labelForTreatment(treatment = "") {
 }
 
 function formatSourceDisplay(sources = []) {
-  return uniqueStrings(sources).join("; ");
+  return uniqueStrings(sources).map(formalizeSourceLabel).join("; ");
+}
+
+function clientSideDisplay(value = "") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text || "Apparent client side to confirm";
+}
+
+function formatDisplayDate(dateIso = "", fallback = "") {
+  return formatDateDdMmYyyy(dateIso) || formatDateDdMmYyyy(fallback) || String(fallback || dateIso || "").trim();
+}
+
+function formatEventDisplay(row = {}) {
+  const event = String(row.event || "").replace(/\s+/g, " ").trim();
+  const displayDate = formatDisplayDate(row.date_iso, row.display_date);
+  const sourceDate = String(row.display_date || row.date_iso || "").trim();
+  return stripLeadingDatePrefix(event, [displayDate, sourceDate, row.date_iso].filter(Boolean));
+}
+
+function stripLeadingDatePrefix(event = "", dateCandidates = []) {
+  let text = String(event || "").trim();
+  for (const candidate of dateCandidates) {
+    const variants = uniqueStrings([
+      candidate,
+      formatDateDdMmYyyy(candidate),
+      normalizeDatesInText(candidate),
+    ]).filter(Boolean);
+    for (const variant of variants) {
+      const pattern = new RegExp(`^${escapeRegExp(variant)}\\s*(?:[—–-]|:)\\s*`, "i");
+      text = text.replace(pattern, "").trim();
+    }
+  }
+  text = text.replace(/^\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4}\s*(?:[—–-]|:)\s*/i, "").trim();
+  text = text.replace(/^\d{1,2}[./-]\d{1,2}[./-]\d{4}\s*(?:[—–-]|:)\s*/i, "").trim();
+  text = text.replace(/^\d{4}-\d{2}-\d{2}\s*(?:[—–-]|:)\s*/i, "").trim();
+  return text || event;
+}
+
+function formalizeSourceLabel(value = "") {
+  let text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "Source label unavailable";
+  text = text.replace(/^Email chain regarding (.+?), dated (.+)$/i, "Email correspondence dated $2 concerning $1");
+  text = text.replace(/^Email correspondence regarding (.+?),\s*(.+)$/i, "Email correspondence dated $2 concerning $1");
+  text = text.replace(/^Email from ([^,]+?) to ([^,]+?) regarding (.+?) \(dated (.+?)\)(?:\s*[–-].*)?$/i, "Email dated $4 from $1 to $2 concerning $3");
+  text = text.replace(/^Email from ([^,]+?) to ([^,]+?) re:?\s*(.+?), dated (.+)$/i, "Email dated $4 from $1 to $2 concerning $3");
+  text = text.replace(/^Email from ([^,]+?) re:?\s*(.+?), dated (.+)$/i, "Email dated $3 from $1 concerning $2");
+  text = text.replace(/^Application with Annexures filed by Respondent \(dated (.+?)\) in (.+)$/i, "Respondent's Application with Annexures dated $1 in $2");
+  text = text.replace(/^Affidavit of (.+?) \((.+?)\) in (.+)$/i, "Affidavit of $1, $2, in $3");
+  return normalizeDatesInText(text);
+}
+
+function normalizeDatesInText(text = "") {
+  return String(text || "")
+    .replace(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+),?\s+(\d{4})\b/g, (match, day, month, year) => formatDateParts(day, month, year) || match)
+    .replace(/\b([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,\s+(\d{4})\b/g, (match, month, day, year) => formatDateParts(day, month, year) || match)
+    .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (match, year, month, day) => formatDateParts(day, month, year) || match)
+    .replace(/\b(\d{1,2})[.](\d{1,2})[.](\d{4})\b/g, (match, day, month, year) => formatDateParts(day, month, year) || match);
+}
+
+function formatDateDdMmYyyy(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  let match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return formatDateParts(match[3], match[2], match[1]);
+  match = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (match) return formatDateParts(match[1], match[2], match[3]);
+  match = text.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+),?\s+(\d{4})$/i);
+  if (match) return formatDateParts(match[1], match[2], match[3]);
+  match = text.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,\s+(\d{4})$/i);
+  if (match) return formatDateParts(match[2], match[1], match[3]);
+  return "";
+}
+
+function formatDateParts(dayValue, monthValue, yearValue) {
+  const day = Number(dayValue);
+  const month = monthNumber(monthValue);
+  const year = Number(yearValue);
+  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return "";
+  if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1000 || year > 9999) return "";
+  return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${String(year).padStart(4, "0")}`;
+}
+
+function escapeRegExp(value = "") {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function monthNumber(value) {
+  const text = String(value || "").trim().toLowerCase().slice(0, 3);
+  return {
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
+  }[text] || Number(value) || 0;
 }
 
 function mdCell(value = "") {
