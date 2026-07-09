@@ -78,6 +78,7 @@ import type {
   WorkspaceApiResponse,
 } from '../types';
 import { redactSensitiveText } from '../lib/secretRedaction';
+import { legacyCaseTimelineFileDisplayName } from '../lib/presentationLabels';
 import { workspaceLaneLabel } from '../lib/workspaceLabels';
 
 export class ApiError extends Error {
@@ -365,8 +366,9 @@ function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
   const laneLabel = depth === 0 && isDir ? workspaceLaneLabel(node.name) : undefined;
   const isTechnical = depth === 0 && TECHNICAL_PREFIXES.some((p) => node.name.startsWith(p));
   const displayChildren = isDir ? displayWorkspaceChildren(node, depth, laneLabel) : [];
+  const fileDisplayName = isDir ? node.name : legacyCaseTimelineFileDisplayName(node.path) || node.name;
   return {
-    name: laneLabel || node.name,
+    name: laneLabel || fileDisplayName,
     path: node.path,
     type: isDir ? 'folder' : 'file',
     ext,

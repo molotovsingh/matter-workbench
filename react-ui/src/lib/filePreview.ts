@@ -1,4 +1,5 @@
 import type { FilePreview } from '../types';
+import { legacyCaseTimelineFileDisplayName } from './presentationLabels';
 import { lawyerFacingSourceLabel } from './sourceLabels';
 
 export type ReadTextFilePreview = (path: string) => Promise<{ content: string; ext: string }>;
@@ -28,7 +29,7 @@ export async function loadTextFilePreview(
 }
 
 export function filePreviewTitle(path: string): string {
-  return path.split('/').pop() || path;
+  return legacyCaseTimelineFileDisplayName(path) || path.split('/').pop() || path;
 }
 
 export function isListOfDatesMarkdownPath(path: string): boolean {
