@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import {
   BUILTIN_SKILL_COMMAND_ALIASES,
-  BUILTIN_SKILL_COMMANDS,
+  BUILTIN_SKILL_REGISTRY_COMMANDS,
 } from "../shared/builtin-skill-commands.mjs";
 import { CASE_TIMELINE_DEPENDENCY_STATES } from "../shared/case-timeline-dependency-states.mjs";
 import { PREPARATION_STAGE_ACTIONS } from "../shared/preparation-stage-actions.mjs";
@@ -169,9 +169,9 @@ async function run() {
   try {
     const reactNativeCommands = await readReactNativeCommands();
     assert(
-      sameStringSet(reactNativeCommands, BUILTIN_SKILL_COMMANDS),
+      sameStringSet(reactNativeCommands, BUILTIN_SKILL_REGISTRY_COMMANDS),
       "React native command registry matches shared backend built-ins",
-      commandSetDiffDetail(reactNativeCommands, BUILTIN_SKILL_COMMANDS),
+      commandSetDiffDetail(reactNativeCommands, BUILTIN_SKILL_REGISTRY_COMMANDS),
     );
   } catch (error) {
     fail("React native command registry is readable", error.message);
