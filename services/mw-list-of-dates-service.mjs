@@ -30,6 +30,7 @@ export const MW_LIST_OF_DATES_AUTHOR = "MW";
 
 const FILE_TIME_TOLERANCE_MS = 1;
 const MAX_CASE_TIMELINE_ROWS = 120;
+const MW_LIST_OF_DATES_MAX_OUTPUT_TOKENS = 7000;
 const MAX_STORY_CHARS = 8000;
 const MAX_QA_CHARS = 4000;
 const TREATMENTS = new Set([
@@ -472,6 +473,7 @@ export async function selectAndFrameRows({ packet, aiProviderService = null, mwL
       schemaName: "mw_list_of_dates_selector",
       schemaDescription: "Select and frame Case Timeline rows for an MW-authored working List of Dates.",
       responseMode: "json",
+      overrides: { maxOutputTokens: MW_LIST_OF_DATES_MAX_OUTPUT_TOKENS },
       label: "MW List of Dates",
     });
     return { parsed: result.parsed, aiRun: result.aiRun || null, rawPayload: result.rawPayload };
@@ -708,7 +710,7 @@ export function buildMwListOfDatesPrompts() {
       "Preserve adverse or difficult material facts responsibly; include them in rows or the adverse-fact review section.",
       "Distinguish allegations, denials, records, orders, and findings. Do not convert disputed allegations into established facts.",
       "Each output row must cite exactly one case_timeline_rows[].timeline_row_id. Do not group multiple dates, ranges, or long phases into one row.",
-      "For a substantial Case Timeline, select a practical lawyer-review set of individual rows, normally 12 to 35 rows: procedural milestones, key demands/notices, payments or ledger disputes, possession/registration events, adverse facts, and remedy-critical facts.",
+      "For a substantial Case Timeline, select a practical lawyer-review set of individual rows, normally 12 to 25 rows: procedural milestones, key demands/notices, payments or ledger disputes, possession/registration events, adverse facts, and remedy-critical facts.",
       "Do not create a four-row executive summary when the Case Timeline contains many material dated events.",
       "Return JSON only matching the schema.",
     ].join("\n"),
