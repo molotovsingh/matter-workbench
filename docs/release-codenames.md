@@ -131,3 +131,4 @@ These names are deliberately non-authoritative. Tags, release notes, deployment 
 | [v1.0.0-beta.125](releases/v1.0.0-beta.125.md) | **Row Anchor** | Release note present; superseded by beta.126. |
 | [v1.0.0-beta.126](releases/v1.0.0-beta.126.md) | **Row Budget** | Release note present. |
 | [v1.0.0-beta.127](releases/v1.0.0-beta.127.md) | **Client Chronology** | Release note present. |
+| [v1.0.0-beta.128](releases/v1.0.0-beta.128.md) | **Date Rail** | Release note present. |

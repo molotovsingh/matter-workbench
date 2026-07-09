@@ -4,12 +4,12 @@ Status: Current release pointer
 
 This is the single current-release pointer for supervised private beta. General docs should link here instead of repeating the beta number.
 
-Release: [v1.0.0-beta.127](v1.0.0-beta.127.md)
+Release: [v1.0.0-beta.128](v1.0.0-beta.128.md)
 
 Tag target / deployed commit:
 
 ```text
-63ac1ac Restructure MW List into chapters
+47560b1 Keep markdown date column on one line
 ```
 
 Deployment surface:
