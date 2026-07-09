@@ -67,7 +67,7 @@ const MW_LOD_PROVIDER_SCHEMA = Object.freeze({
           "review_reason",
         ],
         properties: {
-          case_timeline_row_ids: { type: "array", items: { type: "string" } },
+          case_timeline_row_ids: { type: "array", minItems: 1, maxItems: 1, items: { type: "string" } },
           treatment: { type: "string" },
           framed_event: { type: "string" },
           relevance_to_working_posture: { type: "string" },
@@ -493,11 +493,15 @@ export function validateMwListOfDatesDraft({ draft = {}, packet = {}, diagnosis 
   if (!draftRows.length) {
     throw makeHttpError("MW List of Dates provider returned no rows.", 422, "mw_lod.validation_failed");
   }
+  if ((packet.case_timeline_rows || []).length >= 30 && draftRows.length < 8) {
+    throw validationError("Provider selected too few rows for a substantial Case Timeline. Select individual material rows instead of broad date-range summaries.");
+  }
   const rows = [];
   const seenKeys = new Set();
   for (const draftRow of draftRows) {
     const ids = uniqueStrings(draftRow?.case_timeline_row_ids);
     if (!ids.length) throw validationError("A row did not cite a Case Timeline row.");
+    if (ids.length !== 1) throw validationError("Each MW List of Dates row must cite exactly one Case Timeline row. Do not group multiple dates into one row.");
     const timelineRows = ids.map((id) => rowMap.get(id));
     if (timelineRows.some((row) => !row)) throw validationError(`Unknown Case Timeline row id: ${ids.find((id) => !rowMap.get(id))}`);
     const primary = timelineRows[0];
@@ -664,7 +668,7 @@ export function renderMwListOfDatesMarkdown(sidecar = {}) {
     "",
     "| Date | Event | Treatment | Relevance to working posture / remedy | Source |",
     "| --- | --- | --- | --- | --- |",
-    ...rows.map((row) => `| ${mdCell(row.display_date || row.date_iso)} | ${mdCell(row.event)} | ${mdCell(labelForTreatment(row.treatment))} | ${mdCell(row.relevance_to_working_posture)} | ${mdCell((row.source_display || []).join("<br>"))} |`),
+    ...rows.map((row) => `| ${mdCell(row.display_date || row.date_iso)} | ${mdCell(row.event)} | ${mdCell(labelForTreatment(row.treatment))} | ${mdCell(row.relevance_to_working_posture)} | ${mdCell(formatSourceDisplay(row.source_display))} |`),
     "",
     "## Adverse Or Difficult Facts To Handle",
     "",
@@ -703,6 +707,9 @@ export function buildMwListOfDatesPrompts() {
       "Do not invent dates, actors, procedural steps, filings, statutes, annexure labels, source labels, page numbers, or findings.",
       "Preserve adverse or difficult material facts responsibly; include them in rows or the adverse-fact review section.",
       "Distinguish allegations, denials, records, orders, and findings. Do not convert disputed allegations into established facts.",
+      "Each output row must cite exactly one case_timeline_rows[].timeline_row_id. Do not group multiple dates, ranges, or long phases into one row.",
+      "For a substantial Case Timeline, select a practical lawyer-review set of individual rows, normally 12 to 35 rows: procedural milestones, key demands/notices, payments or ledger disputes, possession/registration events, adverse facts, and remedy-critical facts.",
+      "Do not create a four-row executive summary when the Case Timeline contains many material dated events.",
       "Return JSON only matching the schema.",
     ].join("\n"),
   };
@@ -947,6 +954,10 @@ function renderStringList(items = [], emptyText = "None.") {
 
 function labelForTreatment(treatment = "") {
   return String(treatment || "").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatSourceDisplay(sources = []) {
+  return uniqueStrings(sources).join("; ");
 }
 
 function mdCell(value = "") {

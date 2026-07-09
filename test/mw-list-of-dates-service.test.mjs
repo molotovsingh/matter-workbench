@@ -115,6 +115,7 @@ test("MW List of Dates writes downstream Case Analysis Markdown and JSON without
   assert.equal(result.sidecar.rows[0].case_timeline_row_ids[0], "CT-0001");
   assert.match(result.markdown, /# MW List of Dates/);
   assert.match(result.markdown, /Demand Notice/);
+  assert.doesNotMatch(result.markdown, /<br>/i);
   assert.doesNotMatch(result.markdown, /FILE-0001/);
   assert.match(await readFile(path.join(root, ...MW_LIST_OF_DATES_OUTPUT_RELATIVE.split("/")), "utf8"), /MW-authored working List of Dates/);
   const sidecar = JSON.parse(await readFile(path.join(root, ...MW_LIST_OF_DATES_JSON_RELATIVE.split("/")), "utf8"));
@@ -158,6 +159,53 @@ test("MW List of Dates does not overwrite existing artifact unless overwrite is 
   const second = await service.runMwListOfDates({ overwrite: false });
 
   assert.equal(second.state, "requires_overwrite");
+});
+
+test("MW List of Dates validation rejects broad grouped date-range rows", async () => {
+  const root = await writeMatterFixture();
+  await writeJson(root, "10_Library/Case Timeline.json", {
+    schema_version: "list-of-dates/v1",
+    entries: [{
+      date_iso: "2026-01-01",
+      date_text: "1 Jan 2026",
+      event: "Demand notice issued.",
+      legal_relevance: "Notice before action.",
+      citation: "FILE-0001 p1.b1",
+      supporting_sources: [{ citation: "FILE-0001 p1.b1", source_label: "Demand Notice" }],
+    }, {
+      date_iso: "2026-02-01",
+      date_text: "1 Feb 2026",
+      event: "Reply received.",
+      legal_relevance: "Frames disputed liability.",
+      citation: "FILE-0001 p2.b1",
+      supporting_sources: [{ citation: "FILE-0001 p2.b1", source_label: "Demand Notice" }],
+    }],
+  });
+  const service = createMwListOfDatesService({
+    matterStore: store(root),
+    mwListOfDatesProvider: async () => ({
+      rows: [{
+        case_timeline_row_ids: ["CT-0001", "CT-0002"],
+        treatment: "central",
+        framed_event: "The parties exchanged demand and reply correspondence.",
+        relevance_to_working_posture: "Broad summary of the pre-suit exchange.",
+        needs_lawyer_review: false,
+        review_reason: "",
+      }],
+      adverse_or_difficult_facts: [{
+        summary: "Delay may need explanation.",
+        case_timeline_row_ids: ["CT-0001"],
+        suggested_treatment: "Handle in lawyer review before filing.",
+      }],
+      facts_considered_but_not_emphasized: [],
+      missing_information_or_documents: [],
+    }),
+  });
+
+  await assert.rejects(
+    () => service.runMwListOfDates({ overwrite: true }),
+    /exactly one Case Timeline row/i,
+  );
 });
 
 test("MW List of Dates validation fails if diagnosis adverse facts are omitted", async () => {
