@@ -83,6 +83,8 @@ The release is acceptable for supervised private beta because:
 - beta.122 preserves bounded statute corpus/provenance metadata in Research answers and automates private VM sidecar deployment;
 - beta.123 completes the Case Timeline canonicalization and adds the first diagnosis-gated MW List of Dates Case Analysis workflow with staged receipts;
 - beta.124 hides legacy `10_Library/List of Dates.*` storage names from the workspace UI by displaying them as Case Timeline files while preserving compatibility fallback;
+- beta.125 tightens MW List row validation so the selector cannot collapse many Case Timeline dates into broad summary rows;
+- beta.126 keeps that row-level MW List contract and raises the output budget so large-matter MW Lists return valid JSON;
 - the live statutes sidecar now covers the full current manifest (`846` acts, `36176` sections) with exact citation smokes passing for IBC, SARFAESI, CGST, Indian Contract Act, and Indian Ports Act 2025;
 - service check, UI hardening, security check, runtime DB write smoke, local tests, typecheck, and release-position checks all passed.
 
