@@ -73,7 +73,17 @@ The release is acceptable for supervised private beta because:
 - beta.112 fixes stale Matter Story / procedural posture needed-preparation flow so stale Story and posture jobs can overwrite stale artifacts, and Matter Overview presents runnable upstream updates as **Needs update** rather than terminally **Blocked**;
 - beta.113 adds the native Filing and Procedural Posture Diagnosis skill surface under Case Analysis;
 - beta.114 adds audited native skill runner jobs/receipts, saved-diagnosis chat boundaries, targeted preparation starts, and row-level Matter Preparation actions;
-- service check, UI hardening, local tests, typecheck, and build all passed.
+- beta.115 fixes active Matter Preparation rows so queued/running server jobs show as running instead of idle/not-started;
+- beta.116 hardens saved Filing and Procedural Posture Diagnosis against retryable provider JSON truncation while preserving stage attribution;
+- beta.117 cleans up the saved posture surface copy, duplicate Case Analysis tree grouping, and confirmation-panel lifecycle;
+- beta.118 adds a shared safe Markdown viewer for generic matter `.md` previews using sanitized React Markdown rendering;
+- beta.119 adds the A4-style document frame and legal-document Markdown preview layout;
+- beta.120 standardizes rendered Markdown typography for paragraphs and lists;
+- beta.121 adds statutes-backed Research through the loopback Legal Source Sidecar while keeping Ask matter-record-only;
+- beta.122 preserves bounded statute corpus/provenance metadata in Research answers and automates private VM sidecar deployment;
+- beta.123 completes the Case Timeline canonicalization and adds the first diagnosis-gated MW List of Dates Case Analysis workflow with staged receipts;
+- the live statutes sidecar now covers the full current manifest (`846` acts, `36176` sections) with exact citation smokes passing for IBC, SARFAESI, CGST, Indian Contract Act, and Indian Ports Act 2025;
+- service check, UI hardening, security check, runtime DB write smoke, local tests, typecheck, and release-position checks all passed.
 
 ## Fixed Or Closed Tester Feedback
 
