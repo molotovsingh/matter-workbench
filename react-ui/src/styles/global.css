@@ -511,6 +511,8 @@ padding: 0 2px;
 .markdown-viewer table { border-collapse: collapse; display: block; font-size: 0.95em; max-width: 100%; overflow-x: auto; width: 100%; }
 .markdown-viewer th,
 .markdown-viewer td { border: 1px solid var(--border); padding: 0.55rem 0.65rem; vertical-align: top; }
+.markdown-viewer th:first-child,
+.markdown-viewer td:first-child { min-width: 6.5rem; white-space: nowrap; }
 .markdown-viewer th { background: var(--panel-2); color: var(--text); font-weight: 650; }
 .markdown-viewer a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .markdown-viewer input[type="checkbox"] { margin-right: 0.35rem; }
