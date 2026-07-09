@@ -85,6 +85,7 @@ The release is acceptable for supervised private beta because:
 - beta.124 hides legacy `10_Library/List of Dates.*` storage names from the workspace UI by displaying them as Case Timeline files while preserving compatibility fallback;
 - beta.125 tightens MW List row validation so the selector cannot collapse many Case Timeline dates into broad summary rows;
 - beta.126 keeps that row-level MW List contract and raises the output budget so large-matter MW Lists return valid JSON;
+- beta.127 restructures MW List output so Chapter 1 is the client-oriented lawyer chronology and Chapter 2 carries the basis, assumptions, difficult facts, and review notes, with `DD/MM/YYYY` date display;
 - the live statutes sidecar now covers the full current manifest (`846` acts, `36176` sections) with exact citation smokes passing for IBC, SARFAESI, CGST, Indian Contract Act, and Indian Ports Act 2025;
 - service check, UI hardening, security check, runtime DB write smoke, local tests, typecheck, and release-position checks all passed.
 
