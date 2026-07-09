@@ -642,7 +642,7 @@ export function renderMwListOfDatesMarkdown(sidecar = {}) {
   const statusLine = proceeded
     ? "Provisional — based on unconfirmed procedural diagnosis"
     : "Working draft — subject to lawyer review";
-  const clientSide = clientSideDisplay(frame.client_side || sidecar.matter?.client_side || "");
+  const clientSide = clientSideDisplay(frame.client_side || sidecar.matter?.client_side || "", sidecar);
   return [
     "# MW List of Dates",
     "",
@@ -657,7 +657,7 @@ export function renderMwListOfDatesMarkdown(sidecar = {}) {
     "",
     "## Chapter 1 — Working List of Dates",
     "",
-    "This chapter is the lawyer-facing working chronology. It is selected from the Case Timeline and framed for the apparent client position, while preserving disputed facts as disputed and respondent assertions as assertions.",
+    "This chapter sets out the working chronology for the apparent client case. Respondent assertions are stated as assertions, and disputed matters are not treated as findings.",
     "",
     "| Date | Event | Relevance for the client's case | Source |",
     "| --- | --- | --- | --- |",
@@ -714,7 +714,9 @@ export function buildMwListOfDatesPrompts() {
       "Cite only supplied case_timeline_rows[].timeline_row_id values.",
       "Do not invent dates, actors, procedural steps, filings, statutes, annexure labels, source labels, page numbers, or findings.",
       "Chapter 1 is the lawyer-facing client chronology. Frame it with subtle client-favouring advocacy for the apparent client side, while remaining source-grounded.",
-      "Use disciplined advocacy words such as despite, continued to demand, disputed, sought documentation, respondent alleges, respondent asserts, and must be tested, where supported by the row.",
+      "Build a progressive case narrative where the Case Timeline supports it: transaction and allotment, client payments/performance, delay or handover issues, registration/payment pressure, respondent default allegations, client rebuttal/procedural response.",
+      "Prefer rows that advance that client chronology. Do not include low-value background terms merely because they are present; include background only if it affects relief, default, possession, registration, limitation, or dues.",
+      "Use disciplined advocacy words such as despite, continued to demand, disputed, sought documentation, respondent alleges, respondent asserts, helps rebut, and must be tested, where supported by the row.",
       "Do not use final-finding words such as illegal, fraudulent, mala fide, false, or wrongful unless the supplied row itself states that as an allegation.",
       "In framed_event, do not repeat the date at the start; the date appears in a separate Date column.",
       "Preserve adverse or difficult material facts responsibly; include them in rows or the adverse-fact review section.",
@@ -972,9 +974,21 @@ function formatSourceDisplay(sources = []) {
   return uniqueStrings(sources).map(formalizeSourceLabel).join("; ");
 }
 
-function clientSideDisplay(value = "") {
+function clientSideDisplay(value = "", sidecar = {}) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
-  return text || "Apparent client side to confirm";
+  if (text) return text;
+  const frameText = JSON.stringify(sidecar.working_legal_frame || {}).toLowerCase();
+  const matterText = JSON.stringify(sidecar.matter || {}).toLowerCase();
+  const rowText = (Array.isArray(sidecar.rows) ? sidecar.rows : [])
+    .slice(0, 12)
+    .map((row) => `${row.event || ""} ${row.relevance_to_working_posture || ""}`)
+    .join(" ")
+    .toLowerCase();
+  const combined = `${matterText} ${frameText} ${rowText}`;
+  if (/\bcomplainants?\b|\bflat\s+purchasers?\b|\bconsumer\s+complaint\b|\bpurchasers?\b/.test(combined)) {
+    return "Complainants / flat purchasers — to be confirmed";
+  }
+  return "Apparent client side to confirm";
 }
 
 function formatDisplayDate(dateIso = "", fallback = "") {
