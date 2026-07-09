@@ -87,6 +87,7 @@ The release is acceptable for supervised private beta because:
 - beta.126 keeps that row-level MW List contract and raises the output budget so large-matter MW Lists return valid JSON;
 - beta.127 restructures MW List output so Chapter 1 is the client-oriented lawyer chronology and Chapter 2 carries the basis, assumptions, difficult facts, and review notes, with `DD/MM/YYYY` date display;
 - beta.128 keeps Markdown table date columns on one line so `DD/MM/YYYY` dates do not wrap in the MW List preview;
+- beta.129 tunes MW List Chapter 1 toward a progressive client chronology while preserving source discipline and respondent-assertion boundaries;
 - the live statutes sidecar now covers the full current manifest (`846` acts, `36176` sections) with exact citation smokes passing for IBC, SARFAESI, CGST, Indian Contract Act, and Indian Ports Act 2025;
 - service check, UI hardening, security check, runtime DB write smoke, local tests, typecheck, and release-position checks all passed.
 
