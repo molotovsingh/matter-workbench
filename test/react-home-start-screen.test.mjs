@@ -35,13 +35,13 @@ test("React Home renders a simple personalized Start screen when no matter is ac
   assert.match(styles, /\.home-learn-panel/);
 });
 
-test("React app logo goes to Matter Home when a matter is active", async () => {
+test("React app logo goes to App Home and clears any active matter", async () => {
   const sidebar = await readFile(sidebarPath, "utf8");
 
-  assert.match(sidebar, /Go to Matter Home/);
-  assert.match(sidebar, /Go to Matter Workbench home/);
-  assert.match(sidebar, /returnToMatterHome/);
+  assert.match(sidebar, /aria-label="Go to Matter Workbench home"/);
+  assert.match(sidebar, /returnToAppHome/);
+  assert.match(sidebar, /api\.clearActiveMatter\(\)/);
+  assert.match(sidebar, /clearActiveMatter\(\)/);
   assert.match(sidebar, /RESET_MATTER_TRANSIENT_VIEW/);
-  assert.doesNotMatch(sidebar, /api\.clearActiveMatter\(\)/);
-  assert.doesNotMatch(sidebar, /clearActiveMatter\(\)/);
+  assert.match(sidebar, /onClick=\{\(\) => \{ void returnToAppHome\(\); \}\}/);
 });

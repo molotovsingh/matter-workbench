@@ -20,7 +20,7 @@ const APP_TABS: Array<{ id: ActiveTab; icon: string; label: string; lawyerLabel?
 ];
 
 export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onLogout }: Props) {
-  const { state, dispatch, refreshActiveMatterWorkspace, clearActiveMatter: resetArchivedMatterSelection, appendTerminal } = useApp();
+  const { state, dispatch, refreshActiveMatterWorkspace, clearActiveMatter, appendTerminal } = useApp();
   const { activeMatter } = state;
   const [archiveConfirmName, setArchiveConfirmName] = useState<string | null>(null);
   const [archiveReason, setArchiveReason] = useState('');
@@ -33,6 +33,20 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
   const settingsTab = visibleTabs.find((tab) => tab.id === 'settings');
   const showSignOut = Boolean(state.authUser && onLogout);
   const showFooter = Boolean(settingsTab) || showSignOut;
+
+  async function returnToAppHome() {
+    if (activeMatter) {
+      try {
+        await api.clearActiveMatter();
+      } catch (error) {
+        appendTerminal([`[workspace] could not clear active matter on server: ${getErrorMessage(error)}`]);
+      }
+      clearActiveMatter();
+    }
+    dispatch({ type: 'SET_TAB', payload: 'home' });
+    dispatch({ type: 'RESET_MATTER_TRANSIENT_VIEW' });
+    dispatch({ type: 'SET_BREADCRUMBS', payload: 'Home' });
+  }
 
   function returnToMatterHome() {
     dispatch({ type: 'SET_TAB', payload: 'home' });
@@ -68,7 +82,7 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
       await api.archiveMatter(activeMatter.name, { reason: archiveReason });
       const mattersResult = await api.getMatters({ includeArchived: true });
       dispatch({ type: 'SET_MATTERS', payload: mattersResult.matters ?? [] });
-      resetArchivedMatterSelection();
+      clearActiveMatter();
       dispatch({ type: 'SET_TAB', payload: 'home' });
       appendTerminal([`[matter] archived "${activeMatter.name}" — source files and history were not deleted`]);
       setArchiveConfirmName(null);
@@ -85,8 +99,8 @@ export default function Sidebar({ onNewMatter, onAddFiles, onViewAllMatters, onL
       <button
         className="sidebar-brand"
         type="button"
-        aria-label={activeMatter ? 'Go to Matter Home' : 'Go to Matter Workbench home'}
-        onClick={returnToMatterHome}
+        aria-label="Go to Matter Workbench home"
+        onClick={() => { void returnToAppHome(); }}
       >
         <strong>Matter</strong>
         <span>Workbench</span>

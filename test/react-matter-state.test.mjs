@@ -33,23 +33,28 @@ test("React Matter Assistant falls back to resumed matter during post-login matt
   assert.match(source, /state\.resumeMatterName/);
 });
 
-test("React single rail Home keeps the active matter and returns to Matter Home", async () => {
+test("React active matter card keeps the active matter and returns to Matter Home", async () => {
   const source = await readFile(sidebarPath, "utf8");
+  const returnToMatterHomeBody = source.match(/function returnToMatterHome\(\) \{([\s\S]*?)\n  \}/)?.[1] || "";
 
   assert.match(source, /function returnToMatterHome\(\)/);
-  assert.match(source, /dispatch\(\{ type: 'SET_TAB', payload: 'home' \}\)/);
-  assert.match(source, /RESET_MATTER_TRANSIENT_VIEW/);
+  assert.match(returnToMatterHomeBody, /dispatch\(\{ type: 'SET_TAB', payload: 'home' \}\)/);
+  assert.match(returnToMatterHomeBody, /RESET_MATTER_TRANSIENT_VIEW/);
+  assert.match(source, /className="active-matter-card"[\s\S]*onClick=\{returnToMatterHome\}/);
   assert.match(source, /Matter Home/);
-  assert.doesNotMatch(source, /api\.clearActiveMatter\(\)/);
-  assert.doesNotMatch(source, /clearActiveMatter\(\)/);
+  assert.doesNotMatch(returnToMatterHomeBody, /api\.clearActiveMatter\(\)/);
+  assert.doesNotMatch(returnToMatterHomeBody, /clearActiveMatter\(\)/);
 });
 
-test("React sidebar brand returns to Matter Home without clearing the matter", async () => {
+test("React sidebar brand returns to App Home and clears the active matter", async () => {
   const source = await readFile(sidebarPath, "utf8");
 
+  assert.match(source, /function returnToAppHome\(\)/);
+  assert.match(source, /api\.clearActiveMatter\(\)/);
+  assert.match(source, /clearActiveMatter\(\)/);
   assert.match(source, /className="sidebar-brand"/);
-  assert.match(source, /aria-label=\{activeMatter \? 'Go to Matter Home' : 'Go to Matter Workbench home'\}/);
-  assert.match(source, /onClick=\{returnToMatterHome\}/);
+  assert.match(source, /aria-label="Go to Matter Workbench home"/);
+  assert.match(source, /onClick=\{\(\) => \{ void returnToAppHome\(\); \}\}/);
 });
 
 test("React sidebar is the single nav rail with Matter Record and All matters", async () => {
