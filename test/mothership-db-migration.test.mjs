@@ -5,6 +5,7 @@ import test from "node:test";
 const migrationPath = new URL("../mothership/db/migrations/001_mothership.sql", import.meta.url);
 const metricsMigrationPath = new URL("../mothership/db/migrations/002_mothership_metrics.sql", import.meta.url);
 const heartbeatMigrationPath = new URL("../mothership/db/migrations/003_mothership_heartbeats.sql", import.meta.url);
+const signalLifecycleMigrationPath = new URL("../mothership/db/migrations/004_signal_lifecycle.sql", import.meta.url);
 const runnerPath = new URL("../mothership/db-migrate.mjs", import.meta.url);
 
 test("mothership migration isolates installations, tokens, feedback, and signals", async () => {
@@ -59,6 +60,16 @@ test("mothership heartbeat migration stores operator-only journey snapshots", as
   assert.match(sql, /create index[^;]+mothership_heartbeat_events[^;]+received_at/i);
 });
 
+test("mothership signal lifecycle migration adds active/resolved status tracking", async () => {
+  const sql = await readFile(signalLifecycleMigrationPath, "utf8");
+
+  assert.match(sql, /alter table mothership_signal_events/i);
+  assert.match(sql, /add column if not exists status text not null default 'active'/i);
+  assert.match(sql, /add column if not exists status_updated_at timestamptz/i);
+  assert.match(sql, /check \(status in \('active', 'resolved', 'superseded', 'suppressed'\)\)/i);
+  assert.match(sql, /mothership_signal_events_installation_status_received_idx/i);
+});
+
 test("mothership migration runner uses its own database URL and migration directory", async () => {
   const {
     defaultMothershipMigrationsDir,
@@ -78,5 +89,6 @@ test("mothership migration runner uses its own database URL and migration direct
     "001_mothership.sql",
     "002_mothership_metrics.sql",
     "003_mothership_heartbeats.sql",
+    "004_signal_lifecycle.sql",
   ]);
 });

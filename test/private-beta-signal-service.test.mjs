@@ -259,6 +259,82 @@ test("private beta signal service captures failed jobs and skill factory health 
   assert.doesNotMatch(JSON.stringify(listed), /sk-failed|sk-hidden|sk-skill-secret|sk-stage-secret|do not send|storePaths/);
 });
 
+test("private beta signal service supersedes failed job signals after later same-kind success", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-job-supersede-"));
+  const requests = [];
+  const service = createPrivateBetaSignalService({
+    signalsPath: path.join(tmp, "signals-ledger.json"),
+    syncUrl: "https://mothership.example.test/api/beta-signals",
+    syncToken: "secret-sync-token",
+    installId: "tester-install-01",
+    now: (() => {
+      const dates = [
+        new Date("2026-07-09T10:01:00.000Z"),
+        new Date("2026-07-10T10:01:00.000Z"),
+      ];
+      let index = 0;
+      return () => dates[Math.min(index++, dates.length - 1)];
+    })(),
+    idFactory: () => "signal_failed_job",
+    fetchImpl: async (_url, options = {}) => {
+      requests.push(JSON.parse(options.body));
+      return { ok: true, status: 202, text: async () => "" };
+    },
+  });
+
+  const failedJob = {
+    id: "job_failed_posture_001",
+    kind: "procedural_posture_diagnosis",
+    label: "Procedural Posture Diagnosis",
+    matterName: "Sunrise vs Ansal Landmark",
+    status: "failed",
+    errorCode: "provider.invalid_json",
+    failureClass: "provider",
+    errorMessage: "posture diagnosis finalizer response was not valid JSON",
+    startedAt: "2026-07-09T09:50:00.000Z",
+    updatedAt: "2026-07-09T09:59:00.000Z",
+    finishedAt: "2026-07-09T09:59:00.000Z",
+  };
+
+  const first = await service.captureJobSignals({ jobs: [failedJob] }, { runtimeMode: "postgres" });
+  assert.equal(first.captured, 1);
+  assert.equal(first.signals[0].status, "active");
+  assert.equal(first.signals[0].occurrenceCount, 1);
+
+  const second = await service.captureJobSignals({
+    jobs: [
+      {
+        id: "job_succeeded_posture_002",
+        kind: "procedural_posture_diagnosis",
+        label: "Procedural Posture Diagnosis",
+        matterName: "Sunrise vs Ansal Landmark",
+        status: "succeeded",
+        startedAt: "2026-07-10T09:55:00.000Z",
+        updatedAt: "2026-07-10T10:00:00.000Z",
+        finishedAt: "2026-07-10T10:00:00.000Z",
+      },
+      failedJob,
+    ],
+  }, { runtimeMode: "postgres" });
+
+  assert.equal(second.captured, 1);
+  assert.equal(second.signals[0].id, "signal_failed_job");
+  assert.equal(second.signals[0].status, "superseded");
+  assert.equal(second.signals[0].statusUpdatedAt, "2026-07-10T10:00:00.000Z");
+  assert.equal(second.signals[0].occurrenceCount, 1);
+  assert.equal(second.signals[0].summary.state, "superseded");
+  assert.equal(second.signals[0].details.status, "superseded");
+  assert.equal(second.signals[0].details.supersededByJobId, "job_succeeded_posture_002");
+  assert.equal(second.signals[0].details.supersededBy, "later_same_kind_success");
+  assert.equal(second.signals[0].lastSeenAt, "2026-07-09T10:01:00.000Z");
+
+  await service.syncQueuedSignals();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].signal.status, "superseded");
+  assert.equal(requests[0].signal.statusUpdatedAt, "2026-07-10T10:00:00.000Z");
+  assert.equal(requests[0].signal.details.supersededByJobId, "job_succeeded_posture_002");
+});
+
 test("private beta signal service captures sanitized client-side upload precheck events", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-client-event-"));
   const service = createPrivateBetaSignalService({

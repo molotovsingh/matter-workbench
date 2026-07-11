@@ -151,6 +151,7 @@ test("mothership report routes live beta signals into action lanes", () => {
   assert.match(renderMothershipReportMarkdown(report), /last seen 2026-06-13T00:00:00\.000Z/);
 
   const missingExtraction = report.items.find((item) => item.id === "signal_extract_missing");
+  assert.equal(missingExtraction.status, "active");
   assert.equal(missingExtraction.currentness, "current");
   assert.equal(missingExtraction.action_lane, "fix_now");
   assert.match(missingExtraction.recommended_action, /preparation/i);
@@ -238,6 +239,9 @@ test("mothership report supports bounded filtered operator views", () => {
   const parked = filterMothershipReport(report, { status: "parked" });
   assert.deepEqual(parked.items.map((item) => item.id), ["feedback_parked_feature"]);
 
+  const activeSignals = filterMothershipReport(report, { status: "active" });
+  assert.deepEqual(activeSignals.items.map((item) => item.id), ["signal_fix_now"]);
+
   assert.throws(
     () => filterMothershipReport(report, { actionLane: "product_backlog" }),
     /action-lane must be one of/i,
@@ -246,6 +250,65 @@ test("mothership report supports bounded filtered operator views", () => {
     () => filterMothershipReport(report, { limit: "nope" }),
     /limit must be a positive integer/i,
   );
+});
+
+test("mothership report hides non-active signals by default and can include them for audit", () => {
+  const dataset = {
+    sinceDays: 1,
+    signals: [
+      {
+        installation_id: "matter-workbench-do-beta-1",
+        signal_id: "signal_live",
+        severity: "error",
+        status: "active",
+        source: "job_status",
+        received_at: "2026-07-10T10:00:00.000Z",
+        payload: { title: "Live failure", details: { errorMessage: "Current failure" } },
+      },
+      {
+        installation_id: "matter-workbench-do-beta-1",
+        signal_id: "signal_old_superseded",
+        severity: "error",
+        status: "superseded",
+        status_updated_at: "2026-07-10T11:00:00.000Z",
+        source: "job_status",
+        received_at: "2026-07-09T10:00:00.000Z",
+        payload: {
+          title: "Old failed job",
+          details: { errorMessage: "Earlier failure" },
+          operatorStatus: {
+            status: "superseded",
+            updatedAt: "2026-07-10T11:00:00.000Z",
+            actor: "operator",
+            note: "Later same-kind job succeeded; token=old-secret",
+          },
+          operatorStatusHistory: [
+            { status: "active", updatedAt: "2026-07-09T10:00:00.000Z" },
+            { status: "superseded", updatedAt: "2026-07-10T11:00:00.000Z" },
+          ],
+        },
+      },
+    ],
+  };
+
+  const defaultReport = buildMothershipReport(dataset, { generatedAt: "2026-07-10T12:00:00.000Z" });
+  assert.deepEqual(defaultReport.items.map((item) => item.id), ["signal_live"]);
+  assert.equal(defaultReport.summary.total, 1);
+
+  const auditReport = buildMothershipReport(dataset, { generatedAt: "2026-07-10T12:00:00.000Z", includeResolvedSignals: true });
+  assert.deepEqual(auditReport.items.map((item) => item.id), ["signal_live", "signal_old_superseded"]);
+  const superseded = auditReport.items.find((item) => item.id === "signal_old_superseded");
+  assert.equal(superseded.action_lane, "watch");
+  assert.equal(superseded.triage_source, "signal_lifecycle");
+  assert.equal(superseded.signalStatusUpdatedAt, "2026-07-10T11:00:00.000Z");
+  assert.equal(superseded.signalStatusNote, "Later same-kind job succeeded; token=[redacted-secret]");
+  assert.equal(superseded.whatHappened.statusDisposition.actionState, "closed");
+  assert.match(superseded.whatHappened.nextAction, /superseded/);
+
+  const markdown = renderMothershipReportMarkdown(auditReport);
+  assert.match(markdown, /Status: superseded/);
+  assert.match(markdown, /Status note: Later same-kind job succeeded; token=\[redacted-secret\]/);
+  assert.doesNotMatch(markdown, /old-secret/);
 });
 
 test("mothership report downgrades stale preparation failures when latest matter health is clear", () => {

@@ -5,6 +5,7 @@ import { httpError } from "./http.mjs";
 import { generateIngestionToken, hashIngestionToken } from "./tokens.mjs";
 
 const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
+export const SIGNAL_STATUSES = Object.freeze(["active", "resolved", "superseded", "suppressed"]);
 
 export function createMothershipStore({
   database,
@@ -154,11 +155,46 @@ export function createMothershipStore({
   async function ingestSignal({ installationId, signal }) {
     const normalizedId = requireIdentifier(installationId, "installationId");
     const item = requireObject(signal, "signal");
+    const signalId = requireIdentifier(item.id, "signal.id");
+    const fingerprint = requireText(item.fingerprint, "signal.fingerprint", 200);
+    const status = requireSignalStatus(item.status || "active");
+    const statusUpdatedAt = status === "active"
+      ? null
+      : requireIso(item.statusUpdatedAt || item.updatedAt || item.lastSeenAt || item.createdAt, "signal.statusUpdatedAt");
+    const payloadJson = JSON.stringify(item);
+
+    if (status !== "active") {
+      const lifecycle = await database.query(
+        `update mothership_signal_events
+         set status = $3,
+             status_updated_at = $4::timestamptz,
+             payload = jsonb_set($5::jsonb, '{status}', to_jsonb($3::text), true)
+         where installation_id = $1
+           and (signal_id = $2 or fingerprint = $6)
+           and status = 'active'
+         returning id, status`,
+        [normalizedId, signalId, status, statusUpdatedAt, payloadJson, fingerprint],
+      );
+      const row = lifecycle.rows?.[0] || null;
+      if (row) return { inserted: false, status: row.status || status, lifecycleUpdated: true };
+
+      const existing = await database.query(
+        `select signal_id, status
+         from mothership_signal_events
+         where installation_id = $1
+           and (signal_id = $2 or fingerprint = $3)
+         limit 1`,
+        [normalizedId, signalId, fingerprint],
+      );
+      const existingRow = existing.rows?.[0] || null;
+      if (existingRow) return { inserted: false, status: existingRow.status || "unchanged", lifecycleUpdated: false };
+    }
+
     const result = await database.query(
       `insert into mothership_signal_events
          (installation_id, signal_id, source, severity, fingerprint, matter_name,
-          occurrence_count, first_seen_at, last_seen_at, payload)
-       values ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz, $10::jsonb)
+          occurrence_count, first_seen_at, last_seen_at, status, status_updated_at, payload)
+       values ($1, $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz, $10, $11::timestamptz, $12::jsonb)
        on conflict (installation_id, signal_id) do update
        set source = excluded.source,
            severity = excluded.severity,
@@ -172,21 +208,80 @@ export function createMothershipStore({
              when excluded.last_seen_at >= mothership_signal_events.last_seen_at then excluded.payload
              else mothership_signal_events.payload
            end
-       returning id, (xmax = 0) as inserted`,
+       where mothership_signal_events.status = 'active'
+         and excluded.status = 'active'
+       returning id, status, (xmax = 0) as inserted`,
       [
         normalizedId,
-        requireIdentifier(item.id, "signal.id"),
+        signalId,
         requireText(item.source, "signal.source", 80),
         requireText(item.severity, "signal.severity", 40),
-        requireText(item.fingerprint, "signal.fingerprint", 200),
+        fingerprint,
         optionalText(item.matterName, 300),
         positiveInteger(item.occurrenceCount, 1),
         requireIso(item.firstSeenAt || item.createdAt, "signal.firstSeenAt"),
         requireIso(item.lastSeenAt || item.updatedAt || item.createdAt, "signal.lastSeenAt"),
-        JSON.stringify(item),
+        status,
+        statusUpdatedAt,
+        payloadJson,
       ],
     );
-    return { inserted: result.rows?.[0]?.inserted === true };
+    const row = result.rows?.[0] || null;
+    return { inserted: row?.inserted === true, status: row?.status || "unchanged" };
+  }
+
+  async function updateSignalStatus({ installationId, signalId = "", fingerprint = "", status, actor = "operator", note = "" }) {
+    const normalizedId = requireIdentifier(installationId, "installationId");
+    const normalizedSignalId = String(signalId || "").trim();
+    const normalizedFingerprint = String(fingerprint || "").trim();
+    if (!normalizedSignalId && !normalizedFingerprint) throw httpError("signalId or fingerprint is required", 400);
+    const lookupColumn = normalizedSignalId ? "signal_id" : "fingerprint";
+    const lookupValue = normalizedSignalId
+      ? requireIdentifier(normalizedSignalId, "signalId")
+      : requireText(normalizedFingerprint, "fingerprint", 200);
+    const normalizedStatus = requireSignalStatus(status);
+    const updatedAt = isoNow(now);
+    const normalizedActor = sanitizeAuditText(actor || "operator", 120) || "operator";
+    const normalizedNote = sanitizeAuditText(note, 500);
+    const result = await database.query(
+      `update mothership_signal_events
+       set status = $3,
+           status_updated_at = $4::timestamptz,
+           payload = jsonb_set(
+             jsonb_set(
+               jsonb_set(payload, '{status}', to_jsonb($3::text), true),
+               '{operatorStatus}',
+               jsonb_build_object(
+                 'status', $3::text,
+                 'updatedAt', $4::text,
+                 'actor', $5::text,
+                 'note', $6::text
+               ),
+               true
+             ),
+             '{operatorStatusHistory}',
+             coalesce(payload->'operatorStatusHistory', '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+               'status', $3::text,
+               'updatedAt', $4::text,
+               'actor', $5::text,
+               'note', $6::text
+             )),
+             true
+           )
+       where installation_id = $1 and ${lookupColumn} = $2
+       returning signal_id, fingerprint, status`,
+      [normalizedId, lookupValue, normalizedStatus, updatedAt, normalizedActor, normalizedNote],
+    );
+    const row = result.rows?.[0] || null;
+    return {
+      updated: (result.rowCount || 0) > 0,
+      signalId: row?.signal_id || (lookupColumn === "signal_id" ? lookupValue : ""),
+      fingerprint: row?.fingerprint || (lookupColumn === "fingerprint" ? lookupValue : ""),
+      status: normalizedStatus,
+      updatedAt,
+      actor: normalizedActor,
+      note: normalizedNote,
+    };
   }
 
   async function ingestMetricSnapshot({ installationId, metric }) {
@@ -285,7 +380,7 @@ export function createMothershipStore({
       ),
       database.query(
         `select installation_id, signal_id, source, severity, fingerprint, matter_name,
-                occurrence_count, first_seen_at, last_seen_at, received_at, payload
+                occurrence_count, first_seen_at, last_seen_at, received_at, status, status_updated_at, payload
          from mothership_signal_events
          where received_at >= now() - ($1::integer * interval '1 day') ${filter.clause}
          order by received_at desc`,
@@ -337,7 +432,8 @@ export function createMothershipStore({
          left join (
            select installation_id, count(*)::integer as recent_signal_count
            from mothership_signal_events
-           where received_at >= now() - ($1::integer * interval '1 day')
+           where status = 'active'
+             and received_at >= now() - ($1::integer * interval '1 day')
            group by installation_id
          ) sig on sig.installation_id = i.installation_id
          left join (
@@ -373,6 +469,7 @@ export function createMothershipStore({
     ingestFeedback,
     updateFeedbackStatus,
     ingestSignal,
+    updateSignalStatus,
     ingestMetricSnapshot,
     ingestHeartbeat,
     pruneExpired,
@@ -422,6 +519,14 @@ function requireFeedbackStatus(value) {
   const status = String(value || "").trim().toLowerCase();
   if (!FEEDBACK_STATUSES.includes(status)) {
     throw httpError(`feedback status must be one of: ${FEEDBACK_STATUSES.join(", ")}`, 400);
+  }
+  return status;
+}
+
+function requireSignalStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (!SIGNAL_STATUSES.includes(status)) {
+    throw httpError(`signal status must be one of: ${SIGNAL_STATUSES.join(", ")}`, 400);
   }
   return status;
 }

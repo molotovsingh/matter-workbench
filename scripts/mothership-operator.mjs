@@ -11,6 +11,7 @@ export function parseMothershipOperatorArgs(argv = []) {
   let command = parts.shift() || "help";
   if (command === "installations") command = `installations:${parts.shift() || ""}`;
   if (command === "feedback") command = `feedback:${parts.shift() || ""}`;
+  if (command === "signals") command = `signals:${parts.shift() || ""}`;
   const options = {};
   for (let index = 0; index < parts.length; index += 1) {
     const arg = parts[index];
@@ -66,6 +67,19 @@ export async function runMothershipOperator({
       });
       if (!result.updated) throw new Error(`No feedback found for ${installationId}/${feedbackId}.`);
       stdout(`Updated feedback ${feedbackId} for ${installationId} to ${result.status}.`);
+    } else if (parsed.command === "signals:update-status") {
+      const installationId = requireOption(parsed.options, "installation-id");
+      const signalId = requireOption(parsed.options, "id");
+      const status = requireOption(parsed.options, "status");
+      const result = await store.updateSignalStatus({
+        installationId,
+        signalId,
+        status,
+        actor: parsed.options.actor || "operator",
+        note: parsed.options.note || "",
+      });
+      if (!result.updated) throw new Error(`No signal found for ${installationId}/${signalId}.`);
+      stdout(`Updated signal ${signalId} for ${installationId} to ${result.status}.`);
     } else if (parsed.command === "health") {
       const health = await store.health();
       stdout(`database: ${health.database}`);
@@ -79,7 +93,7 @@ export async function runMothershipOperator({
     } else if (parsed.command === "report") {
       const sinceDays = positiveInteger(parsed.options["since-days"], 30);
       const dataset = await store.queryReport({ sinceDays });
-      const report = filterMothershipReport(buildMothershipReport(dataset), {
+      const report = filterMothershipReport(buildMothershipReport(dataset, { includeResolvedSignals: truthyOption(parsed.options["include-resolved"]) }), {
         actionLane: parsed.options["action-lane"] || parsed.options.lane,
         severity: parsed.options.severity,
         status: parsed.options.status,
@@ -108,6 +122,10 @@ function requireOption(options, key) {
   return value;
 }
 
+function truthyOption(value) {
+  return ["1", "true", "yes", "all"].includes(String(value || "").trim().toLowerCase());
+}
+
 function positiveInteger(value, fallback) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : fallback;
@@ -123,8 +141,9 @@ function usage() {
     "  installations create --id <id> --label <label>",
     "  installations revoke --id <id>",
     "  feedback update-status --installation-id <id> --id <feedback_id> --status <new|reviewed|needs_evidence|fixed|parked|not_reproducible> [--actor operator] [--note text]",
+    "  signals update-status --installation-id <id> --id <signal_id> --status <active|resolved|superseded|suppressed> [--actor operator] [--note text]",
     "  health",
-    "  report [--since-days 30] [--format markdown|json] [--action-lane fix_now] [--severity error] [--status new] [--limit 20]",
+    "  report [--since-days 30] [--format markdown|json] [--action-lane fix_now] [--severity error] [--status new] [--include-resolved true] [--limit 20]",
     "  prune [--retention-days 180]",
   ].join("\n");
 }

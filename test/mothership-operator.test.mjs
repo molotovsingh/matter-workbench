@@ -18,6 +18,10 @@ test("mothership operator parses bounded commands without accepting secrets", ()
     parseMothershipOperatorArgs(["feedback", "update-status", "--installation-id", "firm-01", "--id", "feedback_1", "--status", "reviewed", "--actor", "aks", "--note", "reviewed"]),
     { command: "feedback:update-status", options: { "installation-id": "firm-01", id: "feedback_1", status: "reviewed", actor: "aks", note: "reviewed" } },
   );
+  assert.deepEqual(
+    parseMothershipOperatorArgs(["signals", "update-status", "--installation-id", "firm-01", "--id", "signal_1", "--status", "superseded"]),
+    { command: "signals:update-status", options: { "installation-id": "firm-01", id: "signal_1", status: "superseded" } },
+  );
   assert.throws(() => parseMothershipOperatorArgs(["report", "--token", "secret"]), /does not accept secrets/i);
 });
 
@@ -104,6 +108,33 @@ test("mothership operator updates feedback triage status", async () => {
     stderr: (line) => errors.push(line),
   }), 1);
   assert.match(errors.join("\n"), /No feedback found for firm-01\/feedback_missing/);
+});
+
+test("mothership operator updates signal lifecycle status", async () => {
+  const output = [];
+  const calls = [];
+  const store = {
+    updateSignalStatus: async (input) => {
+      calls.push(input);
+      return { updated: input.signalId !== "signal_missing", status: input.status };
+    },
+  };
+
+  assert.equal(await runMothershipOperator({
+    argv: ["signals", "update-status", "--installation-id", "firm-01", "--id", "signal_1", "--status", "superseded", "--actor", "operator", "--note", "later success"],
+    store,
+    stdout: (line) => output.push(line),
+  }), 0);
+  assert.match(output.join("\n"), /Updated signal signal_1 for firm-01 to superseded/);
+  assert.deepEqual(calls, [{ installationId: "firm-01", signalId: "signal_1", status: "superseded", actor: "operator", note: "later success" }]);
+
+  const errors = [];
+  assert.equal(await runMothershipOperator({
+    argv: ["signals", "update-status", "--installation-id", "firm-01", "--id", "signal_missing", "--status", "resolved"],
+    store,
+    stderr: (line) => errors.push(line),
+  }), 1);
+  assert.match(errors.join("\n"), /No signal found for firm-01\/signal_missing/);
 });
 
 test("mothership operator filters report views for triage queues", async () => {

@@ -6,19 +6,25 @@ const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|
 const ACTION_LANES = Object.freeze(["fix_now", "investigate", "product_decision", "watch"]);
 const SEVERITIES = Object.freeze(["blocker", "error", "warning", "info"]);
 const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
+const SIGNAL_STATUSES = Object.freeze(["active", "resolved", "superseded", "suppressed"]);
+const REPORT_STATUSES = Object.freeze([...FEEDBACK_STATUSES, ...SIGNAL_STATUSES]);
+const CLOSED_SIGNAL_STATUSES = new Set(["resolved", "superseded", "suppressed"]);
 
-export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString() } = {}) {
+export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString(), includeResolvedSignals = false } = {}) {
   const metricSummary = summarizeMetrics(dataset.metrics || []);
   const heartbeatSummary = summarizeHeartbeats(dataset.heartbeats || [], generatedAt);
   const latestRuntimeEvidenceAt = latestEvidenceTime(metricSummary, heartbeatSummary);
   const rawSignalItems = (dataset.signals || []).map(signalReportItem);
-  const signalItems = rawSignalItems
+  const visibleSignalItems = includeResolvedSignals
+    ? rawSignalItems
+    : rawSignalItems.filter((item) => item.status === "active");
+  const signalItems = visibleSignalItems
     .map((item) => attachRelatedJobs(item, heartbeatSummary.jobEvidence))
     .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }))
     .map(attachWhatHappened);
   const feedbackItems = (dataset.feedback || [])
     .map(feedbackReportItem)
-    .map((item) => attachRelatedSignals(item, rawSignalItems))
+    .map((item) => attachRelatedSignals(item, visibleSignalItems))
     .map((item) => attachRelatedJobs(item, heartbeatSummary.jobEvidence))
     .map((item) => annotateTriage(item, { latestRuntimeEvidenceAt, latestMatterHealth: heartbeatSummary.latestMatterHealth }))
     .map(attachWhatHappened);
@@ -148,11 +154,15 @@ export function renderMothershipReportMarkdown(report = {}) {
       lines.push(`- Type: ${item.category}`);
       if (item.severity) lines.push(`- Severity: ${item.severity}`);
       if (item.status) lines.push(`- Status: ${item.status}`);
-      if (item.triageStatusUpdatedAt) {
-        lines.push(`- Status updated: ${item.triageStatusUpdatedAt}${item.triageStatusActor ? ` by ${redactReportText(item.triageStatusActor)}` : ""}`);
+      const statusUpdatedAt = item.triageStatusUpdatedAt || item.signalStatusUpdatedAt;
+      const statusActor = item.triageStatusActor || item.signalStatusActor;
+      const statusNote = item.triageStatusNote || item.signalStatusNote;
+      const statusHistoryCount = item.triageStatusHistoryCount || item.signalStatusHistoryCount || 0;
+      if (statusUpdatedAt) {
+        lines.push(`- Status updated: ${statusUpdatedAt}${statusActor ? ` by ${redactReportText(statusActor)}` : ""}`);
       }
-      if (item.triageStatusNote) lines.push(`- Status note: ${redactReportText(item.triageStatusNote)}`);
-      if (item.triageStatusHistoryCount > 1) lines.push(`- Status history entries: ${item.triageStatusHistoryCount}`);
+      if (statusNote) lines.push(`- Status note: ${redactReportText(statusNote)}`);
+      if (statusHistoryCount > 1) lines.push(`- Status history entries: ${statusHistoryCount}`);
       lines.push(`- Installation: ${redactReportText(item.installationId)}`);
       if (item.matterName) lines.push(`- Matter: ${redactReportText(item.matterName)}`);
       if (item.occurrenceCount > 1) lines.push(`- Occurrences: ${item.occurrenceCount}`);
@@ -180,10 +190,16 @@ function signalReportItem(row = {}) {
   const severity = normalizeSeverity(row.severity || payload.severity || "warning");
   const critical = severity === "blocker" || severity === "error";
   const occurrenceCount = positiveInteger(row.occurrence_count ?? payload.occurrenceCount, 1);
+  const operatorStatus = safeObject(payload.operatorStatus);
   return {
     id: String(row.signal_id || payload.id || "signal"),
     kind: "signal",
     category: critical ? "critical_signal" : "warning_signal",
+    status: normalizeSignalStatus(row.status || payload.status),
+    signalStatusUpdatedAt: toIso(row.status_updated_at || operatorStatus.updatedAt),
+    signalStatusActor: redactReportText(operatorStatus.actor || ""),
+    signalStatusNote: redactReportText(operatorStatus.note || ""),
+    signalStatusHistoryCount: Array.isArray(payload.operatorStatusHistory) ? payload.operatorStatusHistory.length : 0,
     severity,
     priority: critical ? 0 : 1,
     installationId: String(row.installation_id || ""),
@@ -370,6 +386,20 @@ function normalizePatienceRisk(value = "") {
 function annotateTriage(item = {}, context = {}) {
   const currentMatterState = latestMatterStateForItem(item, context.latestMatterHealth);
   const currentness = classifyCurrentness(item, context.latestRuntimeEvidenceAt, currentMatterState);
+  if (item.kind === "signal" && CLOSED_SIGNAL_STATUSES.has(item.status)) {
+    return {
+      ...item,
+      currentness,
+      ...(currentMatterState ? { currentMatterState } : {}),
+      classification: item.category,
+      action_lane: "watch",
+      confidence: "high",
+      triage_source: "signal_lifecycle",
+      reason: `Signal is ${item.status}; it is retained as forensic evidence but hidden from default reports.`,
+      recommended_action: "No current code action unless the signal is reopened or recurs as a new active incident.",
+      missing_evidence: [],
+    };
+  }
   const triage = routePrivateBetaFeedbackTriage({ ...item, currentness, currentMatterState });
   return {
     ...item,
@@ -628,6 +658,13 @@ function statusDispositionForItem(item = {}) {
       nextAction: "Inspect the current signal state and latest matter context before changing code.",
     };
   }
+  if (CLOSED_SIGNAL_STATUSES.has(status)) {
+    return {
+      status,
+      actionState: "closed",
+      nextAction: `No immediate action: this signal is ${status}. Reopen only if current evidence shows the incident is live again.`,
+    };
+  }
   if (status === "fixed") {
     return {
       status,
@@ -715,7 +752,7 @@ function normalizeReportViewFilters(filters = {}) {
   const normalized = {};
   if (actionLane) normalized.action_lane = requireAllowedFilter("action-lane", actionLane, ACTION_LANES);
   if (severity) normalized.severity = requireAllowedFilter("severity", severity, SEVERITIES);
-  if (status) normalized.status = requireAllowedFilter("status", status, FEEDBACK_STATUSES);
+  if (status) normalized.status = requireAllowedFilter("status", status, REPORT_STATUSES);
   if (limit) normalized.limit = limit;
   return normalized;
 }
@@ -780,6 +817,11 @@ function normalizeFeedbackCategory(value = "") {
 function normalizeFeedbackStatus(value = "") {
   const status = String(value || "new").trim().toLowerCase();
   return FEEDBACK_STATUSES.includes(status) ? status : "new";
+}
+
+function normalizeSignalStatus(value = "") {
+  const status = String(value || "active").trim().toLowerCase();
+  return SIGNAL_STATUSES.includes(status) ? status : "active";
 }
 
 function severityForFeedbackCategory(category = "") {

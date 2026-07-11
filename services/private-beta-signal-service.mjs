@@ -18,6 +18,7 @@ const DEFAULT_LIMIT = 100;
 
 const ALLOWED_SOURCES = new Set(["matter_attention", "job_status", "skill_factory_health", "client_event"]);
 const ALLOWED_SEVERITIES = new Set(["blocker", "warning", "info", "error"]);
+const SIGNAL_LIFECYCLE_STATUSES = new Set(["active", "resolved", "superseded", "suppressed"]);
 
 export function createPrivateBetaSignalService({
   appDir = process.cwd(),
@@ -81,7 +82,13 @@ export function createPrivateBetaSignalService({
     const jobs = Array.isArray(ledger.jobs) ? ledger.jobs : [];
     const signals = jobs
       .filter((job) => job?.status === "failed")
-      .map((job) => buildJobSignal({ job, runtimeMode, telemetryMode: normalizedTelemetryMode }));
+      .map((job) => {
+        const laterSuccess = findLaterSucceededJobForFailedJob(job, jobs);
+        const signal = buildJobSignal({ job, runtimeMode, telemetryMode: normalizedTelemetryMode });
+        return laterSuccess
+          ? markJobSignalSuperseded(signal, { failedJob: job, succeededJob: laterSuccess })
+          : signal;
+      });
     return captureSignals(signals);
   }
 
@@ -140,14 +147,19 @@ export function createPrivateBetaSignalService({
         const index = store.signals.findIndex((signal) => signal.fingerprint === candidate.fingerprint);
         if (index >= 0) {
           const existing = store.signals[index];
+          if (existing.status && existing.status !== "active" && candidate.status === "active") continue;
           const seenAt = candidate.lastSeenAt;
+          const lifecycleUpdate = candidate.status && candidate.status !== "active";
+          if (lifecycleUpdate && existing.status === candidate.status && normalizeIso(existing.statusUpdatedAt) === normalizeIso(candidate.statusUpdatedAt)) continue;
           const updated = normalizeSignal({
             ...existing,
+            status: lifecycleUpdate ? candidate.status : existing.status,
+            statusUpdatedAt: lifecycleUpdate ? candidate.statusUpdatedAt || candidate.updatedAt || seenAt : existing.statusUpdatedAt,
             summary: candidate.summary,
             details: candidate.details,
             updatedAt: seenAt,
-            lastSeenAt: seenAt,
-            occurrenceCount: (existing.occurrenceCount || 1) + 1,
+            lastSeenAt: lifecycleUpdate ? existing.lastSeenAt : seenAt,
+            occurrenceCount: lifecycleUpdate ? existing.occurrenceCount || 1 : (existing.occurrenceCount || 1) + 1,
           }, { telemetryMode: existing.telemetryMode || normalizedTelemetryMode });
           updated.sync = markTelemetrySyncQueued({
             syncConfig,
@@ -251,6 +263,8 @@ export function normalizeSignal(input = {}, { telemetryMode = "safe" } = {}) {
     firstSeenAt: normalizeIso(input.firstSeenAt) || createdAt,
     lastSeenAt: normalizeIso(input.lastSeenAt) || createdAt,
     occurrenceCount: Math.max(1, Math.trunc(Number(input.occurrenceCount) || 1)),
+    status: normalizeLifecycleStatus(input.status),
+    statusUpdatedAt: normalizeIso(input.statusUpdatedAt) || "",
     summary: sanitizeSummary(input.summary || {}),
     details: sanitizeDetails(input.details || {}, { telemetryMode: normalizedTelemetryMode }),
     sync: normalizeSync(input.sync),
@@ -346,9 +360,58 @@ function buildJobSignal({ job = {}, runtimeMode = "", telemetryMode = "safe" }) 
       errorMessage: sanitizeText(job.errorMessage || "Job failed", 300).trim(),
       startedAt: normalizeIso(job.startedAt),
       finishedAt: normalizeIso(job.finishedAt),
+      updatedAt: normalizeIso(job.updatedAt),
       ...(normalizedTelemetryMode === "firm_internal" && job.metadata ? { metadata: sanitizeDiagnosticValue(job.metadata) } : {}),
     },
   };
+}
+
+function markJobSignalSuperseded(signal = {}, { failedJob = {}, succeededJob = {} } = {}) {
+  const statusUpdatedAt = normalizeIso(jobTerminalTimestamp(succeededJob) || isoNow(() => new Date()));
+  return {
+    ...signal,
+    status: "superseded",
+    statusUpdatedAt,
+    summary: {
+      ...signal.summary,
+      state: "superseded",
+      supersededBy: "later_same_kind_success",
+    },
+    details: {
+      ...signal.details,
+      status: "superseded",
+      supersededBy: "later_same_kind_success",
+      supersededByJobId: sanitizeText(succeededJob.id, 120).trim(),
+      supersededAt: statusUpdatedAt,
+      failedJobFinishedAt: normalizeIso(failedJob.finishedAt || failedJob.updatedAt || failedJob.startedAt || failedJob.createdAt),
+    },
+  };
+}
+
+function findLaterSucceededJobForFailedJob(failedJob = {}, jobs = []) {
+  const failedTime = jobTerminalTimeMs(failedJob);
+  const failedMatter = normalizeJobLifecycleKey(failedJob.matterName || failedJob.matter?.name || failedJob.matter?.matterName);
+  const failedKind = normalizeJobLifecycleKey(failedJob.kind);
+  if (!Number.isFinite(failedTime) || !failedMatter || !failedKind) return null;
+  return (Array.isArray(jobs) ? jobs : [])
+    .filter((job) => job && job !== failedJob && job.status === "succeeded")
+    .filter((job) => normalizeJobLifecycleKey(job.matterName || job.matter?.name || job.matter?.matterName) === failedMatter)
+    .filter((job) => normalizeJobLifecycleKey(job.kind) === failedKind)
+    .filter((job) => jobTerminalTimeMs(job) > failedTime)
+    .sort((left, right) => jobTerminalTimeMs(right) - jobTerminalTimeMs(left))[0] || null;
+}
+
+function jobTerminalTimestamp(job = {}) {
+  return job.finishedAt || job.updatedAt || job.startedAt || job.createdAt || "";
+}
+
+function jobTerminalTimeMs(job = {}) {
+  const parsed = Date.parse(String(jobTerminalTimestamp(job) || ""));
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function normalizeJobLifecycleKey(value = "") {
+  return sanitizeText(value, 200).trim().toLowerCase();
 }
 
 function buildSkillFactoryHealthSignal({
@@ -539,6 +602,7 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     "failureClass",
     "failedStage",
     "finishedAt",
+    "failedJobFinishedAt",
     "displayName",
     "errorClass",
     "jobId",
@@ -557,8 +621,12 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
     "stageProvider",
     "startedAt",
     "status",
+    "supersededAt",
+    "supersededBy",
+    "supersededByJobId",
     "storePaths",
     "traceId",
+    "updatedAt",
     "userRole",
     "username",
   ]);
@@ -674,6 +742,11 @@ function normalizeSource(source) {
 function normalizeSeverity(severity) {
   const text = sanitizeText(severity, 40).trim();
   return ALLOWED_SEVERITIES.has(text) ? text : "warning";
+}
+
+function normalizeLifecycleStatus(value = "active") {
+  const text = sanitizeText(value || "active", 20).trim().toLowerCase();
+  return SIGNAL_LIFECYCLE_STATUSES.has(text) ? text : "active";
 }
 
 function normalizeTelemetryMode(value) {

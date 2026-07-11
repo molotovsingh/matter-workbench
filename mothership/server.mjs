@@ -19,6 +19,7 @@ const CONSOLE_API_PREFIX = "/api/";
 const INSTALLATION_REVOKE_RE = /^\/api\/installations\/([^/]+)\/revoke$/;
 const INSTALLATION_REPORT_RE = /^\/api\/installations\/([^/]+)\/report$/;
 const FEEDBACK_STATUS_RE = /^\/api\/feedback\/([^/]+)\/([^/]+)\/status$/;
+const SIGNAL_STATUS_RE = /^\/api\/signals\/([^/]+)\/([^/]+)\/status$/;
 
 export function createMothershipServer({
   store,
@@ -170,7 +171,7 @@ async function routeConsoleApi({ request, url, response, store, consoleAuth, max
     if (request.method !== "GET") throw httpError("Method not allowed", 405);
     const sinceDays = readSinceDays(url);
     const dataset = await store.queryReport({ sinceDays });
-    const report = applyReportFilters(buildMothershipReport(dataset), url);
+    const report = applyReportFilters(buildMothershipReport(dataset, { includeResolvedSignals: readIncludeResolvedSignals(url) }), url);
     sendJson(response, 200, report);
     return true;
   }
@@ -181,7 +182,7 @@ async function routeConsoleApi({ request, url, response, store, consoleAuth, max
     const installationId = decodeURIComponent(installationReportMatch[1] || "");
     const sinceDays = readSinceDays(url);
     const dataset = await store.queryReport({ sinceDays, installationId });
-    const report = applyReportFilters(buildMothershipReport(dataset), url);
+    const report = applyReportFilters(buildMothershipReport(dataset, { includeResolvedSignals: readIncludeResolvedSignals(url) }), url);
     sendJson(response, 200, report);
     return true;
   }
@@ -222,6 +223,28 @@ async function routeConsoleApi({ request, url, response, store, consoleAuth, max
     return true;
   }
 
+  const signalStatusMatch = SIGNAL_STATUS_RE.exec(url.pathname);
+  if (signalStatusMatch) {
+    if (request.method !== "POST") throw httpError("Method not allowed", 405);
+    const installationId = decodeURIComponent(signalStatusMatch[1] || "");
+    const signalId = decodeURIComponent(signalStatusMatch[2] || "");
+    const body = await readJsonBody(request, { maxBodyBytes: Math.min(maxBodyBytes, 16 * 1024) });
+    const actor = consoleAuth?.sessionUser?.(request)?.username || "operator";
+    const result = await store.updateSignalStatus({
+      installationId,
+      signalId,
+      status: body.status,
+      actor,
+      note: String(body.note || ""),
+    });
+    sendJson(response, result.updated ? 200 : 404, {
+      schema_version: "mothership-console-action/v1",
+      action: "update_signal_status",
+      ...result,
+    });
+    return true;
+  }
+
   if (url.pathname.startsWith(CONSOLE_API_PREFIX)) throw httpError("Not found", 404);
   return false;
 }
@@ -243,6 +266,14 @@ function readSinceDays(url) {
   const raw = url.searchParams.get("sinceDays") || url.searchParams.get("since-days") || "";
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.trunc(parsed), 365) : 30;
+}
+
+function readIncludeResolvedSignals(url) {
+  const raw = url.searchParams.get("includeResolved")
+    || url.searchParams.get("include-resolved")
+    || url.searchParams.get("includeResolvedSignals")
+    || "";
+  return ["1", "true", "yes", "all"].includes(String(raw).trim().toLowerCase());
 }
 
 function applyReportFilters(report, url) {

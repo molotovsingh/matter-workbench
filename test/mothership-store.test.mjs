@@ -126,6 +126,95 @@ test("store inserts feedback and signals idempotently with parameterized payload
   assert.match(inserts[0].text, /on conflict \(installation_id, feedback_id\) do nothing/i);
   assert.match(inserts[2].text, /on conflict \(installation_id, signal_id\) do update/i);
   assert.match(inserts[2].text, /greatest\(mothership_signal_events\.occurrence_count, excluded\.occurrence_count\)/i);
+  assert.match(inserts[2].text, /where mothership_signal_events\.status = 'active'/i);
+  assert.match(inserts[2].text, /and excluded\.status = 'active'/i);
+});
+
+test("store accepts signal lifecycle updates by signal id or fingerprint", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      if (/update mothership_signal_events/i.test(text)) {
+        return { rowCount: 1, rows: [{ id: 22, status: values[2] }] };
+      }
+      return { rowCount: 0, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+  const result = await store.ingestSignal({
+    installationId: "firm-beta-01",
+    signal: {
+      id: "signal_local_new_id",
+      source: "job_status",
+      severity: "error",
+      status: "superseded",
+      statusUpdatedAt: "2026-07-10T11:00:00.000Z",
+      fingerprint: "same-failed-job-fingerprint",
+      matterName: "Example Matter",
+      occurrenceCount: 2,
+      firstSeenAt: "2026-07-09T10:00:00.000Z",
+      lastSeenAt: "2026-07-09T10:00:00.000Z",
+    },
+  });
+
+  assert.deepEqual(result, { inserted: false, status: "superseded", lifecycleUpdated: true });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].text, /set status = \$3/i);
+  assert.match(calls[0].text, /signal_id = \$2 or fingerprint = \$6/i);
+  assert.match(calls[0].text, /and status = 'active'/i);
+  assert.deepEqual(calls[0].values.slice(0, 6), [
+    "firm-beta-01",
+    "signal_local_new_id",
+    "superseded",
+    "2026-07-10T11:00:00.000Z",
+    JSON.stringify({
+      id: "signal_local_new_id",
+      source: "job_status",
+      severity: "error",
+      status: "superseded",
+      statusUpdatedAt: "2026-07-10T11:00:00.000Z",
+      fingerprint: "same-failed-job-fingerprint",
+      matterName: "Example Matter",
+      occurrenceCount: 2,
+      firstSeenAt: "2026-07-09T10:00:00.000Z",
+      lastSeenAt: "2026-07-09T10:00:00.000Z",
+    }),
+    "same-failed-job-fingerprint",
+  ]);
+});
+
+test("store does not let ingested lifecycle signals overwrite already closed signals", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      if (/update mothership_signal_events/i.test(text)) return { rowCount: 0, rows: [] };
+      if (/select signal_id, status/i.test(text)) return { rowCount: 1, rows: [{ signal_id: "signal_existing", status: "suppressed" }] };
+      if (/insert into mothership_signal_events/i.test(text)) throw new Error("closed signal should not be duplicated");
+      return { rowCount: 0, rows: [] };
+    },
+  });
+  const store = createMothershipStore({ database });
+
+  const result = await store.ingestSignal({
+    installationId: "firm-beta-01",
+    signal: {
+      id: "signal_local_new_id",
+      source: "job_status",
+      severity: "error",
+      status: "superseded",
+      statusUpdatedAt: "2026-07-10T11:00:00.000Z",
+      fingerprint: "same-failed-job-fingerprint",
+      occurrenceCount: 1,
+      firstSeenAt: "2026-07-09T10:00:00.000Z",
+      lastSeenAt: "2026-07-09T10:00:00.000Z",
+    },
+  });
+
+  assert.deepEqual(result, { inserted: false, status: "suppressed", lifecycleUpdated: false });
+  assert.equal(calls.filter((call) => /insert into mothership_signal_events/i.test(call.text)).length, 0);
+  assert.deepEqual(calls[1].values, ["firm-beta-01", "signal_local_new_id", "same-failed-job-fingerprint"]);
 });
 
 test("store inserts metric snapshots and includes them in reports", async () => {
@@ -296,6 +385,76 @@ test("store updates feedback status with bounded operator audit metadata", async
   assert.doesNotMatch(JSON.stringify(updates), /super-secret/);
 });
 
+test("store updates signal lifecycle status with bounded operator audit metadata", async () => {
+  const calls = [];
+  const database = fakeDatabase({
+    onQuery(text, values) {
+      calls.push({ text, values });
+      if (/update mothership_signal_events/i.test(text)) {
+        return values[1] === "signal_missing"
+          ? { rowCount: 0, rows: [] }
+          : { rowCount: 1, rows: [{ signal_id: values[1], fingerprint: "fingerprint-1", status: values[2] }] };
+      }
+      return { rowCount: 1, rows: [] };
+    },
+  });
+  const store = createMothershipStore({
+    database,
+    now: () => new Date("2026-07-10T12:00:00.000Z"),
+  });
+
+  assert.deepEqual(
+    await store.updateSignalStatus({
+      installationId: "firm-beta-01",
+      signalId: "signal_1",
+      status: "superseded",
+      actor: "operator bot",
+      note: "Later same-kind job succeeded; password=hunter2 should be redacted.",
+    }),
+    {
+      updated: true,
+      signalId: "signal_1",
+      fingerprint: "fingerprint-1",
+      status: "superseded",
+      updatedAt: "2026-07-10T12:00:00.000Z",
+      actor: "operator bot",
+      note: "Later same-kind job succeeded; password=[redacted-secret] should be redacted.",
+    },
+  );
+  assert.deepEqual(
+    await store.updateSignalStatus({ installationId: "firm-beta-01", signalId: "signal_missing", status: "resolved" }),
+    {
+      updated: false,
+      signalId: "signal_missing",
+      fingerprint: "",
+      status: "resolved",
+      updatedAt: "2026-07-10T12:00:00.000Z",
+      actor: "operator",
+      note: "",
+    },
+  );
+  await assert.rejects(
+    () => store.updateSignalStatus({ installationId: "firm-beta-01", signalId: "signal_1", status: "fixed" }),
+    (error) => error.statusCode === 400 && /signal status must be one of/i.test(error.message),
+  );
+
+  const updates = calls.filter((call) => /update mothership_signal_events/i.test(call.text));
+  assert.equal(updates.length, 2);
+  assert.match(updates[0].text, /set status = \$3/i);
+  assert.match(updates[0].text, /status_updated_at = \$4::timestamptz/i);
+  assert.match(updates[0].text, /operatorStatusHistory/i);
+  assert.deepEqual(updates[0].values, [
+    "firm-beta-01",
+    "signal_1",
+    "superseded",
+    "2026-07-10T12:00:00.000Z",
+    "operator bot",
+    "Later same-kind job succeeded; password=[redacted-secret] should be redacted.",
+  ]);
+  assert.match(updates[0].text, /where installation_id = \$1 and signal_id = \$2/i);
+  assert.doesNotMatch(JSON.stringify(updates), /hunter2/);
+});
+
 test("store revokes installations and prunes expired payloads", async () => {
   const calls = [];
   const database = fakeDatabase({
@@ -418,6 +577,7 @@ test("store listInstallations maps fleet rows with heartbeat age and recent coun
   assert.ok(fleetQuery);
   assert.match(fleetQuery.text, /left join \(.*max\(received_at\).*mothership_heartbeat_events/is);
   assert.match(fleetQuery.text, /count\(\*\).*mothership_signal_events/is);
+  assert.match(fleetQuery.text, /where status = 'active'/i);
   assert.match(fleetQuery.text, /count\(\*\).*mothership_feedback_events/is);
   assert.match(fleetQuery.text, /order by i\.created_at desc/is);
   assert.deepEqual(fleetQuery.values, [30]);
