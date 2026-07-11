@@ -55,18 +55,17 @@ folder/schema renames.
 
 ## Current Folder Lanes
 
-The current local folder lanes remain stable:
+The current local folder lanes remain stable and the matter folder tree should display these canonical names as-is:
 
-| Folder | Lawyer label | Contract meaning |
-| --- | --- | --- |
-| `00_Inbox` | Original Documents | Source intake and deterministic records. |
-| `10_Library` | Source Record | Generated source-control and source-record artifacts. |
-| `20_Workshop` | Case Analysis | Generated analysis and working legal understanding. |
-| `30_Drafts` | Drafts | Lawyer-editable draft work product. |
-| `40_Dispatch` | Ready to Send / Dispatch Copy | Preserved send/file/export boundary. |
+| Folder | Contract meaning |
+| --- | --- |
+| `00_Inbox` | Source intake and deterministic records. |
+| `10_Library` | Generated source-control and source-record artifacts. |
+| `20_Workshop` | Generated analysis and working legal understanding. |
+| `30_Drafts` | Lawyer-editable draft work product. |
+| `40_Dispatch` | Preserved send/file/export boundary. |
 
-The UI may use friendly labels. Code, disk paths, and tests should not be
-renamed without a migration contract.
+Do not replace these folder names in the UX-facing tree with aliases such as `Original Documents`, `Source Record`, `Case Analysis`, `Drafts`, or `Ready to Send`. If the folder tree is visible, it shows path identity. Removing the numeric prefixes or renaming the folders requires a separate storage/path migration contract.
 
 ## Default Visibility Rules
 
@@ -86,7 +85,7 @@ Normal lawyer-facing views should not expose by default:
   model debug payloads;
 - candidate ledgers and intermediate model outputs;
 - raw run receipts unless the lawyer opens technical/audit details;
-- implementation folder codes where a friendly lane label is enough.
+- implementation details outside the folder tree where they do not carry custody/path identity.
 
 Developer and technical views may expose internal files when they are needed for
 diagnosis. Those views should be explicitly marked or tucked behind an advanced

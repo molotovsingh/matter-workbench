@@ -185,6 +185,9 @@ test("MW List of Dates validation rejects broad grouped date-range rows", async 
       supporting_sources: [{ citation: "FILE-0001 p2.b1", source_label: "Demand Notice" }],
     }],
   });
+  await writeFile(path.join(root, "20_Workshop", "The Story.md"), "# The Story\n\nThe dispute concerns demand and reply correspondence.\n");
+  await writeFile(path.join(root, PROCEDURAL_POSTURE_DIAGNOSIS_OUTPUT_RELATIVE), "# Filing and Procedural Posture Diagnosis\n\nWorking path: response / filing.\n");
+  await writeJson(root, PROCEDURAL_POSTURE_DIAGNOSIS_JSON_RELATIVE, diagnosisFixture());
   const service = createMwListOfDatesService({
     matterStore: store(root),
     mwListOfDatesProvider: async () => ({

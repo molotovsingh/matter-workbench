@@ -35,7 +35,7 @@ test("React lawyer mode helper filters generated internals but keeps client evid
   const files = [
     { name: "matter.json", path: "matter.json", type: "file" },
     {
-      name: "Source Record",
+      name: "10_Library",
       path: "10_Library",
       type: "folder",
       children: [
@@ -45,7 +45,7 @@ test("React lawyer mode helper filters generated internals but keeps client evid
       ],
     },
     {
-      name: "Original Documents",
+      name: "00_Inbox",
       path: "00_Inbox",
       type: "folder",
       children: [

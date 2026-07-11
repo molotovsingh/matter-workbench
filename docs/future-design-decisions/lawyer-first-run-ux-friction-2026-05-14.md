@@ -7,6 +7,10 @@ Walkthrough role: lawyer opening the app for the first time
 Test matter: `Mehta vs Skyline`
 Method: UI-only browser walkthrough. No source code was inspected. No matter was created, no files were uploaded, no AI or paid action was run, and no generated artifact was copied, downloaded, or regenerated.
 
+## 2026-07-11 Supersession Note
+
+The folder-tree alias recommendation in this friction report is superseded. The folder tree now shows canonical names directly: `00_Inbox`, `10_Library`, `20_Workshop`, `30_Drafts`, and `40_Dispatch`. Do not use this report to reintroduce `Case Record`, `Source Record`, `Analysis Library`, or `Ready to Send` aliases in the folder tree. Remaining observations may still inform non-folder-tree copy and onboarding polish.
+
 ## Executive Read
 
 The app already has the bones of a lawyer-friendly workbench: it can load a matter, show core matter metadata, expose a visible processing pipeline, and open a generated List of Dates with citations. The main friction is not that the app lacks capability. The friction is that the first screen still talks partly like an internal file system and partly like a legal product.

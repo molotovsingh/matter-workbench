@@ -90,9 +90,6 @@ function TreeNode({ file }: TreeNodeProps) {
         <span className={`tree-icon ${getFileIconClass(file.ext)}`} aria-hidden="true" />
         <span className="tree-name-wrap">
           <span className="tree-name">{file.name}</span>
-          {file.canonical && file.canonical !== file.name && (
-            <span className="tree-canonical-name">{file.canonical}</span>
-          )}
         </span>
         {file.size !== undefined && (
           <span className="tree-meta">{formatSize(file.size)}</span>

@@ -4,6 +4,20 @@ Date: 2026-06-21
 Status: First production shell slice landed; Matter Assistant remains protected
 Priority: High for beta polish
 
+## 2026-07-11 Folder Tree Update
+
+The shell/navigation direction remains current, but the Matter Record folder tree labels from the prototype are superseded. The tree now shows canonical folder names exactly:
+
+```text
+00_Inbox
+10_Library
+20_Workshop
+30_Drafts
+40_Dispatch
+```
+
+Do not reintroduce `Case Record`, `Source Record`, `Case Analysis`, `Drafts`, or `Ready to Send` as folder-tree aliases. Command aliases and non-folder-tree copy are separate.
+
 ## Context
 
 The current production React shell works, but the left navigation and matter record areas feel split across too many surfaces. A visual prototype was iterated at:
@@ -45,11 +59,11 @@ Matter Record
 - Add files
 - Refresh
 - Show technical   [operator only]
-- Case Record
-- Source Record
-- Case Analysis
-- Drafts
-- Ready to Send
+- 00_Inbox
+- 10_Library
+- 20_Workshop
+- 30_Drafts
+- 40_Dispatch
 
 App
 - All matters

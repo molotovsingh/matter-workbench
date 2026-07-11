@@ -1,46 +1,36 @@
 export const MATTER_WORKSPACE_LANES = [
   {
     path: "00_Inbox",
-    label: "Original Documents",
+    label: "00_Inbox",
     purpose: "Files received from the client, court, or other side.",
-    group: "case_record",
   },
   {
     path: "10_Library",
-    label: "Source Record",
+    label: "10_Library",
     purpose: "Extracted text, source labels, and citeable references.",
-    group: "case_record",
   },
   {
     path: "20_Workshop",
-    label: "Case Analysis",
+    label: "20_Workshop",
     purpose: "Chronologies, risks, issue notes, party maps, and strategy.",
   },
   {
     path: "30_Drafts",
-    label: "Drafts",
+    label: "30_Drafts",
     purpose: "Formal documents in draft form.",
   },
   {
     path: "40_Dispatch",
-    label: "Ready to Send",
+    label: "40_Dispatch",
     purpose: "Reviewed documents for filing, sending, or sharing.",
   },
 ];
 
-export const MATTER_WORKSPACE_GROUPS = [
-  {
-    id: "case_record",
-    label: "Case Record",
-    purpose: "Original client, court, and other-side material.",
-    lanes: ["00_Inbox"],
-  },
-];
-
 export const MATTER_WORKSPACE_LANE_LABELS = new Map(
-  MATTER_WORKSPACE_LANES.map((lane) => [lane.path, lane.label]),
+  MATTER_WORKSPACE_LANES.map((lane) => [lane.path, lane.path]),
 );
 
 export function workspaceLaneLabel(relativePath, fallback = "") {
-  return MATTER_WORKSPACE_LANE_LABELS.get(String(relativePath || "").replace(/\\/g, "/")) || fallback;
+  const normalized = String(relativePath || "").replace(/\\/g, "/");
+  return MATTER_WORKSPACE_LANE_LABELS.get(normalized) || fallback;
 }

@@ -224,7 +224,7 @@ The app now treats these top-level folders as **lanes**:
 - `30_Drafts` is for draft legal outputs.
 - `40_Dispatch` is for reviewed material that is ready to send or export.
 
-The explorer can show friendly names like **Analysis Library**, but the disk keeps the canonical folder names. That split is intentional: lawyers get readable labels, engineers and audits get stable paths.
+The explorer now shows the canonical folder names directly. Do not alias `00_Inbox`, `10_Library`, `20_Workshop`, `30_Drafts`, or `40_Dispatch` in the folder tree; the tree is part of custody/path identity. If the numeric prefixes are ever removed, treat that as a storage/path migration, not a display-label cleanup.
 
 ## The Engines
 

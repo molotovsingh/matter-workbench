@@ -220,11 +220,7 @@ function runTimeValue(run = {}) {
 }
 
 function humanOutputPath(value = "") {
-  return String(value || "")
-    .replace(/^10_Library\//, "Source Record / ")
-    .replace(/^20_Workshop\//, "Case Analysis / ")
-    .replace(/^30_Drafts\//, "Drafts / ")
-    .replace(/^40_Dispatch\//, "Ready to Send / ");
+  return String(value || "");
 }
 
 function formatRunTime(value = "") {

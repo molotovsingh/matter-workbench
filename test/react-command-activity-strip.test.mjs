@@ -10,7 +10,6 @@ const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts
 const reactNativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", import.meta.url);
 const reactNativeCommandAliasesPath = new URL("../react-ui/src/lib/nativeCommandAliases.ts", import.meta.url);
 const reactPresentationLabelsPath = new URL("../react-ui/src/lib/presentationLabels.ts", import.meta.url);
-const reactWorkspaceLabelsPath = new URL("../react-ui/src/lib/workspaceLabels.ts", import.meta.url);
 const reactActivityLogPath = new URL("../react-ui/src/lib/activityLog.ts", import.meta.url);
 const reactCommandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
 const reactCopilotQuickSwitchPath = new URL("../react-ui/src/components/command/CopilotQuickSwitch.tsx", import.meta.url);
@@ -29,7 +28,6 @@ async function importReactActivityLogModule() {
     const nativeCommandsFile = path.join(tempDir, "nativeCommands.mjs");
     const nativeCommandAliasesFile = path.join(tempDir, "nativeCommandAliases.mjs");
     const presentationFile = path.join(tempDir, "presentationLabels.mjs");
-    const workspaceLabelsFile = path.join(tempDir, "workspaceLabels.mjs");
     const activityFile = path.join(tempDir, "activityLog.mjs");
 
     await writeFile(secretFile, transpile(await readFile(reactSecretRedactionPath, "utf8")));
@@ -37,10 +35,7 @@ async function importReactActivityLogModule() {
     const nativeCommandsSource = (await readFile(reactNativeCommandsPath, "utf8"))
       .replace("'./nativeCommandAliases'", "'./nativeCommandAliases.mjs'");
     await writeFile(nativeCommandsFile, transpile(nativeCommandsSource));
-    await writeFile(workspaceLabelsFile, transpile(await readFile(reactWorkspaceLabelsPath, "utf8")));
-    const presentationSource = (await readFile(reactPresentationLabelsPath, "utf8"))
-      .replace("'./workspaceLabels'", "'./workspaceLabels.mjs'");
-    await writeFile(presentationFile, transpile(presentationSource));
+    await writeFile(presentationFile, transpile(await readFile(reactPresentationLabelsPath, "utf8")));
     const source = (await readFile(reactActivityLogPath, "utf8"))
       .replace("'./secretRedaction'", "'./secretRedaction.mjs'")
       .replace("'./nativeCommands'", "'./nativeCommands.mjs'")
@@ -74,7 +69,7 @@ test("React compact command activity mirrors terminal-style status lines", async
   assert.deepEqual(latestCompactActivityRows(lines, 4), [
     { time: "18:57", message: "running: Build Case Timeline" },
     { time: "18:57", message: "loaded /Users/aksingh/matters-matter-workbench" },
-    { time: "18:57", message: "opened Source Record / Case Timeline" },
+    { time: "18:57", message: "opened Case Timeline" },
     { time: "18:57", message: "OPENAI_API_KEY=[redacted-secret]" },
   ]);
 });

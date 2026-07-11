@@ -24,9 +24,7 @@ export interface WorkspaceFile {
   path: string;
   type: 'file' | 'folder';
   ext?: string;
-  canonical?: string;
   purpose?: string;
-  lane?: string;
   children?: WorkspaceFile[];
   isTechnical?: boolean;
   size?: number;

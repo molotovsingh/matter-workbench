@@ -7,7 +7,6 @@ import ts from "typescript";
 
 const apiClientPath = new URL("../react-ui/src/api/client.ts", import.meta.url);
 const reactSecretRedactionPath = new URL("../react-ui/src/lib/secretRedaction.ts", import.meta.url);
-const reactWorkspaceLabelsPath = new URL("../react-ui/src/lib/workspaceLabels.ts", import.meta.url);
 
 test("React API client hides raw HTML gateway errors from preparation stages", async () => {
   const { api } = await importReactApiClient();
@@ -227,7 +226,7 @@ test("React API client redacts structured API error messages", async () => {
   }
 });
 
-test("React API client uses shared workspace lane labels", async () => {
+test("React API client preserves canonical workspace folder names", async () => {
   const { adaptTree } = await importReactApiClient();
   const tree = adaptTree({
     kind: "directory",
@@ -236,11 +235,11 @@ test("React API client uses shared workspace lane labels", async () => {
     children: [{ kind: "directory", name: "00_Inbox", path: "00_Inbox", children: [] }],
   });
 
-  assert.equal(tree.children[0].name, "Case Record");
-  assert.equal(tree.children[0].canonical, "00_Inbox");
+  assert.equal(tree.children[0].name, "00_Inbox");
+  assert.equal(Object.hasOwn(tree.children[0], "canonical"), false);
 });
 
-test("React API client flattens duplicate lane-named grouping folders", async () => {
+test("React API client preserves real nested workspace folders", async () => {
   const { adaptTree } = await importReactApiClient();
   const tree = adaptTree({
     kind: "directory",
@@ -267,12 +266,12 @@ test("React API client flattens duplicate lane-named grouping folders", async ()
     }],
   });
 
-  assert.equal(tree.children[0].name, "Case Analysis");
+  assert.equal(tree.children[0].name, "20_Workshop");
   assert.deepEqual(tree.children[0].children.map((child) => child.name), [
-    "Filing and Procedural Posture Diagnosis.md",
+    "Case Analysis",
     "The Story.md",
   ]);
-  assert.equal(tree.children[0].children[0].path, "20_Workshop/Case Analysis/Filing and Procedural Posture Diagnosis.md");
+  assert.equal(tree.children[0].children[0].path, "20_Workshop/Case Analysis");
 });
 
 test("React API client turns upload network failures into user-safe messages", async () => {
@@ -339,7 +338,6 @@ test("React API client reports malformed success responses as API errors", async
 
 async function importReactApiClient() {
   const secretRedactionUrl = await transpiledDataUrl(reactSecretRedactionPath);
-  const workspaceLabelsUrl = await transpiledDataUrl(reactWorkspaceLabelsPath);
   const source = await readFile(apiClientPath, "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -348,8 +346,7 @@ async function importReactApiClient() {
       importsNotUsedAsValues: ts.ImportsNotUsedAsValues.Remove,
     },
   }).outputText
-    .replace("from '../lib/secretRedaction';", `from '${secretRedactionUrl}';`)
-    .replace("from '../lib/workspaceLabels';", `from '${workspaceLabelsUrl}';`);
+    .replace("from '../lib/secretRedaction';", `from '${secretRedactionUrl}';`);
   const dir = await mkdtemp(path.join(os.tmpdir(), "mwb-react-api-client-"));
   const modulePath = path.join(dir, "client.mjs");
   await writeFile(modulePath, compiled);

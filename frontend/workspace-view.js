@@ -5,7 +5,6 @@ import {
   wireListOfDatesPreviewActions,
 } from "./listofdates-markdown-preview.js";
 import {
-  MATTER_WORKSPACE_GROUPS,
   MATTER_WORKSPACE_LANES,
   workspaceLaneLabel,
 } from "../shared/workspace-lanes.mjs";
@@ -16,9 +15,6 @@ export function renderTreeNode(node, depth = 0, options = {}) {
     const previewable = node.previewable ? "true" : "false";
     const previewKind = node.previewKind || "";
     const displayName = displayFileName(node);
-    const canonicalName = options.showTechnical && displayName !== node.name
-      ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>`
-      : "";
     const meta = shouldShowFileSize(node) ? `<span class="tree-meta">${formatBytes(node.size)}</span>` : "";
     const activeClass = normalizedPath(node.path) === normalizedPath(options.activeFilePath) ? " active" : "";
     const activeAria = activeClass ? ' aria-current="true"' : "";
@@ -34,7 +30,7 @@ export function renderTreeNode(node, depth = 0, options = {}) {
         >
           ${renderTreeIcon(node)}
           <span class="tree-name-wrap">
-            <span class="tree-name">${escapeHtml(displayName)}${canonicalName}</span>
+            <span class="tree-name">${escapeHtml(displayName)}</span>
           </span>
           ${meta}
         </button>
@@ -51,12 +47,8 @@ export function renderTreeNode(node, depth = 0, options = {}) {
   const truncated = node.truncated ? `<li class="tree-truncated">Some entries are hidden because this folder is large.</li>` : "";
   const open = depth < 2 || node.path === "00_Inbox/Intake 01 - Initial" ? " open" : "";
   const displayName = workspaceLaneLabel(node.path, node.name);
-  const canonicalName = options.showTechnical && displayName !== node.name
-    ? ` <span class="tree-canonical-name">${escapeHtml(node.name)}</span>`
-    : "";
   const lane = MATTER_WORKSPACE_LANES.find((candidate) => candidate.path === node.path);
   const purpose = lane?.purpose ? ` title="${escapeHtml(lane.purpose)}"` : "";
-  const laneBadge = renderLaneBadgeForPath(node.path);
   const rootClass = depth === 0 && !node.path ? " tree-root-matter" : "";
 
   return `
@@ -65,9 +57,8 @@ export function renderTreeNode(node, depth = 0, options = {}) {
         <summary${purpose}>
           ${renderTreeIcon(node, { root: depth === 0 && !node.path })}
           <span class="tree-name-wrap">
-            <span class="tree-name">${escapeHtml(displayName)}${canonicalName}</span>
+            <span class="tree-name">${escapeHtml(displayName)}</span>
           </span>
-          ${laneBadge}
           ${childCount}
         </summary>
         <ul>${childItems}${truncated}</ul>
@@ -77,43 +68,11 @@ export function renderTreeNode(node, depth = 0, options = {}) {
 }
 
 function renderMatterWorkspaceChildren(children = [], options = {}) {
-  const byPath = new Map(children.map((child) => [child.path, child]));
-  const groupedPaths = new Set(MATTER_WORKSPACE_GROUPS.flatMap((group) => group.lanes || []));
-  const groupedItems = MATTER_WORKSPACE_GROUPS
-    .map((group) => renderWorkspaceGroup(group, byPath, options))
-    .filter(Boolean)
-    .join("");
-  const remaining = children.filter((child) => !groupedPaths.has(child.path));
-  const { primary, technical } = partitionChildrenForDisplay(remaining, options);
-  const remainingItems = [
+  const { primary, technical } = partitionChildrenForDisplay(children, options);
+  return [
     ...primary.map((child) => renderTreeNode(child, 1, options)),
     renderTechnicalGroup(technical, 0, options),
   ].filter(Boolean).join("");
-  return `${groupedItems}${remainingItems}`;
-}
-
-function renderWorkspaceGroup(group, byPath, options = {}) {
-  const lanes = (group.lanes || []).map((lanePath) => byPath.get(lanePath)).filter(Boolean);
-  if (!lanes.length) return "";
-  const childCount = lanes.reduce((total, lane) => {
-    if (!Array.isArray(lane.children)) return total;
-    return total + partitionChildrenForDisplay(lane.children, options).visibleCount;
-  }, 0);
-  return `
-    <li class="tree-node tree-directory tree-lane-group">
-      <details open data-workspace-group="${escapeHtml(group.id || "")}">
-        <summary title="${escapeHtml(group.purpose || "")}">
-          ${renderTreeIcon({ kind: "directory" })}
-          <span class="tree-name-wrap">
-            <span class="tree-name">${escapeHtml(group.label || "Workspace Group")}</span>
-          </span>
-          ${group.lanes?.length === 1 ? renderLaneBadgeForPath(group.lanes[0]) : ""}
-          ${childCount ? `<span class="tree-meta">${childCount}</span>` : ""}
-        </summary>
-        <ul>${lanes.map((lane) => renderTreeNode(lane, 1, options)).join("")}</ul>
-      </details>
-    </li>
-  `;
 }
 
 function renderDirectoryChildren(children = [], depth = 0, options = {}) {
@@ -182,11 +141,7 @@ function isTechnicalTreeEntry(node, markdownBasenames = new Set()) {
 }
 
 function displayFileName(node = {}) {
-  const name = String(node.name || "");
-  if (/^Source Index\.json$/i.test(name)) return "Source Labels";
-  const ext = extensionOf(name);
-  if ([".md", ".json", ".csv"].includes(ext)) return baseNameWithoutExtension(name);
-  return name;
+  return String(node.name || "");
 }
 
 function renderTreeIcon(node = {}, { root = false } = {}) {
@@ -197,16 +152,6 @@ function renderTreeIcon(node = {}, { root = false } = {}) {
   return `<span class="tree-icon tree-icon-file tree-icon-file-${safeExt}" aria-hidden="true"></span>`;
 }
 
-function renderLaneBadgeForPath(pathValue = "") {
-  const label = ({
-    "00_Inbox": "Inbox",
-    "10_Library": "Library",
-    "20_Workshop": "Workshop",
-    "30_Drafts": "Drafts",
-    "40_Dispatch": "Dispatch",
-  })[String(pathValue || "").replace(/\\/g, "/")];
-  return label ? `<span class="tree-lane-pill">${escapeHtml(label)}</span>` : "";
-}
 
 function shouldShowFileSize(node = {}) {
   if (node.size === undefined) return false;

@@ -1,11 +1,8 @@
-import { workspaceLaneLabel } from './workspaceLabels';
-
 const KNOWN_ARTIFACT_LABELS: Array<[RegExp, string]> = [
   [/^matter\.json$/i, 'Matter details'],
   [/^00_Inbox\/Intake \d+ - [^/]+\/File Register\.csv$/i, 'File Register'],
   [/^10_Library\/Source Index\.json$/i, 'Source Labels'],
   [/^10_Library\/Case Timeline\.(?:md|json|csv)$/i, 'Case Timeline'],
-  [/^10_Library\/List of Dates\.(?:md|json|csv)$/i, 'Case Timeline'],
   [/^20_Workshop\/Party and Officer Map\.md$/i, 'Party and Officer Map'],
   [/^20_Workshop\/Statute and Section Reading Guide\.md$/i, 'Statute and Section Reading Guide'],
   [/^30_Drafts\/Draft Legal Output\.md$/i, 'Draft Legal Output'],
@@ -19,7 +16,7 @@ export function humanizeArtifactPath(path = ''): string {
   if (known) return known[1];
 
   const parts = normalized.split('/').filter(Boolean);
-  const lane = parts[0] ? workspaceLaneLabel(parts[0]) : '';
+  const lane = parts.length > 1 ? parts[0] : '';
   const fileName = parts[parts.length - 1] || normalized;
   const readableName = humanizeFileName(fileName);
 
@@ -35,11 +32,6 @@ export function humanizeFileName(name = ''): string {
     .replace(/\b\w/g, (c) => c.toUpperCase()) || 'Output document';
 }
 
-export function legacyCaseTimelineFileDisplayName(path = ''): string | undefined {
-  const normalized = normalizePath(path);
-  const match = normalized.match(/^10_Library\/List of Dates\.(md|json|csv)$/i);
-  return match ? `Case Timeline.${match[1].toLowerCase()}` : undefined;
-}
 
 export function technicalPathTitle(path = ''): string | undefined {
   const normalized = normalizePath(path);

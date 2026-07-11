@@ -61,7 +61,7 @@ is parked in [Matter Co-pilot Product Policy](copilot-qna-contract.md).
    - Confirm the matter pipeline panel appears.
    - Check whether `/extract`, `/describe_sources`, and `/create_case_timeline` are current, stale, missing, or not run.
 3. Type `open library`.
-   - This opens `10_Library` / Analysis Library.
+   - This opens the canonical `10_Library` folder.
    - Existing source labels and Case Timeline artifacts should be visible there.
 4. Run `/extract`.
    - This updates extraction records and `Extraction Log.csv`.
@@ -141,17 +141,17 @@ _extracted/                                extraction-record/v1 JSON records
 10_Library/Case Timeline.md                reviewable Case Timeline artifact
 ```
 
-The app may show friendly lane labels:
+The app should show canonical folder names in the folder tree:
 
 ```text
-00_Inbox      Inbox
-10_Library    Analysis Library
-20_Workshop   Workshop
-30_Drafts     Drafts
-40_Dispatch   Dispatch
+00_Inbox
+10_Library
+20_Workshop
+30_Drafts
+40_Dispatch
 ```
 
-The disk paths remain canonical. When reporting an issue, include the canonical path as well as the friendly label.
+When reporting an issue, include the canonical path. Do not translate these folders into friendly lane aliases in the folder tree.
 
 ## What Looks Good
 

@@ -12,7 +12,7 @@ import {
   renderWorkspaceLaneView,
 } from "../frontend/workspace-view.js";
 
-test("workspace tree renders human-readable lane labels while preserving folder names", () => {
+test("workspace tree renders canonical folder names without aliases", () => {
   const html = renderTreeNode({
     name: "Demo Matter",
     kind: "directory",
@@ -39,21 +39,18 @@ test("workspace tree renders human-readable lane labels while preserving folder 
     ],
   });
 
-  assert.match(html, /Case Record/);
-  assert.match(html, /tree-lane-group/);
   assert.match(html, /tree-icon-folder/);
-  assert.match(html, /tree-lane-pill">Inbox/);
-  assert.match(html, /tree-lane-pill">Library/);
-  assert.match(html, /tree-lane-pill">Workshop/);
-  assert.match(html, /Original Documents/);
-  assert.match(html, /Source Record/);
-  assert.match(html, /Case Analysis/);
-  assert.match(html, /Original client, court, and other-side material/);
+  assert.match(html, /00_Inbox/);
+  assert.match(html, /10_Library/);
+  assert.match(html, /20_Workshop/);
+  assert.match(html, /Files received from the client, court, or other side/);
   assert.match(html, /Extracted text, source labels, and citeable references/);
   assert.match(html, /Chronologies, risks, issue notes, party maps, and strategy/);
-  assert.doesNotMatch(html, /tree-canonical-name">00_Inbox/);
-  assert.doesNotMatch(html, /tree-canonical-name">10_Library/);
-  assert.doesNotMatch(html, /tree-canonical-name">20_Workshop/);
+  assert.doesNotMatch(html, /Case Record/);
+  assert.doesNotMatch(html, /Source Record/);
+  assert.doesNotMatch(html, /tree-lane-group/);
+  assert.doesNotMatch(html, /tree-lane-pill/);
+  assert.doesNotMatch(html, /tree-canonical-name/);
   assert.match(html, /data-directory-path="10_Library"/);
 
   const technicalHtml = renderTreeNode({
@@ -69,7 +66,7 @@ test("workspace tree renders human-readable lane labels while preserving folder 
       },
     ],
   }, 0, { showTechnical: true });
-  assert.match(technicalHtml, /tree-canonical-name">10_Library/);
+  assert.doesNotMatch(technicalHtml, /tree-canonical-name/);
 });
 
 test("workspace area lookup and preview render empty and populated areas", () => {
@@ -107,12 +104,12 @@ test("workspace area lookup and preview render empty and populated areas", () =>
   const libraryHtml = renderWorkspaceLaneView(
     {
       path: "10_Library",
-      label: "Source Record",
+      label: "10_Library",
       purpose: "extracted text, source labels, and citeable references",
     },
     library,
   );
-  assert.match(libraryHtml, /Source Record/);
+  assert.match(libraryHtml, /10_Library/);
   assert.match(libraryHtml, /extracted text, source labels, and citeable references/);
   assert.match(libraryHtml, /Case Timeline\.md/);
   assert.match(libraryHtml, /1 files/);
@@ -120,12 +117,12 @@ test("workspace area lookup and preview render empty and populated areas", () =>
   const draftsHtml = renderWorkspaceLaneView(
     {
       path: "30_Drafts",
-      label: "Drafts",
+      label: "30_Drafts",
       purpose: "draft legal outputs",
     },
     findTreeNodeByPath(tree, "30_Drafts"),
   );
-  assert.match(draftsHtml, /Drafts/);
+  assert.match(draftsHtml, /30_Drafts/);
   assert.match(draftsHtml, /This workspace area is empty/);
 });
 
@@ -218,10 +215,10 @@ test("workspace tree hides technical files by default and exposes them when requ
   };
   const html = renderTreeNode(tree);
 
-  assert.match(html, /Source Labels/);
-  assert.match(html, /Case Timeline/);
-  assert.doesNotMatch(html, /tree-canonical-name">Source Index\.json/);
-  assert.doesNotMatch(html, /tree-canonical-name">Case Timeline\.md/);
+  assert.match(html, /Source Index\.json/);
+  assert.match(html, /Case Timeline\.md/);
+  assert.doesNotMatch(html, /Source Labels/);
+  assert.doesNotMatch(html, /tree-canonical-name/);
   assert.doesNotMatch(html, /Technical files/);
   assert.doesNotMatch(html, /File Register\.csv/);
   assert.doesNotMatch(html, /_extracted/);
@@ -231,8 +228,9 @@ test("workspace tree hides technical files by default and exposes them when requ
 
   const technicalHtml = renderTreeNode(tree, 0, { showTechnical: true });
 
-  assert.match(technicalHtml, /Source Labels <span class="tree-canonical-name">Source Index\.json/);
-  assert.match(technicalHtml, /Case Timeline <span class="tree-canonical-name">Case Timeline\.md/);
+  assert.match(technicalHtml, /Source Index\.json/);
+  assert.match(technicalHtml, /Case Timeline\.md/);
+  assert.doesNotMatch(technicalHtml, /tree-canonical-name/);
   assert.match(technicalHtml, /Technical files[\s\S]*Technical files are used by the app/);
   assert.match(technicalHtml, /Technical files[\s\S]*File Register\.csv/);
   assert.match(technicalHtml, /Technical files[\s\S]*_extracted/);

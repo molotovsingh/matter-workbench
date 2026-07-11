@@ -78,8 +78,6 @@ import type {
   WorkspaceApiResponse,
 } from '../types';
 import { redactSensitiveText } from '../lib/secretRedaction';
-import { legacyCaseTimelineFileDisplayName } from '../lib/presentationLabels';
-import { workspaceLaneLabel } from '../lib/workspaceLabels';
 
 export class ApiError extends Error {
   statusCode: number;
@@ -351,8 +349,6 @@ export interface AdaptedFile {
   path: string;
   type: 'file' | 'folder';
   ext?: string;
-  canonical?: string;
-  lane?: string;
   children?: AdaptedFile[];
   isTechnical?: boolean;
   size?: number;
@@ -363,33 +359,21 @@ export interface AdaptedFile {
 function adaptTreeNode(node: WorkspaceApiNode, depth = 0): AdaptedFile {
   const isDir = node.kind === 'directory';
   const ext = isDir ? undefined : node.name.split('.').pop()?.toLowerCase();
-  const laneLabel = depth === 0 && isDir ? workspaceLaneLabel(node.name) : undefined;
   const isTechnical = depth === 0 && TECHNICAL_PREFIXES.some((p) => node.name.startsWith(p));
-  const displayChildren = isDir ? displayWorkspaceChildren(node, depth, laneLabel) : [];
-  const fileDisplayName = isDir ? node.name : legacyCaseTimelineFileDisplayName(node.path) || node.name;
+  const children = isDir && node.children?.length
+    ? node.children.map((c) => adaptTreeNode(c, depth + 1))
+    : undefined;
   return {
-    name: laneLabel || fileDisplayName,
+    name: node.name,
     path: node.path,
     type: isDir ? 'folder' : 'file',
     ext,
-    canonical: laneLabel ? node.name : undefined,
-    lane: laneLabel,
-    children: isDir && displayChildren.length ? displayChildren.map((c) => adaptTreeNode(c, depth + 1)) : undefined,
+    children,
     isTechnical,
     size: node.size,
     previewable: node.previewable,
     previewKind: node.previewKind,
   };
-}
-
-function displayWorkspaceChildren(node: WorkspaceApiNode, depth: number, laneLabel?: string): WorkspaceApiNode[] {
-  if (!node.children?.length) return [];
-  if (depth !== 0 || !laneLabel) return node.children;
-  return node.children.flatMap((child) => (
-    child.kind === 'directory' && child.name === laneLabel && child.children?.length
-      ? child.children
-      : [child]
-  ));
 }
 
 export function adaptTree(raw: WorkspaceApiNode): { name: string; path: string; children: AdaptedFile[] } {

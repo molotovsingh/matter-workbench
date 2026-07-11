@@ -1,7 +1,29 @@
 # Future Design Decision: Lawyer-Facing Terminology Contract
 
 Date: 2026-05-13
-Status: Parked for later product decision
+Status: Parked for later product decision; workspace folder-tree aliases superseded 2026-07-11
+
+## 2026-07-11 Update — Workspace Folder Tree Is Not Aliased
+
+The UX-facing matter folder tree is now treated as a custody/audit surface, not a presentation-label surface. It must display the canonical folder names exactly:
+
+```text
+00_Inbox
+10_Library
+20_Workshop
+30_Drafts
+40_Dispatch
+```
+
+Do **not** replace those names in the tree with aliases such as `Case Record`, `Source Record`, `Analysis Library`, `Case Analysis`, `Drafts`, or `Ready to Send`.
+
+Do **not** display legacy `10_Library/List of Dates.*` files as `Case Timeline.*` in the folder tree or preview title. Legacy names may remain as reader fallbacks only.
+
+Do **not** remove the numeric prefixes in this cleanup. Removing `00` / `10` / `20` / `30` / `40` would be a real storage/path migration and needs a separate migration plan covering filesystem matters, runtime DB payload paths, readers, writers, tests, and compatibility.
+
+Command aliases are separate product behavior and are not changed by this decision.
+
+The older terminology-map sections below remain historical/product-discovery material for non-folder-tree copy. They are not authority to reintroduce folder-tree aliases.
 
 ## Why This Exists
 
@@ -48,7 +70,7 @@ to the way a lawyer understands the work.
 
 ## Product Principle
 
-Use stable backend names for machines. Use lawyer-facing names for humans.
+Use stable backend names for machines. Use lawyer-facing names for humans only where that does not hide custody/path identity. The workspace folder tree is the explicit exception: show canonical names there.
 
 Do not casually rename folders, JSON fields, schemas, skill ids, or API routes.
 Instead, add a deliberate presentation layer:
@@ -71,8 +93,8 @@ This keeps the filesystem/API stable while the UI becomes easier to understand.
 
 The app already has some good humanized terms:
 
-- `10_Library` displayed as `Analysis Library`;
-- workspace lanes like `Workshop`, `Drafts`, and `Dispatch`;
+- historical experiments displayed `10_Library` as `Analysis Library`, now superseded for the folder tree;
+- historical experiments used workspace lane labels like `Workshop`, `Drafts`, and `Dispatch`, now superseded for the folder tree;
 - `List of Dates` instead of raw chronology JSON;
 - `Source Index` as the durable source-label artifact;
 - `Not runnable yet` for saved skill ideas;

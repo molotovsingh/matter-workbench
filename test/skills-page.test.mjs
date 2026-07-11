@@ -622,7 +622,7 @@ test("activity page renders custom skill run receipts separately from skills gov
   assert.match(html, /Party and Officer Map/);
   assert.match(html, /Ayesha Vs Japan Airlines/);
   assert.doesNotMatch(html, /Mehta vs Skyline/);
-  assert.match(html, /Case Analysis \/ Party and Officer Map\.md/);
+  assert.match(html, /20_Workshop\/Party and Officer Map\.md/);
   assert.match(html, /Replaced existing output document/);
   assert.doesNotMatch(html, /Cancelled - kept existing output document/);
   assert.doesNotMatch(html, />Overwrite</);

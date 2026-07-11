@@ -285,7 +285,6 @@ textarea:focus-visible {
 .tree-root details > summary::marker { color: var(--muted); font-size: 10px; }
 .tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-name-wrap { align-items: baseline; display: flex; flex: 1; min-width: 0; overflow: hidden; }
-.tree-canonical-name { color: var(--muted); font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 10px; font-weight: 400; margin-left: 6px; }
 .tree-meta { color: var(--muted); font-size: 11px; margin-left: auto; white-space: nowrap; }
 .tree-lane-pill {
   background: var(--chip-bg); border-radius: 3px; color: var(--muted); flex-shrink: 0;
@@ -1555,8 +1554,7 @@ body { background: var(--c-bg); }
 .sidebar .tree-icon-folder::after { background: var(--c-gold); }
 .sidebar .tree-icon-file { border-color: var(--c-gold); }
 .sidebar .tree-icon-file::before { border-color: var(--c-gold); }
-.sidebar .tree-meta,
-.sidebar .tree-canonical-name { color: var(--c-sidebar-text); opacity: 0.72; }
+.sidebar .tree-meta { color: var(--c-sidebar-text); opacity: 0.72; }
 
 /* Main shell */
 .main-panel {

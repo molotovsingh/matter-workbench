@@ -188,10 +188,10 @@ function renderSavedIdeaCard(idea, escape, { samplesByIdea = {} } = {}) {
               value: brief.targetLane,
               options: [
                 ["", "Not chosen"],
-                ["10_Library", "Source Record (10_Library)"],
-                ["20_Workshop", "Case Analysis (20_Workshop)"],
-                ["30_Drafts", "Drafts (30_Drafts)"],
-                ["40_Dispatch", "Ready to Send (40_Dispatch)"],
+                ["10_Library", "10_Library"],
+                ["20_Workshop", "20_Workshop"],
+                ["30_Drafts", "30_Drafts"],
+                ["40_Dispatch", "40_Dispatch"],
               ],
             }, escape)}
             ${renderSelectField({
@@ -294,10 +294,10 @@ function renderSavedIdeaRow(idea, escape, { samplesByIdea = {} } = {}) {
                 value: brief.targetLane,
                 options: [
                   ["", "Not chosen"],
-                  ["10_Library", "Source Record (10_Library)"],
-                  ["20_Workshop", "Case Analysis (20_Workshop)"],
-                  ["30_Drafts", "Drafts (30_Drafts)"],
-                  ["40_Dispatch", "Ready to Send (40_Dispatch)"],
+                  ["10_Library", "10_Library"],
+                  ["20_Workshop", "20_Workshop"],
+                  ["30_Drafts", "30_Drafts"],
+                  ["40_Dispatch", "40_Dispatch"],
                 ],
               }, escape)}
               ${renderSelectField({

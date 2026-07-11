@@ -43,6 +43,22 @@ Keep the root folders.
 
 Do not introduce new top-level folders for this cleanup.
 
+## UX Folder Tree Rule
+
+The matter folder tree should display the canonical folder names exactly:
+
+```text
+00_Inbox
+10_Library
+20_Workshop
+30_Drafts
+40_Dispatch
+```
+
+Do not show folder aliases such as `Case Record`, `Source Record`, `Case Analysis`, `Drafts`, or `Ready to Send` in place of the canonical names. If users see the folder tree, they should see the same path identity that storage, runtime DB payloads, tests, and audit references use.
+
+Do not remove the numeric prefixes in this cleanup. That would be a separate storage/path migration, not a UX-label change.
+
 Rejected for now:
 
 ```text
