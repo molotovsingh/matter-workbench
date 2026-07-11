@@ -50,3 +50,9 @@ configurable-skill-runs.json
 pi-session-*.html
 codedb.snapshot
 codex_review/codedb-artifacts/
+.hermes/
+.opencode/
+docs/independent_thinking/
+docs/mockups/
+gork_review/
+session-ses_*.md
