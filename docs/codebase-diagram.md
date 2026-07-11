@@ -13,6 +13,8 @@ DB-native workflow writes.
 
 Update this diagram when adding a new route, service, engine, persistent artifact, provider path, or major lifecycle stage.
 
+The matter folder tree is a custody/path identity surface. It displays canonical folder names as-is: `00_Inbox`, `10_Library`, `20_Workshop`, `30_Drafts`, and `40_Dispatch`. Do not document or reintroduce a folder-tree alias layer here.
+
 ## Runtime System Map
 
 ```mermaid
@@ -28,6 +30,7 @@ flowchart LR
     ReactContext["react-ui/src/store/AppContext.tsx<br/>active matter and workspace refresh owner"]
     ReactCommand["react-ui/src/components/command/CommandPanel.tsx<br/>command panel"]
     ReactWorkflowViews["react-ui/src/views/workflows/*.tsx<br/>native workflow views"]
+    ReactWorkspaceTree["react-ui/src/components/workspace/WorkspaceTree.tsx<br/>canonical folder tree display"]
     ReactFilePreview["react-ui/src/lib/filePreview.ts<br/>file loading and Case Timeline preview helpers"]
     LegacyHelpers["frontend/*.js<br/>retired UX plus temporary tested helpers"]
   end
@@ -36,6 +39,7 @@ flowchart LR
   ReactApp --> ReactContext
   ReactApp --> ReactCommand
   ReactApp --> ReactWorkflowViews
+  ReactApp --> ReactWorkspaceTree
   ReactApp --> ReactFilePreview
 
   subgraph Routes["Route/API layer"]
@@ -139,6 +143,8 @@ flowchart LR
 
   subgraph Shared["Shared contracts and AI policy"]
     MatterContract["shared/matter-contract.mjs<br/>folders, headers, categories"]
+    WorkspaceLanes["shared/workspace-lanes.mjs<br/>canonical workspace lane names"]
+    ArtifactVisibility["docs/contracts/artifact-visibility-and-dispatch.md<br/>folder tree shows canonical names"]
     ModelPolicy["shared/model-policy.mjs<br/>task policy"]
     ProviderPolicy["shared/ai-provider-policy.mjs<br/>request-ready provider config"]
     ResponsesClient["shared/responses-client.mjs<br/>OpenAI Responses helper"]
@@ -149,6 +155,8 @@ flowchart LR
 
   MatterInit --> MatterContract
   Extract --> MatterContract
+  ReactWorkspaceTree --> WorkspaceLanes
+  ReactWorkspaceTree --> ArtifactVisibility
   ListOfDates --> ModelPolicy
   ListOfDates --> ProviderPolicy
   ListOfDates --> ResponsesClient
@@ -178,6 +186,7 @@ flowchart LR
 
   subgraph Disk["Matter artifacts in filesystem mode"]
     MatterJson["matter.json"]
+    FolderTreeRule["Folder tree display<br/>canonical names only<br/>no aliases"]
     Inbox["00_Inbox/"]
     FileRegister["00_Inbox/*/File Register.csv"]
     Extracted["00_Inbox/*/_extracted/<br/>FILE-NNNN.json<br/>FILE-NNNN.txt"]
@@ -192,6 +201,12 @@ flowchart LR
     Dispatch["40_Dispatch/"]
   end
 
+  ReactWorkspaceTree --> FolderTreeRule
+  FolderTreeRule --> Inbox
+  FolderTreeRule --> Library
+  FolderTreeRule --> Workshop
+  FolderTreeRule --> Drafts
+  FolderTreeRule --> Dispatch
   MatterInit --> MatterJson
   MatterInit --> Inbox
   MatterInit --> Library
