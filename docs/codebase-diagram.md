@@ -67,7 +67,8 @@ flowchart LR
     WorkspaceService["services/workspace-service.mjs<br/>tree and previews"]
     UploadService["services/upload-service.mjs<br/>new matters and add files"]
     RuntimeDbMatterIndex["services/runtime-db-matter-index.mjs<br/>Postgres matter list and switch"]
-    RuntimeDbStorage["services/runtime-db-storage-service.mjs<br/>payload-backed workspace/files/status/advisory"]
+    RuntimeDbStorage["services/runtime-db-storage-service.mjs<br/>payload workspace plus upload commit orchestration"]
+    RuntimeDbUploadSessions["services/runtime-db-upload-session-store.mjs<br/>upload session and item persistence"]
     RuntimeDbStores["services/runtime-db-*.mjs<br/>skill ideas, samples, custom skills, runs, command log"]
     AiSettingsService["services/ai-settings-service.mjs<br/>settings visibility"]
     CopilotWebResearchService["services/copilot-web-research-service.mjs<br/>planned Research mode gate"]
@@ -87,6 +88,7 @@ flowchart LR
   AppShellRoutes --> UploadService
   AppShellRoutes --> RuntimeDbMatterIndex
   AppShellRoutes --> RuntimeDbStorage
+  RuntimeDbStorage --> RuntimeDbUploadSessions
   AppShellRoutes --> AiSettingsService
   MatterWorkflowRoutes --> CopilotWebResearchService
   AppShellRoutes --> CopilotWebResearchService
