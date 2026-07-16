@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { getErrorMessage } from '../lib/errors';
+import { formatPreparationStatusError } from '../lib/preparationErrors';
 import type { JobStatus, PreparationRunStatus } from '../types';
 
 type RefreshActiveMatterWorkspace = (opts?: { expectedMatterName?: string; failurePrefix?: string }) => Promise<unknown>;
@@ -54,6 +54,7 @@ export function useBackendPreparationJobs({
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let sawActiveBackendJob = false;
+    let sawPollError = false;
 
     const poll = async () => {
       try {
@@ -61,6 +62,9 @@ export function useBackendPreparationJobs({
         if (cancelled) return;
         const preparationJobs = filterPreparationJobs(payload.jobs || []);
         const activeJobs = preparationJobs.filter(isActivePreparationJob);
+        const recoveredFromPollError = sawPollError;
+        let refreshedAfterCompletion = false;
+        sawPollError = false;
         setJobs(preparationJobs);
         setError(null);
 
@@ -73,12 +77,19 @@ export function useBackendPreparationJobs({
             expectedMatterName: matterName,
             failurePrefix: '[workspace] refresh failed after server preparation',
           });
-          if (!cancelled) setRefreshSeq((seq) => seq + 1);
+          if (!cancelled) {
+            refreshedAfterCompletion = true;
+            setRefreshSeq((seq) => seq + 1);
+          }
+        }
+        if (!cancelled && recoveredFromPollError && !refreshedAfterCompletion) {
+          setRefreshSeq((seq) => seq + 1);
         }
         if (!cancelled) timer = setTimeout(poll, activeJobs.length > 0 ? PREPARATION_JOB_POLL_MS : PREPARATION_JOB_IDLE_POLL_MS);
       } catch (e) {
         if (cancelled) return;
-        setError(getErrorMessage(e));
+        sawPollError = true;
+        setError(formatPreparationStatusError(e));
         timer = setTimeout(poll, PREPARATION_JOB_IDLE_POLL_MS);
       }
     };

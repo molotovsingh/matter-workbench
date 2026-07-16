@@ -4,7 +4,6 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import {
-  DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
   DEFAULT_OPENAI_MODEL,
   buildCreateListOfDatesFromRecords,
   runCreateListOfDates,
@@ -12,6 +11,7 @@ import {
   createOpenRouterProvider,
 } from "../create-listofdates-engine.mjs";
 import { runExtract } from "../extract-engine.mjs";
+import { DEFAULT_CASE_TIMELINE_MAX_OUTPUT_TOKENS } from "../listofdates/run-config.mjs";
 import { runMatterInit } from "../matter-init-engine.mjs";
 import { refreshListOfDatesSourceLabels } from "../services/listofdates-label-refresh-service.mjs";
 import { parseCsv } from "../shared/csv.mjs";
@@ -151,7 +151,7 @@ test("create-listofdates calls an AI provider and writes cited chronology output
     tier: "source_backed_analysis",
     provider: "openai-direct",
     model: DEFAULT_OPENAI_MODEL,
-    maxOutputTokens: DEFAULT_OPENAI_MAX_OUTPUT_TOKENS,
+    maxOutputTokens: DEFAULT_CASE_TIMELINE_MAX_OUTPUT_TOKENS,
     fallback: "fail_closed",
   });
 
@@ -1113,6 +1113,7 @@ test("create-listofdates can opt into OpenRouter source-backed analysis provider
       OPENROUTER_API_KEY: "sk-openrouter-test",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL: "qwen/qwen3-source-backed",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS: "1800",
+      OPENROUTER_CASE_TIMELINE_MAX_OUTPUT_TOKENS: "1800",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS: "45000",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT: "price",
       OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_PROMPT_PRICE: "0.15",
@@ -1183,6 +1184,7 @@ test("create-listofdates default provider uses model policy env overrides", asyn
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
     OPENAI_MAX_OUTPUT_TOKENS: process.env.OPENAI_MAX_OUTPUT_TOKENS,
+    OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS: process.env.OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS,
     SOURCE_BACKED_ANALYSIS_PROVIDER: process.env.SOURCE_BACKED_ANALYSIS_PROVIDER,
   };
   const requests = [];
@@ -1200,7 +1202,8 @@ test("create-listofdates default provider uses model policy env overrides", asyn
   };
   process.env.OPENAI_API_KEY = "sk-test";
   process.env.OPENAI_MODEL = "policy-listofdates-model";
-  process.env.OPENAI_MAX_OUTPUT_TOKENS = "3456";
+  process.env.OPENAI_MAX_OUTPUT_TOKENS = "3000";
+  process.env.OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS = "3456";
   process.env.SOURCE_BACKED_ANALYSIS_PROVIDER = "openai-direct";
 
   try {

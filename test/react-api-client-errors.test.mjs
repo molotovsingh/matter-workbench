@@ -274,6 +274,35 @@ test("React API client preserves real nested workspace folders", async () => {
   assert.equal(tree.children[0].children[0].path, "20_Workshop/Case Analysis");
 });
 
+test("React API client turns ordinary network failures into reconnectable app errors", async () => {
+  const { api } = await importReactApiClient();
+  const restoreFetch = mockFetch(async () => {
+    throw new TypeError("Failed to fetch");
+  });
+
+  try {
+    await assert.rejects(
+      () => api.getJobs({ matterName: "Demo Matter", limit: 20 }),
+      (error) => {
+        assert.equal(error.statusCode, 0);
+        assert.equal(error.code, "api.network_failed");
+        assert.match(error.message, /could not reach the server/i);
+        assert.match(error.message, /reconnect automatically/i);
+        assert.doesNotMatch(error.message, /Failed to fetch/i);
+        assert.deepEqual(error.diagnostic, {
+          statusCode: 0,
+          code: "api.network_failed",
+          urlPath: "/api/jobs?limit=[redacted]&matter=[redacted]",
+          bodyKind: "empty",
+        });
+        return true;
+      },
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
 test("React API client turns upload network failures into user-safe messages", async () => {
   const { api } = await importReactApiClient();
   const restoreFetch = mockFetch(async () => {

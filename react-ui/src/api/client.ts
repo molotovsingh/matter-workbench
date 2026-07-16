@@ -133,17 +133,36 @@ export function setAuthRequiredHandler(handler: AuthRequiredHandler | null) {
 async function getJson<T>(url: string, options: GetJsonOptions = {}): Promise<T> {
   const requestUrl = options.bypassCache ? withCacheBust(url) : url;
   const init = options.bypassCache ? FRESH_JSON_FETCH_INIT : undefined;
-  const res = await fetch(requestUrl, init);
+  const res = await fetchApiResponse(requestUrl, init, url);
   return parseJsonResponse<T>(res, url);
 }
 
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const res = await fetchApiResponse(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  }, url);
   return parseJsonResponse<T>(res, url);
+}
+
+async function fetchApiResponse(requestUrl: string, init: RequestInit | undefined, diagnosticUrl: string): Promise<Response> {
+  try {
+    return await fetch(requestUrl, init);
+  } catch {
+    const error = new ApiError(
+      'The app could not reach the server. Check your connection and try again; status checks will reconnect automatically.',
+      0,
+      'api.network_failed',
+    );
+    error.diagnostic = {
+      statusCode: 0,
+      code: 'api.network_failed',
+      urlPath: urlPathForDiagnostic(diagnosticUrl),
+      bodyKind: 'empty',
+    };
+    throw error;
+  }
 }
 
 async function postFormData<T>(url: string, formData: FormData): Promise<T> {

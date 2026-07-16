@@ -48,7 +48,6 @@ function listOfDatesRunOptions({ request = {}, aiProvider, env, stageRecorder })
   const modelPolicy = resolveModelPolicy(AI_TASKS.SOURCE_BACKED_ANALYSIS, { env });
   if (modelPolicy.provider === AI_PROVIDERS.OPENAI_DIRECT) {
     options.apiKey = env.OPENAI_API_KEY;
-    options.maxOutputTokens = env.OPENAI_MAX_OUTPUT_TOKENS;
   }
   return options;
 }

@@ -57,6 +57,11 @@ test("React automatic preparation runner includes Case Timeline, story, posture 
   assert.match(runner, /startStage: normalizePreparationStartStage\(startStage\) \|\| undefined/);
   assert.match(runner, /firstNonCurrentStageBefore\(plan, startStage\)/);
   assert.match(runner, /api\.getJobs\(\{ matterName, kind, limit: 20 \}\)/);
+  assert.match(runner, /SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS = 15/);
+  assert.match(runner, /isTransientPreparationStatusError\(error\)/);
+  assert.match(runner, /PREPARATION_STATUS_RECONNECT_MESSAGE/);
+  assert.match(runner, /consecutivePollErrors >= SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS/);
+  assert.match(runner, /if \(job\.errorCode\) failure\.code = job\.errorCode/);
   assert.match(runner, /server queue unavailable; running needed preparation in the browser session/);
   assert.match(runner, /progress is kept in Activity/);
   assert.match(runner, /api\.recordPreparationRunTelemetry\(/);
@@ -182,7 +187,7 @@ test("React automatic preparation does not report prepared when workspace refres
 test("React automatic preparation sanitizes upstream HTML before showing failures", async () => {
   const runner = await readFile(runnerPath, "utf8");
 
-  assert.match(runner, /import \{ formatVisiblePreparationError \} from '\.\/preparationErrors';/);
+  assert.match(runner, /formatVisiblePreparationError,[\s\S]*from '\.\/preparationErrors';/);
   assert.doesNotMatch(runner, /const message = error instanceof Error \? error\.message : String\(error\);/);
   assert.match(runner, /const message = formatVisiblePreparationError\(error, nextStage\);[\s\S]*markStageFailed\(status, nextStage, message\)/);
   assert.match(runner, /const message = formatVisiblePreparationError\(error, stage\);[\s\S]*markStageFailed\(next, stage, message\)/);

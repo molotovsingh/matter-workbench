@@ -1,10 +1,15 @@
 import { api } from '../api/client';
 import { CASE_TIMELINE_DEPENDENCY_STATES } from './caseTimelineDependencyState';
 import { cleanCommandLabel } from './nativeCommands';
-import { formatVisiblePreparationError } from './preparationErrors';
+import {
+  formatVisiblePreparationError,
+  isTransientPreparationStatusError,
+  PREPARATION_STATUS_RECONNECT_MESSAGE,
+} from './preparationErrors';
 import { PREPARATION_STAGE_ACTIONS } from './preparationStageActions';
 import type {
   JobStatus,
+  JobStatusList,
   PreparationPlan,
   PreparationProgressStep,
   PreparationQueueRunResponse,
@@ -29,6 +34,7 @@ type PreparationRunMode = 'needed' | 'full';
 const LONG_RUNNING_STAGE_HEARTBEAT_MS = 15_000;
 const SERVER_PREPARATION_JOB_POLL_MS = 2_000;
 const SERVER_PREPARATION_MAX_POLLS_PER_STAGE = 900;
+const SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS = 15;
 
 export interface RunAutomaticPreparationOptions {
   matterName: string;
@@ -397,13 +403,31 @@ async function waitForServerPreparationJob({
   onProgress: ProgressUpdate;
   isStale: () => boolean;
 }): Promise<JobStatus | null> {
+  let consecutivePollErrors = 0;
   for (let poll = 0; poll < SERVER_PREPARATION_MAX_POLLS_PER_STAGE; poll += 1) {
     if (isStale()) return null;
-    const jobs = await api.getJobs({ matterName, kind, limit: 20 });
+    let jobs: JobStatusList;
+    try {
+      jobs = await api.getJobs({ matterName, kind, limit: 20 });
+      consecutivePollErrors = 0;
+    } catch (error) {
+      consecutivePollErrors += 1;
+      if (
+        !isTransientPreparationStatusError(error)
+        || consecutivePollErrors >= SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS
+      ) {
+        throw error;
+      }
+      onProgress(markStageRunning(status, stage, PREPARATION_STATUS_RECONNECT_MESSAGE));
+      await delay(SERVER_PREPARATION_JOB_POLL_MS);
+      continue;
+    }
     const job = findServerPreparationJob(jobs.jobs || [], { jobId, kind });
     if (job?.status === 'succeeded') return job;
     if (job && ['failed', 'cancelled'].includes(job.status)) {
-      throw new Error(job.errorMessage || job.summary || `${stageLabel(stage)} did not complete.`);
+      const failure = new Error(job.errorMessage || job.summary || `${stageLabel(stage)} did not complete.`) as Error & { code?: string };
+      if (job.errorCode) failure.code = job.errorCode;
+      throw failure;
     }
     onProgress(markStageRunning(status, stage, serverQueuedStageDetail(stage, job)));
     await delay(SERVER_PREPARATION_JOB_POLL_MS);

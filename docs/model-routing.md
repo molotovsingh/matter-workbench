@@ -302,6 +302,7 @@ OpenAI direct remains the default for `/create_case_timeline`:
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5.4-mini
 OPENAI_MAX_OUTPUT_TOKENS=3000
+OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS=9000
 SOURCE_BACKED_ANALYSIS_PROVIDER=openai-direct
 ```
 
@@ -312,6 +313,7 @@ SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter
 OPENROUTER_API_KEY=...
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MODEL=meta-llama/llama-3.3-70b-instruct
 OPENROUTER_SOURCE_BACKED_ANALYSIS_MAX_OUTPUT_TOKENS=3000
+OPENROUTER_CASE_TIMELINE_MAX_OUTPUT_TOKENS=9000
 OPENROUTER_SOURCE_BACKED_ANALYSIS_TIMEOUT_MS=90000
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_ORDER=
 OPENROUTER_SOURCE_BACKED_ANALYSIS_PROVIDER_SORT=latency
@@ -333,7 +335,13 @@ OPENAI_CREATE_LISTOFDATES_PASS2_MAX_OUTPUT_TOKENS=9000
 OPENAI_CREATE_LISTOFDATES_PASS2_TIMEOUT_MS=120000
 ```
 
-The one-pass runtime remains default while this gate is off.
+The one-pass runtime remains default while this gate is off. It uses a dedicated
+9,000-token structured-output budget by default because Case Timeline rows can
+exceed the shorter shared `OPENAI_MAX_OUTPUT_TOKENS` budget. Explicit
+`OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS` or
+`OPENROUTER_CASE_TIMELINE_MAX_OUTPUT_TOKENS` values override that default.
+Provider responses reported as incomplete or length-limited fail closed with
+`provider.output_truncated`; no partial chronology artifact is written.
 
 This is intentionally separate from source-description settings:
 
@@ -351,7 +359,7 @@ OPENROUTER_SOURCE_DESCRIPTION_TIMEOUT_MS=240000
 OPENROUTER_SOURCE_DESCRIPTION_PROVIDER_SORT=latency
 ```
 
-The separation prevents a route-level bug where OpenAI model or token overrides accidentally shadow OpenRouter settings. If `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`, `/api/create-listofdates` must use `OPENROUTER_SOURCE_BACKED_ANALYSIS_*` for model and token budget, not `OPENAI_MODEL` or `OPENAI_MAX_OUTPUT_TOKENS`.
+The separation prevents a route-level bug where OpenAI model or token overrides accidentally shadow OpenRouter settings. If `SOURCE_BACKED_ANALYSIS_PROVIDER=openrouter`, `/api/create-listofdates` uses `OPENROUTER_SOURCE_BACKED_ANALYSIS_*` for the model and routing policy plus the dedicated `OPENROUTER_CASE_TIMELINE_MAX_OUTPUT_TOKENS` output budget, not the OpenAI token settings.
 
 Source Labels are quality-first because downstream artifacts depend on them. The app may use `OPENAI_SOURCE_DESCRIPTION_FALLBACK_MODEL` or `OPENROUTER_SOURCE_DESCRIPTION_FALLBACK_MODEL` after a primary provider failure. OpenRouter still sends `provider.allow_fallbacks=false`; fallback is app-owned and task-specific, not arbitrary provider substitution. If every source-label batch fails, Source Index is not written.
 

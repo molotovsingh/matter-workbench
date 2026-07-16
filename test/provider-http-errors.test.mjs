@@ -172,6 +172,38 @@ test("provider output parsing failures distinguish empty output from invalid JSO
   );
 });
 
+test("provider output parsing identifies truncated structured responses", () => {
+  assert.throws(
+    () => parseOpenAiJsonOutput({
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+      output_text: '{"entries":[',
+    }, "OpenAI list-of-dates"),
+    (error) => {
+      assert.equal(error.statusCode, 502);
+      assert.equal(error.code, "provider.output_truncated");
+      assert.match(error.message, /cut off before completion/i);
+      assert.match(error.message, /No partial output was saved/i);
+      assert.doesNotMatch(error.message, /Unexpected end of JSON input/i);
+      return true;
+    },
+  );
+  assert.throws(
+    () => parseOpenRouterJsonMessage({
+      choices: [{ finish_reason: "length", message: { content: '{"entries":[' } }],
+    }, "OpenRouter list-of-dates"),
+    (error) => error.code === "provider.output_truncated",
+  );
+  assert.throws(
+    () => extractOpenAiOutputText({
+      status: "incomplete",
+      incomplete_details: { reason: "content_filter" },
+      output_text: "partial text",
+    }, "OpenAI source-backed analysis"),
+    (error) => error.code === "provider.incomplete_response",
+  );
+});
+
 test("OpenRouter provider parsing failures carry stable app error codes", () => {
   assert.throws(
     () => parseOpenRouterJsonMessage({ choices: [{ message: { content: "not json" } }] }, "OpenRouter skill authoring"),

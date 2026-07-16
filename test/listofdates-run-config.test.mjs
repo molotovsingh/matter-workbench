@@ -3,7 +3,10 @@ import test from "node:test";
 
 import { AI_TASKS } from "../shared/model-policy.mjs";
 import {
+  DEFAULT_CASE_TIMELINE_MAX_OUTPUT_TOKENS,
+  OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS_ENV,
   TWO_PASS_ENV_FLAG,
+  caseTimelineMaxOutputTokens,
   createConfiguredListOfDatesProvider,
   isTwoPassListOfDatesEnabled,
 } from "../listofdates/run-config.mjs";
@@ -37,6 +40,27 @@ test("List of Dates run config recognizes env truthy values only", () => {
   }
 });
 
+test("Case Timeline uses a dedicated output budget instead of the smaller shared AI default", () => {
+  assert.equal(DEFAULT_CASE_TIMELINE_MAX_OUTPUT_TOKENS, 9000);
+  assert.equal(OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS_ENV, "OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS");
+  assert.equal(caseTimelineMaxOutputTokens({
+    provider: "openai-direct",
+    policyValue: 3000,
+    env: {},
+  }), 9000);
+  assert.equal(caseTimelineMaxOutputTokens({
+    provider: "openai-direct",
+    policyValue: 3000,
+    env: { OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS: "12000" },
+  }), 12000);
+  assert.equal(caseTimelineMaxOutputTokens({
+    explicitValue: 4500,
+    provider: "openai-direct",
+    policyValue: 3000,
+    env: { OPENAI_CASE_TIMELINE_MAX_OUTPUT_TOKENS: "12000" },
+  }), 4500);
+});
+
 test("List of Dates run config returns injected provider with policy metadata", () => {
   const injectedProvider = async () => ({ entries: [] });
 
@@ -63,6 +87,23 @@ test("List of Dates run config returns injected provider with policy metadata", 
     maxOutputTokens: 1234,
     fallback: "fail_closed",
   });
+});
+
+test("List of Dates run config raises the real provider budget to the Case Timeline floor", () => {
+  const calls = [];
+  const configured = createConfiguredListOfDatesProvider({
+    task: AI_TASKS.SOURCE_BACKED_ANALYSIS,
+    env: { OPENAI_API_KEY: "env-key", OPENAI_MAX_OUTPUT_TOKENS: "3000" },
+    options: {},
+    prompt: {},
+    providerFactory: (args) => {
+      calls.push(args);
+      return async () => ({ entries: [] });
+    },
+  });
+
+  assert.equal(calls[0].providerConfig.maxOutputTokens, 9000);
+  assert.equal(configured.baseAiRun.maxOutputTokens, 9000);
 });
 
 test("List of Dates run config passes provider factory inputs through for real providers", () => {

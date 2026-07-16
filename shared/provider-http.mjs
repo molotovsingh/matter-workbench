@@ -56,6 +56,7 @@ function defaultProviderErrorPredicate({ response, payload }) {
 }
 
 export function parseOpenAiJsonOutput(payload, label) {
+  assertOpenAiResponseComplete(payload, label);
   const outputText = extractResponsesOutputText(payload);
   if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502, "provider.empty_output");
   try {
@@ -66,6 +67,7 @@ export function parseOpenAiJsonOutput(payload, label) {
 }
 
 export function extractOpenAiOutputText(payload, label) {
+  assertOpenAiResponseComplete(payload, label);
   const outputText = extractResponsesOutputText(payload);
   if (!outputText) throw makeHttpError(`${label} response did not include output text`, 502, "provider.empty_output");
   return outputText;
@@ -83,6 +85,7 @@ export function extractResponsesOutputText(payload) {
 }
 
 export function parseOpenRouterJsonMessage(payload, label) {
+  assertOpenRouterResponseComplete(payload, label);
   const choiceError = firstChoiceError(payload);
   if (choiceError) throw makeHttpError(formatProviderErrorMessage(null, { error: choiceError }), 502, "provider.error");
   const content = payload?.choices?.[0]?.message?.content;
@@ -131,6 +134,31 @@ export function providerErrorMessageForCode(code, message = "") {
   return message;
 }
 
+export function assertOpenAiResponseComplete(payload, label = "OpenAI") {
+  if (String(payload?.status || "").trim().toLowerCase() !== "incomplete") return;
+  const reason = String(payload?.incomplete_details?.reason || "").trim().toLowerCase();
+  if (reason === "max_output_tokens") throw outputTruncatedError(label);
+  throw makeHttpError(
+    `${label} response stopped before completion. No partial output was saved. Run this step again.`,
+    502,
+    "provider.incomplete_response",
+  );
+}
+
+export function assertOpenRouterResponseComplete(payload, label = "OpenRouter") {
+  const finishReason = String(payload?.choices?.[0]?.finish_reason || "").trim().toLowerCase();
+  if (!["length", "max_tokens", "max_output_tokens"].includes(finishReason)) return;
+  throw outputTruncatedError(label);
+}
+
+function outputTruncatedError(label) {
+  return makeHttpError(
+    `${label} response was cut off before completion. No partial output was saved. Run this step again.`,
+    502,
+    "provider.output_truncated",
+  );
+}
+
 function firstChoiceError(payload) {
   if (!Array.isArray(payload?.choices)) return null;
   return payload.choices.find((choice) => choice?.error)?.error || null;
@@ -162,6 +190,7 @@ function truncateProviderError(value, limit = 500) {
 }
 
 export function extractOpenRouterMessageText(payload, label) {
+  assertOpenRouterResponseComplete(payload, label);
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content === "string" && content.trim()) return content;
   throw makeHttpError(`${label} response did not include message content`, 502, "provider.empty_output");

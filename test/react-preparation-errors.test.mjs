@@ -22,6 +22,28 @@ test("preparation errors hide raw HTML gateway failures from lawyer-facing progr
   assert.doesNotMatch(message, /<html|<head|<title|nginx|504|Gateway/i);
 });
 
+test("preparation status errors replace raw fetch failures with reconnecting guidance", async () => {
+  const {
+    formatPreparationStatusError,
+    isTransientPreparationStatusError,
+    PREPARATION_STATUS_RECONNECT_MESSAGE,
+  } = await importPreparationErrors();
+  const networkError = Object.assign(new Error("Failed to fetch"), {
+    code: "api.network_failed",
+    statusCode: 0,
+  });
+
+  assert.equal(isTransientPreparationStatusError(networkError), true);
+  assert.equal(formatPreparationStatusError(networkError), PREPARATION_STATUS_RECONNECT_MESSAGE);
+  assert.doesNotMatch(formatPreparationStatusError(networkError), /Failed to fetch/i);
+  assert.equal(isTransientPreparationStatusError({ statusCode: 503, message: "Unavailable" }), true);
+  assert.equal(isTransientPreparationStatusError({ statusCode: 409, code: "matter.conflict" }), false);
+  assert.match(
+    formatPreparationStatusError({ statusCode: 409, code: "matter.conflict", message: "Matter changed" }),
+    /Preparation status is temporarily unavailable: Matter changed/,
+  );
+});
+
 test("preparation errors redact secrets while preserving useful plain errors", async () => {
   const { formatVisiblePreparationError } = await importPreparationErrors();
 

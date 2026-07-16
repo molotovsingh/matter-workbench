@@ -11,6 +11,7 @@ import { humanizeArtifactPath, technicalPathTitle } from '../lib/presentationLab
 import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import { PREPARATION_STAGE_ACTIONS } from '../lib/preparationStageActions';
 import { getPreparationRowAction, isPreparationStageCurrent } from '../lib/preparationRowActions';
+import { formatPreparationStatusError } from '../lib/preparationErrors';
 import { useBackendPreparationJobs } from '../hooks/useBackendPreparationJobs';
 import { PostureSummary } from '../components/matters/PostureSummary';
 import type {
@@ -590,7 +591,7 @@ function PipelineCard({
       })
       .catch((e) => {
         if (cancelled) return;
-        setError(getErrorMessage(e));
+        setError(formatPreparationStatusError(e));
       });
     return () => {
       cancelled = true;
@@ -661,11 +662,11 @@ function PipelineCard({
         </div>
       </details>
       {preparationRun && <PreparationProgress run={preparationRun} />}
-      {backendJobsError && <p className="muted">Server preparation status is unavailable: {backendJobsError}</p>}
+      {backendJobsError && <p className="muted">{backendJobsError}</p>}
       {hasBackendPreparationFailure && !isPreparationRunning && (
         <p className="form-error">A server preparation job stopped before finishing. Open Activity for details, then run needed preparation again.</p>
       )}
-      {error && <p className="muted">Matter preparation is unavailable: {error}</p>}
+      {error && !backendJobsError && <p className="muted">{error}</p>}
       {!error && stages === null && (
         <p className="muted">Checking what has already been prepared for this matter…</p>
       )}

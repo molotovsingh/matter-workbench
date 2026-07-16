@@ -20,6 +20,7 @@ test("Matter Overview observes backend preparation jobs through a dedicated hook
   assert.match(hook, /PREPARATION_JOB_KINDS = \['matter_init', 'extract', 'source_labels', 'case_timeline', 'matter_story', 'posture_diagnosis'\]/);
   assert.match(hook, /ACTIVE_PREPARATION_JOB_STATUSES = new Set\(\['queued', 'running', 'retrying'\]\)/);
   assert.match(hook, /preparationRunFromBackendJobs\(matterName, jobs\)/);
+  assert.match(hook, /formatPreparationStatusError\(e\)/);
   assert.match(hook, /Preparation running on server… You can refresh; progress is kept in Activity\./);
 });
 
@@ -30,8 +31,12 @@ test("backend preparation hook refreshes after observed server work completes", 
   assert.match(hook, /sawActiveBackendJob = true/);
   assert.match(hook, /server preparation finished; refreshing matter workspace/);
   assert.match(hook, /refreshActiveMatterWorkspace\(\{[\s\S]*expectedMatterName: matterName,[\s\S]*failurePrefix: '\[workspace\] refresh failed after server preparation'/);
+  assert.match(hook, /sawPollError = true/);
+  assert.match(hook, /recoveredFromPollError/);
   assert.match(hook, /setRefreshSeq\(\(seq\) => seq \+ 1\)/);
   assert.match(overview, /backendPreparation\.refreshKey/);
+  assert.match(overview, /error && !backendJobsError/);
+  assert.doesNotMatch(overview, /Server preparation status is unavailable:/);
 });
 
 test("Matter Overview presents backend preparation failures without receiving raw failed jobs", async () => {
