@@ -4,12 +4,12 @@ Status: Current release pointer
 
 This is the single current-release pointer for supervised private beta. General docs should link here instead of repeating the beta number.
 
-Release: [v1.0.0-beta.129](v1.0.0-beta.129.md)
+Release: [v1.0.0-beta.132](v1.0.0-beta.132.md)
 
 Tag target / deployed commit:
 
 ```text
-696ca35 Tune MW List client chronology semantics
+1647f3c Match queued runtime jobs by backend id
 ```
 
 Deployment surface:
@@ -26,4 +26,4 @@ sections=36176
 corpus_fingerprint=corpus-sha256:68d990c1a82e4e9e8d2513299b6fb7f79524344d04436b91c9a6984d027688a6
 ```
 
-Updated: 2026-07-09
+Updated: 2026-07-16
