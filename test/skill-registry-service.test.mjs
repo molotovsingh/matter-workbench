@@ -152,6 +152,42 @@ test("skill registry merges active configurable skill cards without mutating bui
   assert.deepEqual(registry.skills.filter((skill) => !skill.configurable).map((skill) => skill.slash), EXPECTED_SLASHES);
 });
 
+test("skill registry keeps the native card when a legacy configurable skill reuses its slash", async () => {
+  const registry = await createSkillRegistryService({
+    appDir: process.cwd(),
+    configurableSkillsService: {
+      activeSkillCards: async () => [{
+        schema_version: "configurable-skill/v1",
+        id: "legacy_the_story",
+        slash: "/the_story",
+        title: "Legacy The Story",
+        category: "Analyze",
+        mode: "AI",
+        purpose: "Legacy custom skill promoted to a native workflow.",
+        matter_required: true,
+        paid_provider_call: true,
+        rerun_guarded: true,
+        source_backed: "required",
+        inputs: ["matter-context-packet/v1"],
+        outputs: ["20_Workshop/The Story.md"],
+        upstream: [],
+        downstream: [],
+        default_lane: "20_Workshop",
+        runner_key: "/the_story",
+        version: 1,
+        configurable: true,
+        status: "active",
+      }],
+    },
+  }).readRegistry();
+
+  assert.equal(registry.skills.length, EXPECTED_SLASHES.length);
+  const storyCards = registry.skills.filter((skill) => skill.slash === "/the_story");
+  assert.equal(storyCards.length, 1);
+  assert.equal(storyCards[0].schema_version, "built-in-skill/v1");
+  assert.notEqual(storyCards[0].id, "legacy_the_story");
+});
+
 test("skill registry validation fails clearly for invalid built-in stubs", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "matter-skill-registry-"));
   const registryPath = path.join(root, "skills", "registry.json");

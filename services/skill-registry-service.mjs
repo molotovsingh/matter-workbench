@@ -66,12 +66,22 @@ async function normalizeRegistry(registry, { registryPath, builtinsDir, configur
     throw new Error(`Skill registry must contain a skills array at ${registryPath}`);
   }
 
+  const normalizeCard = (skill) => usesBuiltins
+    ? normalizeBuiltinSkillCard(skill, { registryPath, categorySet })
+    : normalizeLegacySkillCard(skill, { registryPath, categorySet });
+  const builtinCards = rawSkills.map(normalizeCard);
+  const builtinSlashes = new Set(builtinCards.map((skill) => skill.slash));
   const seenIds = new Set();
   const seenSlashes = new Set();
-  const skills = [...rawSkills, ...configurableCards].map((skill) => {
-    const normalized = usesBuiltins
-      ? normalizeBuiltinSkillCard(skill, { registryPath, categorySet })
-      : normalizeLegacySkillCard(skill, { registryPath, categorySet });
+  const skills = [];
+
+  for (const normalized of [...builtinCards, ...configurableCards.map(normalizeCard)]) {
+    // A workflow promoted from custom to native can leave an older active card
+    // in durable storage. Keep the native registry readable while the health
+    // surface reports that stale configurable record for operator cleanup.
+    if (normalized.configurable && builtinSlashes.has(normalized.slash)) {
+      continue;
+    }
     if (seenIds.has(normalized.id)) {
       throw new Error(`Duplicate skill id: ${normalized.id}`);
     }
@@ -80,8 +90,8 @@ async function normalizeRegistry(registry, { registryPath, builtinsDir, configur
     }
     seenIds.add(normalized.id);
     seenSlashes.add(normalized.slash);
-    return normalized;
-  });
+    skills.push(normalized);
+  }
 
   return {
     schema_version: registry.schema_version,
