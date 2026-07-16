@@ -14,7 +14,7 @@ import {
   answerHasUnsupportedRawCitations,
   buildSourceResolver,
   normalizeSources,
-} from "./matter-copilot-service.mjs";
+} from "./matter-citation-validation.mjs";
 import { extractLegalSourceIds } from "../shared/legal-source-ids.mjs";
 import {
   extractCorpusFingerprintsFromSources,

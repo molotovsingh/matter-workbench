@@ -41,7 +41,7 @@ test("intentional ignored async failures are named instead of bare catch callbac
 
 test("reviewed magic numbers have names", () => {
   assert.match(read("services/configurable-skill-definition.mjs"), /MAX_SLASH_ALLOCATION_ATTEMPTS/);
-  assert.match(read("services/matter-copilot-service.mjs"), /FULL_SNIPPET_OVERLAP_SCORE/);
+  assert.match(read("services/matter-citation-validation.mjs"), /FULL_SNIPPET_OVERLAP_SCORE/);
 });
 
 test("legacy UI fallback stays retired from product docs and server config", () => {
