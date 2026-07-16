@@ -16,6 +16,7 @@
     "start": "npm run ui:build && node server.mjs",
     "start:server": "node server.mjs",
     "test": "node --test",
+    "test:postgres": "node --test integration-test/*.postgres.mjs",
     "ui:dev": "vite --config react-ui/vite.config.ts --host 127.0.0.1",
     "ui:typecheck": "tsc -b react-ui/tsconfig.json",
     "ui:build": "npm run ui:typecheck && vite build --config react-ui/vite.config.ts",

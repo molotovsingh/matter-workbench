@@ -128,6 +128,7 @@ MWB_DATABASE_URL="postgres://..." npm run db:shadow:snapshot
 npm run db:runtime:role-setup -- --write-env-shadow
 MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:smoke
 MWB_RUNTIME_DB=postgres MWB_RUNTIME_DB_STORAGE=postgres MWB_DB_RUNTIME_CUTOVER_APPROVED=yes npm run db:runtime:write-smoke -- --out-dir docs/runtime-db-write-smokes
+MWB_POSTGRES_TEST_ADMIN_URL="postgresql:///postgres?host=/tmp" npm run test:postgres
 ```
 
 `db:migrations:check` can run without a database URL. In that case it lists the
@@ -364,6 +365,15 @@ real upload API, reads the DB-backed workspace and payload bytes, verifies
 matter/document/storage/payload rows, proves a forced transaction rollback, and
 deletes the disposable smoke matter afterward so exact shadow-hydration
 verification is not polluted by smoke-test rows.
+
+`npm run test:postgres` is the real-PostgreSQL replay/concurrency suite. Point
+`MWB_POSTGRES_TEST_ADMIN_URL` only at a local or otherwise disposable test
+cluster using an admin role with `CREATEDB` and `CREATEROLE`. The suite creates
+a randomly named database and non-superuser runtime role, applies all
+migrations, proves source-removal replay does not duplicate events or overwrite
+newer currentness, exercises upload commit/cancel across two service instances,
+and drops the temporary database and role afterward. Do not point this suite at
+a production cluster.
 
 For the private/local single-host path, the accepted storage policy is:
 `local-filesystem` storage is allowed only when the matching DB backup, storage
