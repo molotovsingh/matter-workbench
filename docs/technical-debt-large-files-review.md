@@ -1,7 +1,7 @@
 # Technical Debt Review: Large Files And Accidental Complexity
 
 Date: 2026-05-24
-Current refresh: 2026-06-08
+Current refresh: 2026-07-16
 
 Original snapshot reviewed:
 
@@ -13,32 +13,10 @@ Original snapshot reviewed:
 
 Current refresh snapshot:
 
-- HEAD: `32646a5`
-- Refresh purpose: update the large-file debt surface after the React-only
-  cutover, runtime DB work, and List of Dates engine decomposition.
-- Refresh mode: docs plus repo-hygiene guard; no runtime behavior changes.
-
-Important dirty or untracked paths already present before this report:
-
-- `FOR_AKSINGH.md`
-- `README.md`
-- `docs/TECHNICAL_APPRECIATION.md`
-- `docs/codebase-diagram.md`
-- `docs/future-design-decisions/README.md`
-- `docs/releases/v1.0.0-beta.2.md`
-- `package.json`
-- `react-ui/src/views/ActivityPage.tsx`
-- `react-ui/src/views/SettingsPage.tsx`
-- `react-ui/src/views/SkillsPage.tsx`
-- `routes/static-routes.mjs`
-- `server.mjs`
-- several tests under `test/`
-- untracked `db/`
-- untracked `docs/future-design-decisions/react-only-cutover-database-transition.md`
-
-This review intentionally does not judge the untracked database work or the
-active React/static-route edits as final architecture. It records them as
-active work and focuses on the current large-file debt surface.
+- Refresh purpose: record completion of the React-only cleanup and the runtime
+  DB processing-job/upload-session persistence extractions.
+- The original snapshot metadata above remains historical context; current
+  file counts below were refreshed from the working repository.
 
 ## Executive Verdict
 
@@ -51,11 +29,10 @@ The deterministic spine is comparatively understandable:
 
 The bigger debt is transitional:
 
-1. The app is now React-only, but the retired plain-JS UX still occupies a large
-   amount of tracked code and test surface.
-2. The runtime DB bridge is now the largest active service. That is expected
-   during transition, but it needs careful boundaries so "temporary bridge"
-   does not become a permanent storage monolith.
+1. The React-only transition debt is cleared: the retired plain-JS UX and its
+   legacy-only tests are deleted.
+2. The runtime DB bridge remains large, but processing-job and upload-session
+   persistence now have cohesive stores. Further splits should remain targeted.
 3. Several large tests are doing valuable regression work, but they are also
    acting as informal fixture libraries because shared builders are thin.
 4. Documentation is valuable but now large enough that front-door explanation,
@@ -74,8 +51,8 @@ weight. The useful distinction is:
 
 - necessary complexity: legal chronology rules, source-backed outputs, provider
   safety, matter-folder compatibility;
-- accidental complexity: retired UI still tracked, duplicated React/vanilla
-  contracts, giant CSS, tests that repeat setup instead of naming reusable
+- accidental complexity: giant CSS and type registries, orchestration-heavy
+  React views/routes, and tests that repeat setup instead of naming reusable
   scenarios.
 
 ## Line-Count Surface
@@ -84,27 +61,30 @@ Current tracked files over 1,000 lines:
 
 | File | Lines | Verdict |
 | --- | ---: | --- |
-| `FOR_AKSINGH.md` | 2,441 | Keep large, then curate |
-| `services/runtime-db-storage-service.mjs` | 1,705 | Split carefully |
-| `test/runtime-db-api.test.mjs` | 1,549 | Split later |
-| `test/create-listofdates.test.mjs` | 1,164 | Split later |
-| `test/ai-command-box-skill-ideas.test.mjs` | 1,383 | Split later |
-| `react-ui/src/styles/global.css` | 1,026 | Split carefully |
+| `test/runtime-db-api.test.mjs` | 3,723 | Split later |
+| `FOR_AKSINGH.md` | 2,850 | Keep large, then curate |
+| `test/runtime-db-storage-service.test.mjs` | 1,860 | Split later |
+| `react-ui/src/styles/global.css` | 1,782 | Split carefully |
+| `routes/matter-workflow-routes.mjs` | 1,768 | Split carefully |
+| `services/runtime-db-storage-service.mjs` | 1,492 | Split only at cohesive boundaries |
+| `react-ui/src/types/index.ts` | 1,486 | Split later by API domain |
+| `react-ui/src/views/MatterOverview.tsx` | 1,278 | Split carefully |
+| `test/create-listofdates.test.mjs` | 1,231 | Split later |
+| `services/mw-list-of-dates-service.mjs` | 1,207 | Split only with workflow tests |
+| `react-ui/src/App.tsx` | 1,101 | Extract guarded workflow orchestration |
+| `test/source-descriptors-engine.test.mjs` | 1,096 | Split provider and workflow fixtures |
 
 Near-threshold watchlist:
 
 | File | Lines | Concern |
 | --- | ---: | --- |
-| `test/skills-page.test.mjs` | 998 | Legacy view governance tests are bundled together. |
-| `scripts/db-hydrate-local-matters.mjs` | 962 | Hydration script is mixing discovery, mapping, and writes. |
+| `scripts/db-hydrate-local-matters.mjs` | 974 | Hydration script is mixing discovery, mapping, and writes. |
 | `docs/future-design-decisions/hosted-beta-database-architecture.md` | 942 | Future plan is large enough to need periodic status pruning. |
-| `react-ui/src/types/index.ts` | 943 | Type registry is a single bucket for unrelated API domains. |
-| `scripts/react-ui-smoke.mjs` | 890 | Browser smoke can become an unreviewable test script. |
+| `scripts/react-ui-smoke.mjs` | 904 | Browser smoke can become an unreviewable test script. |
 | `scripts/db-hydrate-local-skills.mjs` | 881 | Hydration script needs staged helpers if it grows again. |
 | `test/api-smoke.test.mjs` | 870 | One smoke file covers too many API contracts. |
 | `evals/listofdates/two-pass-model-smoke.mjs` | 842 | Eval script is mixing scenario setup, provider calls, and reporting. |
-| `react-ui/src/views/MatterOverview.tsx` | 678 | View includes data loading, pipeline rendering, attention rendering, labels. |
-| `react-ui/src/views/SkillsPage.tsx` | 670 | View includes data loading, lifecycle actions, grouping, status copy. |
+| `react-ui/src/views/SkillsPage.tsx` | 825 | View includes data loading, lifecycle actions, grouping, status copy. |
 | `react-ui/src/hooks/useSkillIdeaSessionMachine.ts` | 627 | State machine is near the point where phases should become reducers/actions. |
 
 ## Large-File Tribunal
@@ -140,11 +120,9 @@ Deleted `styles.css`, `index.html`, and `app.js` in the React-only cutover. Keep
 `test/server-ui-shell.test.mjs`, and `test/repo-hygiene-cleanup.test.mjs`
 assertions that the legacy shell is retired.
 
-Risk:
-
-Some tests still import legacy `frontend/*` helpers. Do not delete the whole
-`frontend/` folder in the same PR. Separate retired browser entrypoints from
-pure helpers that tests still use.
+The follow-up cleanup is complete: the root-level `frontend/` tree and its
+legacy-only tests have been deleted. Current browser contracts are protected by
+React-side tests and the live UI smoke pack.
 
 ### `test/create-listofdates.test.mjs` - 1,164 lines
 
@@ -364,49 +342,14 @@ Over-pruning this file would remove the project's learning layer. The problem
 is not length by itself; the problem is stale or duplicate lessons living beside
 current architecture.
 
-### `test/ai-command-box-skill-ideas.test.mjs` - 1,383 lines
+### Former `test/ai-command-box-skill-ideas.test.mjs`
 
-Verdict: `Split later`
+Verdict: `Resolved`
 
-Claimed responsibility: protect the legacy command-box skill-idea flow.
-
-Responsibilities absorbed:
-
-- explicit new-skill mode;
-- deterministic planner fallback;
-- model-planned interviews;
-- save/design-brief behavior;
-- sample generation;
-- sample approval;
-- skill creation;
-- overlap gates;
-- matter-switch attribution;
-- adjacent native-skill improvement detection.
-
-Why could this not have been simpler?
-
-It is testing a complex conversation state machine through a retired plain-JS
-facade. The tests are valuable because React parity depends on these contracts,
-but their current home makes legacy UI look more alive than it is.
-
-Smallest simpler version:
-
-- move shared behavior fixtures into `test-support/ai-command-box-helpers.mjs`
-  or a new `test-support/skill-idea-flow-fixtures.mjs`;
-- split tests by product phase: intent/planning, interview/save, sample/review,
-  creation/overlap;
-- add React parity tests for the contracts that still matter;
-- retire legacy-facade tests once React owns the behavior.
-
-First safe cleanup:
-
-Extract repeated flow setup and sample payload builders. Then create a smaller
-React parity target before deleting legacy facade assertions.
-
-Risk:
-
-The wrong deletion would remove coverage around paid custom-skill creation and
-sample approval. Keep behavior tests until React has equivalent coverage.
+The legacy command-box scenario test and its fake-browser fixture were deleted
+with the plain-JS frontend. Current skill-idea intent, session state, sample
+review, overlap, and custom-skill lifecycle contracts are covered by focused
+React-side and service tests. Do not recreate the old facade as a test harness.
 
 ## Near-Threshold Findings
 
@@ -443,21 +386,13 @@ preparation. That is tolerable during migration, but the simpler shape is:
 Do this after active React work settles, because type movement touches many
 imports and can create churn without product benefit.
 
-### `test/skills-page.test.mjs`
+### Former `test/skills-page.test.mjs`
 
-Verdict: split later.
+Verdict: resolved.
 
-This is a bundled governance test for legacy Skills and Activity views. It has
-useful assertions around receipts, secrets, review packets, implementation
-briefs, and no-matter planning. The debt is that it mixes unrelated product
-concerns because those concerns historically lived in the same legacy page.
-
-Recommended split:
-
-- skill registry/governance rendering;
-- custom skill version lineage and receipts;
-- skill idea implementation brief/review packet;
-- activity page receipt behavior.
+The bundled legacy Skills and Activity renderer test was deleted. Current
+registry/governance, custom-skill lifecycle, skill-idea session, and Activity
+receipt behavior are covered by focused React-side tests.
 
 ### `test/api-smoke.test.mjs`
 
@@ -552,27 +487,11 @@ The current product shell is React-only:
 - `test/server-ui-shell.test.mjs` asserts even `MWB_UI_SHELL=legacy` resolves
   to React.
 
-That leaves named retired `frontend/*` entrypoints as the next accidental bloat.
-The root shell files have already been removed, along with unimported legacy
-browser wiring files `frontend/event-wiring.js` and `frontend/state.js`. The
-unimported `frontend/skills/*.js` browser workflow modules have also been
-deleted; React workflow views and backend routes are now the live path. The old
-plain-JS Add Files and Extract result views were removed in the same cleanup
-because React owns those screens and no tests or product imports referenced the
-legacy files. The legacy matter-screen facade and old Settings renderer have
-also been retired; React owns matter landing, navigation, and Settings as product
-surfaces.
-
-However, 68 test imports still reference `frontend/*`. That does not mean the
-legacy browser shell is alive. It means useful pure helpers and legacy parity
-tests have not all moved to React/shared owners yet.
-
-Do not delete `frontend/` wholesale. Use three buckets:
-
-1. Migrate valuable helpers: escaping, command parsing, markdown preview,
-   receipt formatting, sample review, skill idea classification.
-2. Keep temporary legacy tests only until React/shared replacements protect the
-   same contract.
+The retired root shell and plain-JS `frontend/` tree are now deleted. React
+workflow views and backend routes are the only live path. Shared contracts were
+promoted to `shared/` or React libraries before the remaining legacy-only tests
+were removed. `test/repo-hygiene-cleanup.test.mjs` keeps the retired tree from
+returning.
 
 ## Test Debt Review
 
@@ -582,13 +501,11 @@ but it creates big files when tests are also responsible for fixture setup.
 Priority test debt:
 
 1. `test/create-listofdates.test.mjs` needs a list-of-dates fixture module.
-2. `test/ai-command-box-skill-ideas.test.mjs` needs phase-based split and React
-   parity targets.
-3. `test/skills-page.test.mjs` needs governance, receipt, and skill-idea packet
-   separation.
-4. `test/api-smoke.test.mjs` should remain a smoke, not become the home for all
+2. React command and skill-idea tests should stay separated by current product
+   contract rather than regrowing one shell-level scenario file.
+3. `test/api-smoke.test.mjs` should remain a smoke, not become the home for all
    route/provider edge cases.
-5. `test/source-descriptors-engine.test.mjs` should separate provider transport
+4. `test/source-descriptors-engine.test.mjs` should separate provider transport
    tests from source-label validation tests.
 
 Do not start by deleting tests. Start by extracting fixtures that make the
@@ -618,41 +535,36 @@ silently become implementation authority. Keep the current pattern:
 
 ## Top 5 Simplification Opportunities
 
-1. Extract pure runtime DB row mappers/tree assembly from
-   `services/runtime-db-storage-service.mjs`.
+1. Continue the completed runtime DB processing-job and upload-session store
+   extractions only where another cohesive persistence boundary is clear.
 2. Add `test-support/listofdates-fixtures.mjs` and shrink the large chronology
    tests without changing assertions.
 3. Split React type definitions by API domain once active React work settles.
 4. Move stabilized workflow-specific CSS out of the global stylesheet.
-5. Migrate one `frontend/*` helper family at a time into `shared/*` or
-   `react-ui/src/lib/*`.
+5. Consolidate React technical-file visibility rules without reintroducing a
+   second browser implementation.
 
 ## Top 5 Refactors To Avoid For Now
 
-1. Do not delete all of `frontend/`; many tests still depend on useful helpers.
-2. Do not split one-pass/two-pass list-of-dates orchestration while beta
+1. Do not split one-pass/two-pass list-of-dates orchestration while beta
    chronology behavior is still moving.
-3. Do not rewrite `react-ui/src/styles/global.css` into component CSS during
+2. Do not rewrite `react-ui/src/styles/global.css` into component CSS during
    active React feature work.
-4. Do not combine React-only cleanup with database transition work.
-5. Do not prune `FOR_AKSINGH.md` mechanically; curate stale sections only.
+3. Do not recreate the deleted plain-JS shell as a compatibility layer.
+4. Do not prune `FOR_AKSINGH.md` mechanically; curate stale sections only.
 
 ## Files Large But Probably Justified
 
 - `FOR_AKSINGH.md`: intentional teaching artifact.
 - `test/create-listofdates.test.mjs`: protects source-backed chronology,
   provider, failure, and legal-language safety.
-- `services/runtime-db-storage-service.mjs`: temporarily large bridge from
-  runtime DB rows to the existing matter workspace contract.
+- `services/runtime-db-storage-service.mjs`: still-large orchestration bridge,
+  now separated from processing-job and upload-session persistence.
 - `docs/future-design-decisions/hosted-beta-database-architecture.md`: large
   future plan, acceptable if it stays clearly labeled as future/transition.
 
 ## Files Large Because Of Accidental Complexity
 
-- `test/ai-command-box-skill-ideas.test.mjs`: legacy facade tests still carry
-  current skill-idea product behavior.
-- `test/skills-page.test.mjs`: legacy view tests are bundling several product
-  contracts.
 - `react-ui/src/types/index.ts`: unrelated API domains in one type bucket.
 - `react-ui/src/styles/global.css`: active CSS is now above 1,000 lines and
   should not become the new retired `styles.css`.
@@ -661,7 +573,10 @@ silently become implementation authority. Keep the current pattern:
 
 Completed cleanup:
 
-- retired root legacy shell files were deleted;
+- retired root shell files and the full plain-JS frontend/test twin were deleted;
+- React theme and clipboard behavior retained focused behavioral coverage;
+- runtime DB processing-job and upload-session persistence were extracted from
+  the storage orchestrator;
 - List of Dates prompts/contracts, provider transport, source-record loading,
   artifact writing, run configuration, metadata merging, and two-pass
   orchestration were extracted from `create-listofdates-engine.mjs`;
@@ -681,11 +596,10 @@ Completed cleanup:
 - `test/repo-hygiene-cleanup.test.mjs` now guards the root engine against
   reabsorbing extracted responsibilities.
 
-Next PR-sized cleanup: continue runtime DB fixture extraction only when touching
-that route family, then consider pure mapper/tree-assembly extraction from
-`services/runtime-db-storage-service.mjs` once characterization tests are in
-place. Pause the List of Dates fixture extraction unless new chronology work
-needs it.
+Next PR-sized cleanup: address React guarded-skill orchestration and technical
+file visibility only with focused behavioral tests. Continue runtime DB
+extraction only when another cohesive persistence boundary is clear. Pause the
+List of Dates fixture extraction unless new chronology work needs it.
 
 Expected guardrails:
 
@@ -745,8 +659,6 @@ Commands used for the 2026-06-08 runtime DB test-helper cleanup:
 - `npm run ui:build --silent`
 - `npm test --silent`
 
-The refresh is still a debt-report update, not a runtime behavior change. The
-new repo-hygiene test guards both the report freshness and the List of Dates
-root-engine boundary. The runtime DB cleanup adds a tested fixture module and
-shrinks the regression file without changing product routes or storage
-behavior.
+The 2026-07-16 refresh records the completed React-only cleanup and the tested
+runtime DB upload-session store boundary. The repo-hygiene test now guards the
+absence of the full legacy frontend tree.

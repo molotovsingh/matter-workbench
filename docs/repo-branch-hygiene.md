@@ -270,7 +270,6 @@ These are local cleanup evidence, not product docs and not deployment inputs.
 - If a branch has unique code that affects runtime DB, telemetry, billing,
   outbound communication, or legal artifacts, keep it parked until a focused
   review.
-- If a branch changes retired legacy UI (`frontend/`, root `index.html`, root
-  `styles.css`) and the current product is React-only, prefer archiving and
-  deleting rather than absorbing.
+- If a branch recreates the retired plain-JS shell or root shell files, prefer
+  archiving and deleting it rather than absorbing a second browser product.
 - Do not delete `main` or active WIP branches.

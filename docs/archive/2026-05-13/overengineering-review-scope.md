@@ -1,5 +1,9 @@
 # Overengineering Review Scope
 
+> Historical note: this scope describes the former plain-JS browser surface,
+> which was deleted after the React-only cutover. Do not use its file list as a
+> map of the current repository.
+
 This note does not judge the code yet. It defines the exact runtime surface we should inspect, in order, when we later assess whether the repo is overengineered.
 
 ## Goal

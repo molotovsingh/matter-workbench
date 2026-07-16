@@ -11,6 +11,7 @@ const nativeCommandsPath = new URL("../react-ui/src/lib/nativeCommands.ts", impo
 const nativeAliasesPath = new URL("../react-ui/src/lib/nativeCommandAliases.ts", import.meta.url);
 const reactAppPath = new URL("../react-ui/src/App.tsx", import.meta.url);
 const commandPanelPath = new URL("../react-ui/src/components/command/CommandPanel.tsx", import.meta.url);
+const reactSmokePath = new URL("../scripts/react-ui-smoke.mjs", import.meta.url);
 
 test("React native commands mirror shared slash commands and aliases", async () => {
   const [commandsSource, aliasesSource] = await Promise.all([
@@ -30,6 +31,13 @@ test("React native commands mirror shared slash commands and aliases", async () 
     reactAliases,
     [...BUILTIN_SKILL_COMMAND_ALIASES].sort(([left], [right]) => left.localeCompare(right)),
   );
+});
+
+test("React smoke checks API skills against the shared native registry", async () => {
+  const smokeSource = await readFile(reactSmokePath, "utf8");
+
+  assert.match(smokeSource, /BUILTIN_SKILL_REGISTRY_COMMANDS\.filter/);
+  assert.doesNotMatch(smokeSource, /\bBUILTIN_SKILL_COMMANDS\b/);
 });
 
 test("React native command resolver handles aliases before model intent", async () => {

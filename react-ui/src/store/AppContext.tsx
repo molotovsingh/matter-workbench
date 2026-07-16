@@ -24,6 +24,7 @@ import { activeMatterFromWorkspace } from '../lib/activeMatter';
 import { stampActivityLines, trimActivityLines } from '../lib/activityLog';
 import { DEFAULT_COMMAND_COPY_TEXT } from '../lib/commandPanelCopy';
 import { getErrorMessage } from '../lib/errors';
+import { nextTheme, readStoredTheme } from '../lib/theme';
 
 type Action =
   | { type: 'SET_CONFIG'; payload: Partial<AppState> }
@@ -51,14 +52,6 @@ type Action =
   | { type: 'SET_COMMAND_COPY'; payload: string }
   | { type: 'SET_COMMAND_RUNNING'; payload: boolean }
   | { type: 'SET_PREPARATION_RUN'; payload: PreparationRunStatus | null };
-
-function readStoredTheme(): 'light' | 'dark' {
-  try {
-    return localStorage.getItem('matter-workbench-theme') === 'dark' ? 'dark' : 'light';
-  } catch {
-    return 'light';
-  }
-}
 
 const initialState: AppState = {
   config: null,
@@ -212,8 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleTheme = useCallback(() => {
-    const next = state.theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
+    setTheme(nextTheme(state.theme));
   }, [state.theme, setTheme]);
 
   const setActiveMatter = useCallback((matter: ActiveMatter | null) => {

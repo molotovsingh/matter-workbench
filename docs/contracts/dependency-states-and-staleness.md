@@ -180,12 +180,11 @@ See [Artifact Visibility And Dispatch](artifact-visibility-and-dispatch.md).
 
 Current code and tests connected to this contract include:
 
-- `shared/listofdates-dependency-states.mjs`;
-- `services/listofdates-dependency-state.mjs`;
+- `shared/case-timeline-dependency-states.mjs`;
+- `services/case-timeline-dependency-state.mjs`;
 - `services/matter-rerun-advice-service.mjs`;
 - `services/listofdates-label-refresh-service.mjs`;
-- `frontend/views/matter-overview.js`;
 - `react-ui/src/views/MatterOverview.tsx`;
-- `test/frontend-dependency-state.test.mjs`;
+- `test/listofdates-dependency-state.test.mjs`;
 - `test/listofdates-label-refresh.test.mjs`;
-- `test/matter-overview.test.mjs`.
+- `test/react-rerun-guard-parity.test.mjs`.

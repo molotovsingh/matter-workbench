@@ -127,8 +127,6 @@ function rgSearch(query) {
     "--glob",
     "!evals/**",
     "--glob",
-    "!frontend/**",
-    "--glob",
     "!FOR_AKSINGH.md",
     query,
     ".",
@@ -141,7 +139,6 @@ function isCurrentSourcePath(candidate) {
     candidate.startsWith("docs/") ||
     candidate.startsWith("test/") ||
     candidate.startsWith("evals/") ||
-    candidate.startsWith("frontend/") ||
     candidate.startsWith("codex_review/") ||
     candidate === "FOR_AKSINGH.md"
   ) {

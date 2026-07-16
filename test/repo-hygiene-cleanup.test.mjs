@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 function read(path) {
@@ -21,14 +20,11 @@ test("matter copilot providers expose only the default provider factory", () => 
 
 test("agreed one-line passthrough modules stay removed", () => {
   assert.equal(existsSync(new URL("../path-utils.mjs", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../frontend/listofdates-dependency-state.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../frontend/skill-idea-session-commands.js", import.meta.url)), false);
 });
 
 test("intentional ignored async failures are named instead of bare catch callbacks", () => {
   const files = [
     "services/configurable-skills-service.mjs",
-    "frontend/command-report-controller.js",
     "services/json-store-persistence.mjs",
     "services/command-interaction-log-service.mjs",
     "shared/atomic-file.mjs",
@@ -61,52 +57,8 @@ test("retired root legacy shell files stay deleted", () => {
   assert.equal(existsSync(new URL("../styles.css", import.meta.url)), false);
 });
 
-test("unimported legacy UX entrypoints stay deleted", () => {
-  assert.equal(existsSync(new URL("../frontend/event-wiring.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../frontend/state.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../frontend/matter-screens.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../frontend/views/settings-page.js", import.meta.url)), false);
-});
-
-test("retired legacy workflow modules stay deleted", () => {
-  const retiredWorkflowModules = [
-    "frontend/skills/context-preview.js",
-    "frontend/skills/context-search.js",
-    "frontend/skills/create-listofdates.js",
-    "frontend/skills/describe-sources.js",
-    "frontend/skills/doctor.js",
-    "frontend/skills/extract.js",
-    "frontend/skills/matter-init.js",
-    "frontend/skills/prepare-matter.js",
-    "frontend/views/add-files.js",
-    "frontend/views/extract-result.js",
-  ];
-
-  for (const retired of retiredWorkflowModules) {
-    assert.equal(existsSync(new URL(`../${retired}`, import.meta.url)), false, retired);
-  }
-});
-
-test("retired legacy UX entrypoints are not imported by product code", () => {
-  const retiredEntrypoints = [
-    "app.js",
-    "frontend/ai-command-box.js",
-    "frontend/event-wiring.js",
-    "frontend/matter-screens.js",
-    "frontend/state.js",
-    "frontend/views/skills-page.js",
-  ];
-  const productRoots = ["react-ui", "routes", "services", "shared", "scripts"];
-
-  for (const file of listSourceFiles(productRoots)) {
-    const source = read(file);
-    for (const retired of retiredEntrypoints) {
-      const retiredWithoutExtension = retired.replace(/\.js$/, "");
-      const escaped = escapeRegex(retiredWithoutExtension);
-      assert.doesNotMatch(source, new RegExp(`from ['"][^'"]*${escaped}(?:\\.js)?['"]`), `${file} imports ${retired}`);
-      assert.doesNotMatch(source, new RegExp(`import\\(['"][^'"]*${escaped}(?:\\.js)?['"]\\)`), `${file} imports ${retired}`);
-    }
-  }
+test("retired legacy frontend tree stays deleted", () => {
+  assert.equal(existsSync(new URL("../frontend", import.meta.url)), false);
 });
 
 test("large-file technical debt report records the completed List of Dates engine split", () => {
@@ -154,29 +106,3 @@ test("critical intake and extraction artifacts use atomic writes", () => {
     assert.doesNotMatch(source, /\bawait\s+writeFile\(/, `${file} should not directly write critical artifacts`);
   }
 });
-
-function escapeRegex(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function listSourceFiles(roots) {
-  const files = [];
-  for (const root of roots) walk(root, files);
-  return files.filter((file) => /\.(mjs|js|ts|tsx)$/.test(file));
-}
-
-function walk(relativeDir, files) {
-  const absoluteDir = new URL(`../${relativeDir}`, import.meta.url);
-  if (!existsSync(absoluteDir)) return;
-  for (const entry of readdirSync(absoluteDir)) {
-    if (entry === "node_modules" || entry === "react-dist") continue;
-    const relativePath = path.posix.join(relativeDir, entry);
-    const absolutePath = new URL(`../${relativePath}`, import.meta.url);
-    const stats = statSync(absolutePath);
-    if (stats.isDirectory()) {
-      walk(relativePath, files);
-    } else {
-      files.push(relativePath);
-    }
-  }
-}

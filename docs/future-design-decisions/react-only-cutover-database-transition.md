@@ -15,71 +15,20 @@ Matter Workbench V1 local beta is React-only.
   an accepted local/private runtime DB storage and write-bridge slice behind
   explicit runtime flags. Hosted workers and cloud deployment remain separate.
 
-The point of this cutover is to stop maintaining two browser products while
-keeping useful helper code long enough to migrate or delete it safely.
-
-## Legacy Frontend Buckets
-
-### Retired Product UX
-
-These root shell files have been deleted because they are no longer product
-surfaces:
-
-- `index.html`
-- `app.js`
-- `styles.css`
-- `frontend/event-wiring.js`
-- `frontend/skills/context-preview.js`
-- `frontend/skills/context-search.js`
-- `frontend/skills/create-listofdates.js`
-- `frontend/skills/describe-sources.js`
-- `frontend/skills/doctor.js`
-- `frontend/skills/extract.js`
-- `frontend/skills/matter-init.js`
-- `frontend/skills/prepare-matter.js`
-- `frontend/matter-screens.js`
-- `frontend/state.js`
-- `frontend/views/add-files.js`
-- `frontend/views/extract-result.js`
-- `frontend/views/settings-page.js`
-
-These legacy entrypoints are still present only while helper dependencies and
-tests are migrated, and should not be imported by new product code:
-
-- `frontend/ai-command-box.js`
-- `frontend/views/skills-page.js`
-
-They can be deleted when old tests and any remaining helper dependencies have
-been migrated. Route tests must continue to ensure retired shell paths are not
+The cutover now has one browser product. The former plain-JS `frontend/` tree,
+its root shell files, and its legacy-only tests have been deleted. Reusable
+contracts live under `shared/`; React presentation and interaction behavior
+live under `react-ui/src/` and are covered by React-side contract tests plus the
+live UI smoke pack. Route tests continue to ensure retired shell paths are not
 served from the product entrypoint.
 
-### Keep Temporarily
+## Legacy Frontend Status
 
-Some `frontend/*` modules are pure enough to keep while tests still depend on
-them:
-
-- escaping and presentation helpers;
-- command parsing and command classification helpers;
-- file collection helpers;
-- markdown/List of Dates preview helpers;
-- receipt and run-report formatting helpers;
-- small rendering helpers used by legacy tests until React equivalents fully
-  own the contract.
-
-Keeping these temporarily does not make the old shell supported. It only avoids
-deleting useful tested logic before the replacement module exists.
-
-### Promote Later
-
-Helpers that remain valuable should move to the right owner before deletion of
-the old frontend tree:
-
-- shared, UI-agnostic contracts -> `shared/*`;
-- React-only view helpers -> `react-ui/src/lib/*` or React components;
-- backend/reporting helpers -> `services/*` or `routes/*`, depending on the
-  owner.
-
-No new product work should add imports from retired legacy UX entrypoints.
+- `index.html`, `app.js`, and `styles.css` remain deleted.
+- The former root-level `frontend/` tree remains deleted.
+- No product or test code may import the retired plain-JS browser surface.
+- Do not recreate a compatibility or fallback shell. Shared behavior belongs in
+  `shared/`; browser behavior belongs in `react-ui/src/`.
 
 ## Database Transition Slices
 

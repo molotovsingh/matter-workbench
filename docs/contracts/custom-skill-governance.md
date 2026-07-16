@@ -209,8 +209,9 @@ Current code and tests connected to this contract include:
 - `services/configurable-skills-service.mjs`;
 - `services/configurable-skill-lifecycle.mjs`;
 - `services/configurable-skill-run-metadata.mjs`;
-- `frontend/skill-idea-session-controller.js`;
 - `react-ui/src/components/command/SkillIdeaSession.tsx`;
+- `react-ui/src/hooks/useSkillIdeaSessionMachine.ts`;
+- `react-ui/src/lib/skillIdeaSessionMachine.ts`;
 - `test/skill-samples-service.test.mjs`;
 - `test/configurable-skill-lifecycle.test.mjs`;
-- `test/ai-command-box.test.mjs`.
+- `test/react-skill-idea-session-machine-reducer.test.mjs`.

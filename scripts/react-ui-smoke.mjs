@@ -393,11 +393,11 @@ async function run() {
     const slashes = new Set(skillList.map((skill) => skill?.slash).filter(Boolean));
     assert(Array.isArray(skills.skills), "Skills API returns flat skills array", `${skillList.length} skills`);
     assert(skillList.every((skill) => typeof skill?.slash === "string" && typeof skill?.title === "string"), "Skill cards expose slash and title");
-    const missingReactBuiltins = BUILTIN_SKILL_COMMANDS.filter((slash) => !slashes.has(slash));
+    const missingReactBuiltins = BUILTIN_SKILL_REGISTRY_COMMANDS.filter((slash) => !slashes.has(slash));
     assert(
       missingReactBuiltins.length === 0,
       "Skills API includes React-routed native commands",
-      missingReactBuiltins.length > 0 ? `missing: ${missingReactBuiltins.join(", ")}` : `${BUILTIN_SKILL_COMMANDS.length} commands`,
+      missingReactBuiltins.length > 0 ? `missing: ${missingReactBuiltins.join(", ")}` : `${BUILTIN_SKILL_REGISTRY_COMMANDS.length} commands`,
     );
     assert(slashes.has("/describe_sources"), "Source Labels native skill is present");
     assert(slashes.has("/create_case_timeline"), "Case Timeline native skill is present");

@@ -196,7 +196,6 @@ Current code and docs connected to this contract include:
 
 - `shared/workspace-lanes.mjs`;
 - `services/workspace-service.mjs`;
-- `frontend/workspace-tree.js`;
 - `react-ui/src/components/workspace`;
 - `create-listofdates-engine.mjs`;
 - `services/configurable-skill-run-artifacts.mjs`;

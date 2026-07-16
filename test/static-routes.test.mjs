@@ -26,6 +26,7 @@ test("static route containment rejects traversal and prefix sibling paths", () =
   assert.equal(resolveStaticPath(appDir, "/index.html"), null);
   assert.equal(resolveStaticPath(appDir, "/app.js"), null);
   assert.equal(resolveStaticPath(appDir, "/styles.css"), null);
+  assert.equal(resolveStaticPath(appDir, "/frontend/ai-command-box.js"), null);
   assert.equal(resolveStaticPath(appDir, "/config.json"), null);
   assert.equal(resolveStaticPath(appDir, "/../matter-static-app-secret/secret.txt"), null);
   assert.equal(resolveStaticPath(appDir, "/../../etc/passwd"), null);

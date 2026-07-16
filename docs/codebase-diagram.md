@@ -25,14 +25,13 @@ flowchart LR
 
   Browser -->|"HTTP JSON/file requests"| Server
 
-  subgraph FrontendControllers["Frontend surface and temporary helper inventory"]
+  subgraph FrontendControllers["React frontend surface"]
     ReactApp["react-ui/src/App.tsx<br/>default shell composition"]
     ReactContext["react-ui/src/store/AppContext.tsx<br/>active matter and workspace refresh owner"]
     ReactCommand["react-ui/src/components/command/CommandPanel.tsx<br/>command panel"]
     ReactWorkflowViews["react-ui/src/views/workflows/*.tsx<br/>native workflow views"]
     ReactWorkspaceTree["react-ui/src/components/workspace/WorkspaceTree.tsx<br/>canonical folder tree display"]
     ReactFilePreview["react-ui/src/lib/filePreview.ts<br/>file loading and Case Timeline preview helpers"]
-    LegacyHelpers["frontend/*.js<br/>retired UX plus temporary tested helpers"]
   end
 
   Browser --> ReactApp
@@ -329,7 +328,6 @@ Matter-level blocker and warning inspection is intentionally read-only:
 The implementation lives in:
 
 - `react-ui/src/views/MatterOverview.tsx` - default React overview surface that renders blocker/warning counts and bounded evidence-backed items.
-- `frontend/views/matter-attention-card.js` - legacy overview card renderer for the same matter-attention API.
 - `services/matter-attention-service.mjs` - orchestration, item normalization, sorting, summary.
 - `services/matter-attention-intake.mjs` - matter setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file signals.
 - `services/matter-attention-source-labels.mjs` - Source Index existence/schema/label-review/developer-name and Source Labels rerun-advice signals.

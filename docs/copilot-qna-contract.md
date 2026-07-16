@@ -124,7 +124,7 @@ creation.
 The useful v2 flow is:
 
 ```text
-frontend/unibox.js
+matter-workbench-v2/frontend/unibox.js
   -> POST /api/unibox
   -> services/unibox-service.mjs
   -> no-matter gate

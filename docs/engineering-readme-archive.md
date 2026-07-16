@@ -415,7 +415,7 @@ The active matter overview also renders a read-only Developer attention card fro
 
 - `react-ui/` - default React/Vite UI source
 - `react-dist/` - ignored generated build output for the React UI, served at `/` and `/react/`
-- `frontend/` - retired plain-JS UX plus temporary helper modules still covered by tests while they are migrated or deleted
+- former `frontend/` tree - retired plain-JS UX, since deleted after the React-only cutover
 - Retired root shell files `index.html`, `styles.css`, and `app.js` have been removed; React is the only served product shell
 - `server.mjs` - local server bootstrap and service wiring
 - `routes/api-routes.mjs` - top-level HTTP API dispatcher for local app endpoints

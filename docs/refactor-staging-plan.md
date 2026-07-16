@@ -1,9 +1,13 @@
 # Refactor Staging Plan
 
 Date: 2026-05-13
-Last updated: 2026-05-16
-Status: staged plan; Stage 0, Stage 1, first Stage 2 slices, and Stage 4 completed
-Scope: targeted refactors with low regression risk
+Last updated: 2026-07-16
+Status: Historical; superseded by the React-only cutover
+Scope: record of targeted refactors completed before the plain-JS frontend was deleted
+
+All `frontend/*` paths below describe the former plain-JS implementation. That
+tree and its legacy-only tests are now deleted; current browser owners live
+under `react-ui/src/`.
 
 ## Goal
 

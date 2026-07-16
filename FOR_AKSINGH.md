@@ -994,7 +994,7 @@ They were contract fixes:
   that locally instead of sending a doomed status update and surfacing a raw API
   rejection. When the backend accepts the status change, React keeps the
   normalized idea record returned by the server.
-- React and vanilla now recognize explicit skill-idea phrasing from the same
+- React and the backend recognize explicit skill-idea phrasing from the same
   pattern contract. That matters for the messy real inputs people type:
   `new skill to...`, `build a skill which...`, and even the common typo
   `skil` should enter the skill-idea workflow instead of getting pushed through
@@ -1020,48 +1020,21 @@ Important files:
 - `react-ui/src/views/SettingsPage.tsx` - React settings view using the live backend readiness contract;
 - `react-ui/vite.config.ts` - Vite config for dev proxying and `/react/` build output.
 - `scripts/react-ui-smoke.mjs` - live acceptance check for React/backend contract drift.
-- `frontend/ai-command-box.js` - retired plain-JS Command rail facade kept only while helper/parity tests migrate;
-- `frontend/skill-idea-session-controller.js` - new skill interview state and command-session flow;
-- `frontend/skill-idea-session-state.js` - pure session initialization, planner terminal copy, and answer-advancement helpers;
-- `frontend/skill-idea-session-action-wiring.js` - button/action wiring for saved skill idea sessions;
-- `frontend/skill-idea-sample-actions.js` - sample generation, approval, copying, and sample output display;
-- `frontend/skill-idea-creation-actions.js` - approved-sample activation, overlap gating, and skill-ready rendering;
-- `frontend/configurable-skill-run-controller.js` - active custom skill run, output replacement, and run review actions;
-- `frontend/configurable-skill-improvement-actions.js` - "Improve this skill" ideas that feed back into the sample-review flow without changing the active skill;
-- `frontend/created-skill-command-rail-actions.js` - the small "Skill Ready" rail after a custom skill is created;
-- `frontend/skill-idea-interview.js` - interview planning, planner fallback, and design-brief normalization;
-- `frontend/skill-idea-interview-templates.js` - deterministic interview templates, adjacent-native-skill patterns, and simple output-lane hints;
-- `frontend/skills-page-actions.js` - Skills and Activity page copy/open/status button wiring;
-- `frontend/workspace-view.js` - workspace tree, lane opening, and generic file preview selection;
-- `frontend/listofdates-markdown-preview.js` - List of Dates markdown parsing, scannable chronology rendering, and copy/download actions;
-- `frontend/views/skills-page*.js` - Skills page composition, saved ideas, cards, summaries, and health rendering;
-- `frontend/api-client.js` - API helper;
-- `frontend/status.js` - status output.
+
+The retired plain-JS `frontend/` tree and its legacy-only tests have been
+removed. Shared product contracts belong in `shared/`; browser behavior and
+presentation belong in `react-ui/src/`. Do not recreate a fallback shell.
 
 The frontend should stay quiet and utilitarian. This is not a marketing site. It is an operational tool for repeated legal review.
 
-The important recent frontend lesson is that "one convenient file" becomes a risk once it starts owning different workflows. The Command rail originally carried parsing, routing, skill interviews, sample approval, custom skill running, output replacement, copy reports, and status updates together. It worked, but every new product change had to pass through the same crowded room.
-
-The healthier shape is now:
-
-```text
-ai-command-box.js
-  -> command facade and dispatch order
-  -> deterministic command controller
-  -> router-check controller
-  -> new-skill mode controller
-  -> skill-idea session controller
-  -> configurable-skill run controller
-  -> report controller
-```
-
-That split does not change the user experience. It changes the engineering posture: a future bug in "replace existing output document" should live near custom skill run code, while a future bug in "Looks right -> create skill" should live near the skill idea creation actions. Good refactoring is not about clever abstractions; it is about making the next change easier to locate and safer to test.
-
-The same rule now applies to custom skill runs. A run can finish, ask before replacing an existing output, be accepted for that run, or become an improvement idea. Those are related in the product, but they are not the same responsibility in code. `frontend/configurable-skill-run-controller.js` keeps the run and review state. `frontend/configurable-skill-improvement-actions.js` handles the bridge from "this skill should be better" into a saved, non-running revision idea that must generate a sample before any new version can become active.
-
-The "Skill Ready" rail after a successful custom-skill creation is also separate now. It is small, but conceptually important: post-creation choices like **Run now**, **Open Skills**, and **Start another idea** are not part of overwrite review. Keeping them in `frontend/created-skill-command-rail-actions.js` prevents the run controller from becoming the dumping ground for every custom-skill-adjacent button.
-
-The skill-idea interview planner has the same split. `frontend/skill-idea-interview-templates.js` is the product-policy shelf: limitation review, pleading summary, evidence gaps, weakness review, adjacent native skills, and output-lane hints. `frontend/skill-idea-interview.js` remains the planner engine: choose a template, normalize model-planned interviews, enforce lanes/risk/posture, and produce a design brief. That makes future product tuning less risky because adding a new native-adjacent pattern should not require reading the whole planner algorithm.
+The important frontend lesson remains that one convenient orchestrator becomes a
+risk once it owns unrelated workflows. The current React boundary keeps the
+command surface in `CommandPanel.tsx`, the skill-idea state machine in
+`useSkillIdeaSessionMachine.ts` and `skillIdeaSessionMachine.ts`, reusable
+session actions in `skillIdeaSessionActions.ts`, API transport in
+`api/client.ts`, and workspace presentation in the workspace components and
+`lib/filePreview.ts`. That split makes the next behavior change easier to locate
+without maintaining a second browser implementation.
 
 On the backend, the model-backed interview planner has a similar boundary. `services/skill-interview-planner-service.mjs` decides whether planning is enabled, summarizes the active matter and skill registry, chooses fallback behavior, and returns the plan envelope. `services/skill-interview-planner-providers.mjs` owns the OpenAI/OpenRouter request bodies, shared legal-workbench system prompt, response parsing, and timeout/error mapping. This matters because provider/model risk should be isolated from the business rule "what context is safe to send for a skill idea interview."
 
@@ -1131,11 +1104,11 @@ The tests are not just ceremonial. They lock down the legal workflow rules:
 - meta sources are filtered before AI;
 - clustering avoids false payment discrepancies.
 
-The command-box scenario tests are split by product story:
+The React command and skill tests are split by product story:
 
-- `test/ai-command-box.test.mjs` covers core command dispatch, suggestions, lane opening, reports, and paid rerun cancellation;
-- `test/ai-command-box-skill-ideas.test.mjs` covers new-skill interview, sample review, overlap gates, and activation;
-- `test/ai-command-box-configurable-skills.test.mjs` covers running and improving already-created configurable skills.
+- `test/react-native-command-contract.test.mjs` and `test/react-command-panel-suggestions.test.mjs` protect deterministic command routing and suggestions;
+- `test/react-skill-idea-session-*.test.mjs` protects interview, sample-review, and session-state behavior;
+- `test/react-custom-skill-lifecycle.test.mjs` and `test/react-activity-run-report.test.mjs` protect configurable-skill lifecycle and run receipts.
 
 Good lesson: tests should protect the professional contract, not only the code mechanics.
 
@@ -1426,7 +1399,7 @@ The first working version was useful, but the service started collecting too man
 
 The refactor split the collectors by lifecycle responsibility:
 
-- `frontend/views/matter-attention-card.js` owns the overview card renderer, so the matter overview does not become a mixed renderer for every diagnostic concern.
+- `react-ui/src/views/MatterOverview.tsx` owns the overview presentation while the service modules below own diagnostic collection.
 - `services/matter-attention-service.mjs` is now the orchestrator. It chooses the matter, calls collectors, normalizes items, sorts them, and builds the summary.
 - `services/matter-attention-intake.mjs` owns setup, file register, working-copy, extraction-log, OCR-placeholder, and skipped-file warnings.
 - `services/matter-attention-source-labels.mjs` owns Source Index existence, schema, label-review, developer-name leak, count mismatch, and Source Labels rerun advice.
@@ -1442,20 +1415,19 @@ Good engineers do not only add observability. They make observability itself obs
 
 ## Shell Refactor Lesson: Reduce Architectural Depth
 
-After the Home-first visual release, the next risk was not the UI itself. It was where the UI logic lived.
+After the Home-first visual release, the next risk was not the UI itself. It
+was where the UI logic lived. The React-only shell now separates Home
+presentation (`react-ui/src/views/HomeLanding.tsx`), shell and active-matter
+state (`react-ui/src/store/AppContext.tsx`), bounded activity state
+(`react-ui/src/lib/activityLog.ts`), and Activity presentation
+(`react-ui/src/views/ActivityPage.tsx`). The former plain-JS traffic controller
+has been deleted.
 
-`frontend/matter-screens.js` had become the shell's traffic controller and was also rendering the full Home page. That is a classic depth smell: to understand a simple Home search click, you had to mentally pass through shell state, matter state, DOM rendering, activity logging, and command wiring in one file.
-
-The cleanup split those jobs:
-
-- `frontend/views/home-landing.js` owns the Home page HTML and Home-only event wiring.
-- `frontend/matter-search.js` owns matter search normalization/filtering.
-- `frontend/activity-log-store.js` owns recent activity state.
-- `frontend/status.js` mirrors that activity into the compact command strip and hidden debug terminal.
-
-The important change is not just fewer lines. It is fewer reasons to open the same file. Home can now change without touching Settings. Activity can read recent logs without scraping hidden DOM text. Command reports can ask the activity store for recent lines instead of treating a hidden terminal as the source of truth.
-
-That is what reduced architectural depth means in practice: fewer hops, fewer mixed responsibilities, and fewer surprising dependencies between screens.
+The important change is not just fewer lines. It is fewer reasons to open the
+same file. Home can change without touching Settings, Activity owns its own
+presentation, and shared state has a named owner. That is what reduced
+architectural depth means in practice: fewer hops, fewer mixed responsibilities,
+and fewer surprising dependencies between screens.
 
 ## Backend Persistence Lesson: Small Hardening Beats a Big Rewrite
 
@@ -1548,15 +1520,26 @@ One useful bug fell out of that testability work: the oversized-upload path coul
 
 ## Test Lesson: Keep Scenarios Clear
 
-The command-box tests cover many real user paths, so they are now split by the kind of story they protect. Basic command routing stays in `test/ai-command-box.test.mjs`; new-skill interview and sample-review behavior lives in `test/ai-command-box-skill-ideas.test.mjs`; configurable custom skill runs live in `test/ai-command-box-configurable-skills.test.mjs`. The fake browser form, fake command rail, and fake status elements live in `test-support/ai-command-box-helpers.mjs`.
+The React-side tests protect command routing, native command contracts,
+skill-idea session state, custom-skill lifecycle behavior, workspace previews,
+upload collection, and activity reports under focused `test/react-*.test.mjs`
+files. `scripts/react-ui-smoke.mjs` adds a live browser/backend contract check.
+The deleted plain-JS shell tests are not a compatibility suite.
 
-That is not just tidiness. Good scenario tests should make the story easy to read: user types this, app routes there, status says this, no skill runs unexpectedly. When fake DOM plumbing sits in a helper and long scenarios are grouped by product surface, each test file can spend more of its space explaining behavior instead of rebuilding the stage.
+That is not just tidiness. Good scenario tests should make the story easy to
+read: user types this, app routes there, status says this, and no skill runs
+unexpectedly. Each test should spend its space explaining current product
+behavior instead of rebuilding a retired browser implementation.
 
 ## Frontend Sample Lesson: Protect the Payoff
 
 The new-skill flow has one moment that matters most: the generated sample. That is where a lawyer decides whether the proposed skill is useful, safe, and worth turning into something runnable.
 
-The session controller still owns the conversation, but the risky work now sits behind smaller helpers. `frontend/skill-idea-sample-actions.js` owns generating, approving, copying, and displaying sample output. `frontend/skill-idea-creation-actions.js` owns the approved-sample activation path: check existing skills for overlap, pause if the idea duplicates a native/custom skill, create the runnable skill only after the gate clears, then show the skill-ready rail. `frontend/skill-idea-sample-ledger.js` does one narrower job: reload persisted sample versions, pick the active sample, preserve important warnings, and fall back to local state if the ledger cannot be read.
+The React session component owns the conversation, while
+`useSkillIdeaSessionMachine.ts`, `skillIdeaSessionMachine.ts`, and
+`skillIdeaSessionActions.ts` own state transitions and risky actions.
+`skillCreationOverlap.ts` owns the duplicate gate before activation. This keeps
+sample approval, activation, and overlap review testable without a second shell.
 
 This is a useful kind of frontend refactor because it moves the fragile part of the payoff out of the command-session controller and into focused modules. A warning like "evidence blocks were omitted" must not disappear merely because the persisted ledger response is thinner than the optimistic UI state. Good product engineering often means protecting the trust signals, not just rearranging code.
 
@@ -1589,11 +1572,11 @@ The same rule now applies to rerun-advice states. The backend emits `current`, `
 
 Prepare Matter action names are now treated the same way. The backend plan emits actions like `run`, `confirm_paid_run`, `blocked`, and `recommend_separate_skill` from `shared/preparation-stage-actions.mjs`; the React port has a typed mirror checked by the smoke test. This protects the orchestrator from the quietest kind of breakage: the backend says "ask before a paid source-labeling run" while one frontend accidentally treats it as an ordinary run.
 
-Native command aliases now follow the same discipline. Vanilla already knew that `prepare matter`, `source labels`, and `chronology` should route directly to `/prepare_matter`, `/describe_sources`, and `/create_listofdates`; React had the visible suggestions but could fall back to intent checking if the user typed the plain-English alias and pressed Enter. The alias list now lives in `shared/builtin-skill-commands.mjs`, React has a checked mirror, and the smoke test compares them. That means obvious lawyer phrases remain fast, deterministic commands instead of accidental AI routing.
+Native command aliases follow the same discipline. Phrases such as `prepare matter`, `source labels`, and `chronology` route directly to `/prepare_matter`, `/describe_sources`, and `/create_listofdates`. The alias list lives in `shared/builtin-skill-commands.mjs`, React has a checked mirror, and the smoke test compares them. That means obvious lawyer phrases remain fast, deterministic commands instead of accidental AI routing.
 
 React now resolves native commands through one helper, `resolveNativeCommand()`, before it asks the model-powered intent checker. Exact slashes and plain-English aliases go through the same path, and the unit test asserts that the resolver checks aliases. The principle is simple: deterministic product commands should stay deterministic, especially when the visible UI teaches the lawyer to type phrases like `prepare matter`.
 
-Skill-idea session commands now follow the same rule. Vanilla uses the shared `shared/skill-idea-session-commands.mjs` classifier, React has a typed mirror, and the smoke test compares the command sets. This closes a small but nasty UX trap: once a user is inside "new skill" mode, phrases like `generate sample` should advance that conversation, not get reinterpreted as a fresh global request.
+Skill-idea session commands follow the same rule. The canonical classifier lives in `shared/skill-idea-session-commands.mjs`, React has a typed mirror, and the smoke test compares the command sets. This closes a small but nasty UX trap: once a user is inside "new skill" mode, phrases like `generate sample` should advance that conversation, not get reinterpreted as a fresh global request.
 
 The entry point into that workflow also has a shared contract now. `shared/skill-idea-input.mjs` owns the explicit "I want a skill..." patterns, and React mirrors them under smoke-test protection. The practical lesson is that command parsing is product behavior. If one shell accepts `new skil for limitation review` and another does not, users experience it as the app being moody, not as an implementation detail.
 
@@ -1605,9 +1588,12 @@ The same care now applies to artifact writes. Source Index JSON, List of Dates J
 
 ## Preview Lesson: Keep Document Rendering Separate From the Explorer
 
-`frontend/workspace-view.js` decides which matter file is active, highlights it in the tree, opens workspace lanes, and chooses the preview path. The List of Dates markdown preview now lives in `frontend/listofdates-markdown-preview.js`.
+`react-ui/src/components/workspace/WorkspaceTree.tsx` owns the file tree,
+`react-ui/src/lib/filePreview.ts` owns file loading and Case Timeline parsing,
+and `react-ui/src/components/layout/MainContent.tsx` composes the selected
+preview.
 
-That split matters because "show me the file tree" and "turn a legal chronology markdown table into a scannable lawyer surface" are different jobs. The file explorer should stay generic. The List of Dates renderer can now evolve around legal document readability, source fragments, copy/download actions, and chronology summary rules without making the whole workspace sidebar harder to reason about.
+That split matters because "show me the file tree" and "turn a legal chronology markdown table into a scannable lawyer surface" are different jobs. The file explorer should stay generic. The Case Timeline renderer can evolve around legal document readability, source fragments, copy/download actions, and chronology summary rules without making the whole workspace sidebar harder to reason about.
 
 The backend has a matching direct-preview guard in `services/workspace-path-policy.mjs`. The tree already hides dotfiles and system folders, but a user could still guess a raw preview URL. The workspace path policy blocks hidden/system paths such as `.env`, `.git`, `node_modules`, app-side hidden folders, and Office temp files before `readFilePreview` or `getRawFile` can serve them.
 
@@ -1684,7 +1670,7 @@ The same helper now owns React-side review packet and sample-copy formatting for
 
 React now also has its own small `secretRedaction` helper, tested against the shared backend redaction policy. That may sound like plumbing, but it is the kind of boring guardrail that matters in a legal AI product: copied review packets, sample packets, and future diagnostics should be useful to a developer without accidentally carrying `OPENAI_API_KEY`, bearer tokens, or provider-style `sk-...` keys into chat, email, or screenshots.
 
-The copied React review packet now carries the same basic governance shape as the vanilla Skills page packet: status, readiness checklist, suggested classification, open questions, and the "not runnable yet" boundary. That avoids a subtle trap where two frontends both support `copy review packet`, but one gives the implementation reviewer less context than the other.
+The copied React review packet carries the full governance shape: status, readiness checklist, suggested classification, open questions, and the "not runnable yet" boundary. That prevents copied review material from giving the implementation reviewer less context than the live product surface.
 
 React Activity now uses a dedicated custom-skill run report helper instead of building a tiny ad hoc clipboard string in the component. The helper mirrors the vanilla report boundary: metadata only, redacted secrets, no generated work product body. Activity also refuses to open a run output unless the active matter is the same matter that owns the run. That guard matters because run output paths are matter-relative; opening `20_Workshop/Party Map.md` while another matter is active can show the wrong file or fail in a confusing way.
 
@@ -1742,7 +1728,7 @@ The List of Dates freshness states now have a shared home in `shared/listofdates
 - `chronology_review_needed` means source metadata changed enough to ask for legal review.
 - `chronology_regeneration_needed` means the source set or source content changed enough to rebuild the chronology.
 
-Before this cleanup, the backend, vanilla frontend, and React frontend each carried local copies of those strings. That is exactly the sort of small duplication that causes expensive UI mistakes later: one surface offers "Refresh labels only" while another says the chronology must be regenerated. The React smoke test now checks its typed constants against the shared backend contract, so drift is caught during acceptance instead of by a lawyer seeing contradictory advice.
+Before this cleanup, the backend and browser surfaces carried local copies of those strings. That is exactly the sort of small duplication that causes expensive UI mistakes later: one surface offers "Refresh labels only" while another says the chronology must be regenerated. The React smoke test now checks its typed constants against the shared backend contract, so drift is caught during acceptance instead of by a lawyer seeing contradictory advice.
 
 The same pattern now protects the custom-skill overlap gate. The backend owns the minimum override length and the router decisions/actions that block duplicate skill creation. React has a small typed helper for the UI, but `scripts/react-ui-smoke.mjs` compares those helper constants against `shared/skill-creation-overlap-policy.mjs`.
 

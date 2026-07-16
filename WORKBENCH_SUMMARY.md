@@ -77,4 +77,5 @@ A matter folder is treated as durable legal workflow state, not transient UI sta
 - Architecture map: `docs/codebase-diagram.md`
 - Beta operations workflow: `docs/beta-testing-list-of-dates.md` (legacy-titled; now covers Case Timeline review)
 - Model/provider routing controls: `docs/model-routing.md`
-- Refactor sequencing: `docs/refactor-staging-plan.md`
+- Current debt boundaries: `docs/technical-debt-large-files-review.md`
+- Historical plain-JS refactor record: `docs/refactor-staging-plan.md`
