@@ -238,42 +238,48 @@ export function createRuntimeDbStorageService({
     const uploadPlan = planNewRuntimeMatterUpload({ name, metadata, files, relativePaths, actor });
     const matter = uploadPlan.matter;
     const matterName = matter.name;
-    const existing = queryJson({
-      databaseUrl,
-      tenantId,
-      spawn,
-      sql: buildMatterByNameSql({ tenantId, name: matterName }),
-    });
-    if (existing?.id) throw makeHttpError(`A matter named "${matterName}" already exists`, 409, "runtime_db.upload.matter_exists");
+    return withSerializedMatterWrite({ name: matterName }, async () => {
+      const existing = queryJson({
+        databaseUrl,
+        tenantId,
+        spawn,
+        sql: buildMatterByNameSql({ tenantId, name: matterName }),
+      });
+      if (existing?.id) throw makeHttpError(`A matter named "${matterName}" already exists`, 409, "runtime_db.upload.matter_exists");
 
-    const { storageFiles, importItems } = await buildRuntimeUploadIntake({
-      ...uploadPlan.buildIntakeArgs,
-      tempRoot,
-    });
+      const { storageFiles, importItems } = await buildRuntimeUploadIntake({
+        ...uploadPlan.buildIntakeArgs,
+        tempRoot,
+      });
 
-    await persistRuntimeUploadIntakeRecords({
-      databaseUrl,
-      tenantId,
-      spawn,
-      createPgClient,
-      parameterizedThresholdBytes: runtimeUploadParameterizedThresholdBytes,
-      actor,
-      matter,
-      uploadPlan,
-      storageFiles,
-      importItems,
-      uploadSqls: createMatterUploadSql({
-        matter,
-        actor,
-        intakeId: uploadPlan.intakeDbId,
-        uploadSessionId: uploadPlan.uploadSessionId,
-        importBatchId: uploadPlan.importBatchId,
-        importItems,
-        expectedFileCount: importItems.length,
-        receivedDate: uploadPlan.receivedDate,
-      }),
+      try {
+        await persistRuntimeUploadIntakeRecords({
+          databaseUrl,
+          tenantId,
+          spawn,
+          createPgClient,
+          parameterizedThresholdBytes: runtimeUploadParameterizedThresholdBytes,
+          actor,
+          matter,
+          uploadPlan,
+          storageFiles,
+          importItems,
+          uploadSqls: createMatterUploadSql({
+            matter,
+            actor,
+            intakeId: uploadPlan.intakeDbId,
+            uploadSessionId: uploadPlan.uploadSessionId,
+            importBatchId: uploadPlan.importBatchId,
+            importItems,
+            expectedFileCount: importItems.length,
+            receivedDate: uploadPlan.receivedDate,
+          }),
+        });
+      } catch (error) {
+        throw mapActiveMatterNameConflict(error, matter.name, "runtime_db.upload.matter_exists");
+      }
+      return matter;
     });
-    return matter;
   }
 
   async function addUploadedFilesToMatter({
@@ -577,27 +583,31 @@ export function createRuntimeDbStorageService({
       ...uploadPlan.buildIntakeArgs,
       tempRoot,
     });
-    await persistRuntimeUploadIntakeRecords({
-      databaseUrl,
-      tenantId,
-      spawn,
-      createPgClient,
-      parameterizedThresholdBytes: runtimeUploadParameterizedThresholdBytes,
-      actor,
-      matter,
-      uploadPlan,
-      storageFiles,
-      importItems,
-      uploadSqls: createMatterSessionCommitSql({
-        matter,
+    try {
+      await persistRuntimeUploadIntakeRecords({
+        databaseUrl,
+        tenantId,
+        spawn,
+        createPgClient,
+        parameterizedThresholdBytes: runtimeUploadParameterizedThresholdBytes,
         actor,
-        intakeId: uploadPlan.intakeDbId,
-        uploadSessionId: uploadPlan.uploadSessionId,
-        importBatchId: uploadPlan.importBatchId,
-        expectedFileCount: importItems.length,
-        receivedDate: uploadPlan.receivedDate,
-      }),
-    });
+        matter,
+        uploadPlan,
+        storageFiles,
+        importItems,
+        uploadSqls: createMatterSessionCommitSql({
+          matter,
+          actor,
+          intakeId: uploadPlan.intakeDbId,
+          uploadSessionId: uploadPlan.uploadSessionId,
+          importBatchId: uploadPlan.importBatchId,
+          expectedFileCount: importItems.length,
+          receivedDate: uploadPlan.receivedDate,
+        }),
+      });
+    } catch (error) {
+      throw mapActiveMatterNameConflict(error, matter.name, "upload.matter_exists");
+    }
     await enqueuePostUploadExtraction({ session, matter });
     return {
       session: await readUploadSession(session.id),
@@ -1753,6 +1763,16 @@ async function persistRuntimeUploadIntakeRecordsWithPg({
   } finally {
     await client.end().catch(() => {});
   }
+}
+
+function mapActiveMatterNameConflict(error, matterName, code) {
+  const constraint = String(error?.constraint || "").trim();
+  const message = String(error?.message || error || "");
+  if ((error?.code === "23505" && constraint === "matters_active_tenant_lower_name_unique")
+    || message.includes("matters_active_tenant_lower_name_unique")) {
+    return makeHttpError(`A matter named "${matterName}" already exists`, 409, code);
+  }
+  return error;
 }
 
 async function defaultCreatePgClient(connectionString) {

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { randomBytes, randomUUID } from "node:crypto";
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
 import test from "node:test";
 import pg from "pg";
@@ -13,7 +15,7 @@ import { buildRuntimeDbSourceRemovalMutationSql } from "../services/source-remov
 const adminUrl = String(process.env.MWB_POSTGRES_TEST_ADMIN_URL || "").trim();
 const migrationsDir = new URL("../db/migrations/", import.meta.url);
 
-test("real PostgreSQL preserves source-removal replay and upload terminal-state invariants", {
+test("real PostgreSQL preserves replay, upload terminal state, and active matter-name uniqueness", {
   timeout: 120_000,
 }, async () => {
   assert.ok(adminUrl, "Set MWB_POSTGRES_TEST_ADMIN_URL to a disposable PostgreSQL admin database.");
@@ -42,6 +44,7 @@ test("real PostgreSQL preserves source-removal replay and upload terminal-state 
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifySourceRemovalReplay({ admin, runtimeUrl });
       await verifyUploadCommitCancelRace({ admin, runtimeUrl });
+      await verifyConcurrentMatterNameUniqueness({ admin, runtimeUrl });
     } finally {
       await admin.end();
     }
@@ -178,6 +181,75 @@ async function verifyUploadCommitCancelRace({ admin, runtimeUrl }) {
     assert.equal(row.job_count, 0);
   }
   assert.equal(row.retained_payload_count, 0);
+}
+
+async function verifyConcurrentMatterNameUniqueness({ admin, runtimeUrl }) {
+  const tenantId = randomUUID();
+  await admin.query("insert into tenants (id, name, type) values ($1, 'Matter-name race tenant', 'internal_test')", [tenantId]);
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "mwb-matter-name-race-"));
+  const firstPath = path.join(tempRoot, "first.txt");
+  const secondPath = path.join(tempRoot, "second.txt");
+  await writeFile(firstPath, "first concurrent upload");
+  await writeFile(secondPath, "second concurrent upload");
+  const serviceOptions = {
+    databaseUrl: runtimeUrl,
+    tenantId,
+    runtimeUploadParameterizedThresholdBytes: 1,
+  };
+  const firstService = createRuntimeDbStorageService(serviceOptions);
+  const secondService = createRuntimeDbStorageService(serviceOptions);
+
+  const outcomes = await Promise.allSettled([
+    firstService.createMatterFromUploadedFiles({
+      name: "Concurrent Matter",
+      files: [{ index: 0, tempPath: firstPath, filename: "first.txt", bytes: 23 }],
+      relativePaths: ["first.txt"],
+    }),
+    secondService.createMatterFromUploadedFiles({
+      name: "concurrent matter",
+      files: [{ index: 0, tempPath: secondPath, filename: "second.txt", bytes: 24 }],
+      relativePaths: ["second.txt"],
+    }),
+  ]);
+
+  assertMatterCreateRaceOutcome(outcomes);
+
+  const exactNameOutcomes = await Promise.allSettled([
+    firstService.createMatterFromUploadedFiles({
+      name: "Exact Concurrent Matter",
+      files: [{ index: 0, tempPath: firstPath, filename: "first.txt", bytes: 23 }],
+      relativePaths: ["first.txt"],
+    }),
+    secondService.createMatterFromUploadedFiles({
+      name: "Exact Concurrent Matter",
+      files: [{ index: 0, tempPath: secondPath, filename: "second.txt", bytes: 24 }],
+      relativePaths: ["second.txt"],
+    }),
+  ]);
+  assertMatterCreateRaceOutcome(exactNameOutcomes);
+
+  const state = await admin.query([
+    "select",
+    "  (select count(*)::int from matters where tenant_id = $1 and status = 'active' and lower(name) = lower('Concurrent Matter')) as case_insensitive_matter_count,",
+    "  (select count(*)::int from matters where tenant_id = $1 and status = 'active' and name = 'Exact Concurrent Matter') as exact_matter_count,",
+    "  (select count(*)::int from documents where tenant_id = $1) as document_count",
+  ].join("\n"), [tenantId]);
+  assert.deepEqual(state.rows[0], {
+    case_insensitive_matter_count: 1,
+    exact_matter_count: 1,
+    document_count: 2,
+  });
+}
+
+function assertMatterCreateRaceOutcome(outcomes) {
+  assert.equal(outcomes.filter((outcome) => outcome.status === "fulfilled").length, 1);
+  const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+  assert.equal(rejected?.reason?.statusCode, 409, JSON.stringify({
+    code: rejected?.reason?.code,
+    constraint: rejected?.reason?.constraint,
+    message: rejected?.reason?.message,
+  }));
+  assert.equal(rejected?.reason?.code, "runtime_db.upload.matter_exists");
 }
 
 async function applyMigrations(client) {

@@ -47,6 +47,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
       "023_matter_archive_metadata.sql",
       "024_first_class_upload_sessions.sql",
       "025_processing_job_stage_kinds.sql",
+      "026_active_matter_name_uniqueness.sql",
     ],
   );
   assert.equal(migrationVersionFromFile("001_control_plane.sql"), "001_control_plane");
@@ -74,6 +75,7 @@ test("database migration runner discovers numbered SQL migrations", async () => 
   assert.equal(migrationVersionFromFile("023_matter_archive_metadata.sql"), "023_matter_archive_metadata");
   assert.equal(migrationVersionFromFile("024_first_class_upload_sessions.sql"), "024_first_class_upload_sessions");
   assert.equal(migrationVersionFromFile("025_processing_job_stage_kinds.sql"), "025_processing_job_stage_kinds");
+  assert.equal(migrationVersionFromFile("026_active_matter_name_uniqueness.sql"), "026_active_matter_name_uniqueness");
   assert.throws(() => migrationVersionFromFile("control_plane.sql"), /numbered migration/);
 });
 

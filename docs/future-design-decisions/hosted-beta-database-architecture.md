@@ -282,6 +282,7 @@ Required fields:
 Constraints:
 
 ```text
+partial unique index: matters(tenant_id, lower(name)) where status = 'active'
 unique(documents.matter_id, documents.file_number)
 unique(documents.matter_id, documents.file_id)
 unique(upload_sessions.tenant_id, upload_sessions.idempotency_key)

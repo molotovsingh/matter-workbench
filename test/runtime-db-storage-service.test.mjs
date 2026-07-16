@@ -631,6 +631,7 @@ test("runtime DB storage service creates matter upload custody rows with payload
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence(calls, [{}, {}]),
+    createPgClient: async () => advisoryLockPgClient(),
   });
 
   const created = await service.createMatterFromUploadedFiles({
@@ -701,6 +702,39 @@ test("runtime DB storage service parameterizes large upload payload bytes", asyn
   assert.doesNotMatch(JSON.stringify(pgQueries.map((query) => query.text)), /secret/);
 });
 
+test("runtime DB storage service maps the active matter-name constraint to the existing conflict", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-name-conflict-"));
+  const uploadedFile = path.join(tmp, "conflict.txt");
+  await writeFile(uploadedFile, "conflicting matter");
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    spawn: jsonSpawnSequence([], [{}]),
+    runtimeUploadParameterizedThresholdBytes: 1,
+    createPgClient: async () => ({
+      async connect() {},
+      async end() {},
+      async query(sql) {
+        const text = String(sql || "");
+        if (/^begin$|^commit$|^rollback$|mwb_runtime_role_guard|set_config\('app\.tenant_id'|pg_advisory_xact_lock/i.test(text)) return { rows: [] };
+        const error = new Error('duplicate key value violates unique constraint "matters_active_tenant_lower_name_unique"');
+        error.code = "23505";
+        error.constraint = "matters_active_tenant_lower_name_unique";
+        throw error;
+      },
+    }),
+  });
+
+  await assert.rejects(
+    () => service.createMatterFromUploadedFiles({
+      name: "Conflicting Matter",
+      files: [{ index: 0, tempPath: uploadedFile, filename: "conflict.txt", bytes: 18 }],
+      relativePaths: ["conflict.txt"],
+    }),
+    (error) => error?.statusCode === 409 && error?.code === "runtime_db.upload.matter_exists",
+  );
+});
+
 test("runtime DB storage service creates lawyer-captioned matters under safe storage names", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-captioned-upload-"));
   const uploadedFile = path.join(tmp, "fir.txt");
@@ -710,6 +744,7 @@ test("runtime DB storage service creates lawyer-captioned matters under safe sto
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence(calls, [{}, {}]),
+    createPgClient: async () => advisoryLockPgClient(),
   });
 
   const created = await service.createMatterFromUploadedFiles({
@@ -735,6 +770,7 @@ test("runtime DB storage service exposes stable runtime upload error codes", asy
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence([], [{ id: "existing-matter-id" }]),
+    createPgClient: async () => advisoryLockPgClient(),
   });
   await assert.rejects(
     () => collisionService.createMatterFromUploadedFiles({
@@ -787,6 +823,7 @@ test("runtime DB storage service preserves duplicate source identity in document
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence(calls, [{}, {}]),
+    createPgClient: async () => advisoryLockPgClient(),
   });
 
   await service.createMatterFromUploadedFiles({
@@ -815,6 +852,7 @@ test("runtime DB storage service stamps uploaded matters with the current privat
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence(calls, [{}, {}]),
+    createPgClient: async () => advisoryLockPgClient(),
   });
 
   let actor;

@@ -372,6 +372,7 @@ cluster using an admin role with `CREATEDB` and `CREATEROLE`. The suite creates
 a randomly named database and non-superuser runtime role, applies all
 migrations, proves source-removal replay does not duplicate events or overwrite
 newer currentness, exercises upload commit/cancel across two service instances,
+proves concurrent matter creates collapse to one active case-insensitive name,
 and drops the temporary database and role afterward. Do not point this suite at
 a production cluster.
 
