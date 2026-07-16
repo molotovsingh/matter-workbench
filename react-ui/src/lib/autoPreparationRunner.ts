@@ -437,7 +437,7 @@ async function waitForServerPreparationJob({
 
 function findServerPreparationJob(jobs: JobStatus[], { jobId, kind }: { jobId?: string; kind?: string }): JobStatus | null {
   if (jobId) {
-    const exact = jobs.find((job) => job.id === jobId);
+    const exact = jobs.find((job) => job.id === jobId || job.backendJobId === jobId);
     if (exact) return exact;
   }
   if (kind) return jobs.find((job) => job.kind === kind) || null;

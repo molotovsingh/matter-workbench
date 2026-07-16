@@ -313,6 +313,7 @@ export interface JobStageStatus {
 export interface JobStatus {
   schema_version?: 'job-status/v1';
   id: string;
+  backendJobId?: string;
   kind: string;
   label: string;
   status: 'running' | 'succeeded' | 'failed' | 'cancelled' | string;

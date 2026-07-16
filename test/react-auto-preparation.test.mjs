@@ -193,6 +193,12 @@ test("React automatic preparation sanitizes upstream HTML before showing failure
   assert.match(runner, /const message = formatVisiblePreparationError\(error, stage\);[\s\S]*markStageFailed\(next, stage, message\)/);
 });
 
+test("React automatic preparation matches runtime DB jobs by their backend id", async () => {
+  const runner = await readFile(runnerPath, "utf8");
+
+  assert.match(runner, /job\.id === jobId \|\| job\.backendJobId === jobId/);
+});
+
 test("React automatic preparation suppresses failed-stage UI updates after the matter goes stale", async () => {
   const runner = await readFile(runnerPath, "utf8");
 
