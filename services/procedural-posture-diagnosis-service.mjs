@@ -19,6 +19,7 @@ import {
   POSTURE_DIAGNOSIS_DISPOSITION_VALUES,
   diagnosisSchema,
   finalDiagnosisSchema,
+  finalDiagnosisValidationErrors,
   normalizeFiling,
   normalizeFilings,
   normalizeLegalRoutes,
@@ -624,27 +625,13 @@ function normalizeInjectedDiagnosisLoop(value = {}) {
 }
 
 function validateFinalDiagnosis(value = {}) {
-  const required = [
-    "short_diagnosis",
-    "court_forum",
-    "procedural_posture",
-    "possible_filings",
-    "recommended_working_path",
-    "governing_law",
-    "central_facts",
-    "adverse_or_difficult_facts",
-    "missing_information",
-    "lawyer_to_confirm",
-    "internal_source_handles",
-  ];
-  for (const key of required) {
-    if (!(key in (value || {}))) {
-      throw makeHttpError(
-        "Procedural posture diagnosis returned an incomplete result.",
-        502,
-        "procedural_posture.invalid_output",
-      );
-    }
+  const errors = finalDiagnosisValidationErrors(value);
+  if (errors.length) {
+    throw makeHttpError(
+      "Procedural posture diagnosis returned an incomplete or invalid result.",
+      502,
+      "procedural_posture.invalid_output",
+    );
   }
 }
 

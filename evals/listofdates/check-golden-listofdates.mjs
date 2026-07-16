@@ -3,11 +3,26 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import {
+  CASE_TIMELINE_JSON_RELATIVE,
+  CASE_TIMELINE_MARKDOWN_RELATIVE,
+  LEGACY_LIST_OF_DATES_JSON_RELATIVE,
+  LEGACY_LIST_OF_DATES_MARKDOWN_RELATIVE,
+} from "../../shared/matter-artifacts.mjs";
+
 const DEFAULT_CASES_DIR = path.join(os.homedir(), "Downloads");
 const DEFAULT_MATTERS_DIR = path.join(os.homedir(), "matters-matter-workbench");
 const GOLDEN_FILENAME = "GOLDEN_LIST_OF_DATES.md";
-const GENERATED_RELATIVE_PATH = path.join("10_Library", "List of Dates.md");
-const GENERATED_JSON_FILENAME = "List of Dates.json";
+const GENERATED_ARTIFACT_CANDIDATES = Object.freeze([
+  {
+    markdown: CASE_TIMELINE_MARKDOWN_RELATIVE,
+    json: CASE_TIMELINE_JSON_RELATIVE,
+  },
+  {
+    markdown: LEGACY_LIST_OF_DATES_MARKDOWN_RELATIVE,
+    json: LEGACY_LIST_OF_DATES_JSON_RELATIVE,
+  },
+]);
 const CITATION_RE = /\b(FILE-\d{4,})\s+p(\d+)\.b(\d+|\?)(?=\s|$|[`).,;:])/;
 const RAW_CITATION_RE = /\bFILE-\d{4,}\s+p\d+\.b\d+(?=\s|$|[`).,;:])/;
 const BANNED_UNSUPPORTED_CONCLUSIONS = [
@@ -77,7 +92,7 @@ function printHelp() {
   console.log(`Usage: node evals/listofdates/check-golden-listofdates.mjs [options]
 
 Compare dummy-case GOLDEN_LIST_OF_DATES.md files against generated
-10_Library/List of Dates.md artifacts.
+10_Library/Case Timeline.md artifacts (with legacy List of Dates fallback).
 
 Options:
   --cases-dir DIR    Folder containing case_* dummy folders (default: ~/Downloads)
@@ -162,20 +177,41 @@ async function discoverGeneratedMatters(mattersDir) {
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const listPath = path.join(mattersDir, entry.name, GENERATED_RELATIVE_PATH);
-    if (!(await pathExists(listPath))) continue;
-    const markdown = await readFile(listPath, "utf8");
-    const jsonPath = path.join(path.dirname(listPath), GENERATED_JSON_FILENAME);
+    const matterRoot = path.join(mattersDir, entry.name);
+    const artifact = await firstExistingGeneratedArtifact(matterRoot);
+    if (!artifact) continue;
+    const markdown = await readFile(artifact.markdownPath, "utf8");
     matters.push({
       matterDirName: entry.name,
-      path: listPath,
-      jsonPath: await pathExists(jsonPath) ? jsonPath : "",
+      path: artifact.markdownPath,
+      jsonPath: artifact.jsonPath,
       matterName: extractMatterName(markdown),
-      mtimeMs: (await stat(listPath)).mtimeMs,
+      mtimeMs: (await stat(artifact.markdownPath)).mtimeMs,
     });
   }
 
   return matters.sort((a, b) => b.mtimeMs - a.mtimeMs);
+}
+
+async function firstExistingGeneratedArtifact(matterRoot) {
+  for (const candidate of GENERATED_ARTIFACT_CANDIDATES) {
+    const markdownPath = path.join(matterRoot, candidate.markdown);
+    if (!(await pathExists(markdownPath))) continue;
+    const preferredJsonPath = path.join(matterRoot, candidate.json);
+    const fallbackJsonPath = path.join(
+      matterRoot,
+      candidate.json === CASE_TIMELINE_JSON_RELATIVE
+        ? LEGACY_LIST_OF_DATES_JSON_RELATIVE
+        : CASE_TIMELINE_JSON_RELATIVE,
+    );
+    return {
+      markdownPath,
+      jsonPath: await pathExists(preferredJsonPath)
+        ? preferredJsonPath
+        : await pathExists(fallbackJsonPath) ? fallbackJsonPath : "",
+    };
+  }
+  return null;
 }
 
 function findGeneratedMatter(goldenCase, generatedMatters) {

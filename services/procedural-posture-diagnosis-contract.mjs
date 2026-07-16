@@ -71,6 +71,47 @@ export function finalDiagnosisSchema() {
   };
 }
 
+export function finalDiagnosisValidationErrors(value) {
+  const errors = [];
+  validateSchemaValue(value, finalDiagnosisSchema(), "$", errors);
+  return errors;
+}
+
+function validateSchemaValue(value, schema, location, errors) {
+  if (errors.length >= 20) return;
+  if (!matchesSchemaType(value, schema.type)) {
+    errors.push(`${location} must be ${schema.type}.`);
+    return;
+  }
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+    errors.push(`${location} must be one of: ${schema.enum.join(", ")}.`);
+    return;
+  }
+  if (schema.type === "object") {
+    for (const requiredKey of schema.required || []) {
+      if (!Object.hasOwn(value, requiredKey)) errors.push(`${location}.${requiredKey} is required.`);
+    }
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(value)) {
+        if (!Object.hasOwn(schema.properties || {}, key)) errors.push(`${location}.${key} is not allowed.`);
+      }
+    }
+    for (const [key, propertySchema] of Object.entries(schema.properties || {})) {
+      if (Object.hasOwn(value, key)) validateSchemaValue(value[key], propertySchema, `${location}.${key}`, errors);
+    }
+  } else if (schema.type === "array") {
+    value.forEach((item, index) => validateSchemaValue(item, schema.items || {}, `${location}[${index}]`, errors));
+  }
+}
+
+function matchesSchemaType(value, type) {
+  if (!type) return true;
+  if (type === "object") return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (type === "array") return Array.isArray(value);
+  if (type === "integer") return Number.isInteger(value);
+  return typeof value === type;
+}
+
 function postureFieldSchema() {
   return {
     type: "object",

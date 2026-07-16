@@ -221,6 +221,29 @@ test("procedural posture diagnosis refuses to run without a Case Timeline", asyn
   );
 });
 
+test("procedural posture validation rejects missing and wrongly typed canonical fields", async () => {
+  const invalidDiagnoses = [
+    (() => {
+      const diagnosis = structuredClone(finalDiagnosisFixture());
+      delete diagnosis.legal_routes;
+      return diagnosis;
+    })(),
+    { ...finalDiagnosisFixture(), court_forum: null },
+  ];
+
+  for (const invalidDiagnosis of invalidDiagnoses) {
+    const root = await matterRoot();
+    const service = createProceduralPostureDiagnosisService({
+      matterStore: store(root),
+      diagnosisProvider: async () => invalidDiagnosis,
+    });
+    await assert.rejects(
+      () => service.runDiagnosis({ overwrite: true, matterContextPacketOverride: contextPacket }),
+      (error) => error?.code === "procedural_posture.invalid_output" && error?.statusCode === 502,
+    );
+  }
+});
+
 test("procedural posture diagnosis writes markdown and JSON sidecar", async () => {
   const root = await matterRoot();
   const calls = [];
