@@ -61,6 +61,7 @@ test("heartbeat service queues compact journey snapshots and syncs later", async
   assert.equal(heartbeat.installId, "firm-beta-01");
   assert.equal(heartbeat.telemetryMode, "firm_internal");
   assert.equal(heartbeat.activeSessions, 1);
+  assert.equal(heartbeat.journeys[0].user, "shivangi@lawzeus.com");
   assert.equal(heartbeat.journeys[0].currentStage, "extract_documents");
   assert.equal(heartbeat.journeys[0].lastError, "504 Gateway Time-out");
   assert.equal(heartbeat.matterHealth[0].matter, "Gionee India Pvt Ltd v Bharat Nagpal");
@@ -114,6 +115,8 @@ test("heartbeat service redacts secrets and legal text in safe mode", async () =
   assert.match(text, /OPENAI_API_KEY=\[redacted-secret\]/);
   assert.match(text, /postgres:\/\/operator:\*\*\*@db:5432\/mwb/);
   assert.doesNotMatch(text, /sk-secret|heartpass|AIzaSyFixtureGoogleKeyValue/);
+  assert.doesNotMatch(text, /lawyer@example\.test/);
+  assert.equal(heartbeat.journeys[0].user, undefined);
   assert.doesNotMatch(text, /admitted liability/);
   assert.doesNotMatch(text, /Draft legal output body/);
 });

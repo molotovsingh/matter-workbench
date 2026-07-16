@@ -165,7 +165,7 @@ function sanitizeJourneys(items = [], telemetryMode = "safe") {
   if (!Array.isArray(items)) return [];
   return items.slice(0, MAX_JOURNEYS).map((item = {}) => {
     const normalized = {
-      user: sanitizeText(item.user, 180).trim(),
+      ...(telemetryMode === "firm_internal" && item.user ? { user: sanitizeText(item.user, 180).trim() } : {}),
       matter: sanitizeText(item.matter, 300).trim(),
       screen: sanitizeText(item.screen, 80).trim(),
       route: sanitizeText(item.route, 120).trim(),

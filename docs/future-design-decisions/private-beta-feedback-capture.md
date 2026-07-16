@@ -210,8 +210,8 @@ Telemetry modes:
 
 | Mode | Meaning |
 | --- | --- |
-| `safe` | Default. Send compact metadata and UI context. Do not include legal/source/generated text silently. |
-| `firm_internal` | Firm-controlled beta mode. Send richer tester context, monitor detail, evidence lines, and job metadata so the mothership can debug faster. Secrets are still redacted. |
+| `safe` | Default. Send compact metadata and UI context. Do not include tester usernames, display names, roles, or legal/source/generated text silently. Use trace/request IDs for correlation. |
+| `firm_internal` | Firm-controlled beta mode. Send richer tester context, including tester identity, monitor detail, evidence lines, and job metadata so the mothership can debug faster. Secrets are still redacted. |
 
 `firm_internal` is intended only where beta testers are firm lawyers or trusted
 internal users and the mothership is under the same controlled custody. It is
@@ -278,6 +278,7 @@ Signal packets may include:
 
 In `firm_internal` mode they may also include:
 
+- tester username, display name, and role;
 - full tester-provided feedback context;
 - advisory item detail;
 - broader evidence lines;
@@ -290,9 +291,9 @@ Signal packets must not include:
 - full bug evidence packs;
 - secrets or database URLs.
 
-In `safe` mode, source document text, OCR text, generated legal output,
-provider prompts/responses, full matter paths, and skill output bodies are also
-excluded from silent sync. In `firm_internal` mode, those legal/debug details
+In `safe` mode, tester username/display name/role, source document text, OCR
+text, generated legal output, provider prompts/responses, full matter paths, and
+skill output bodies are also excluded from silent sync. In `firm_internal` mode, those legal/debug details
 may be included only if they are already part of the captured feedback or
 diagnostic context; secret redaction still applies.
 
@@ -460,9 +461,9 @@ packet can look like:
 }
 ```
 
-In `safe` mode, heartbeat packets must not include raw source text, OCR text,
-generated legal output, provider prompts/responses, database URLs, API keys, or
-raw documents. In `firm_internal` mode, richer diagnostic metadata is acceptable
+In `safe` mode, heartbeat packets must not include tester usernames, raw source
+text, OCR text, generated legal output, provider prompts/responses, database
+URLs, API keys, or raw documents. In `firm_internal` mode, richer diagnostic metadata is acceptable
 for trusted firm beta, but secrets remain redacted.
 
 ### Product-Journey State Machine

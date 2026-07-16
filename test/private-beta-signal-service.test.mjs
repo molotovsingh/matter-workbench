@@ -335,12 +335,20 @@ test("private beta signal service supersedes failed job signals after later same
   assert.equal(requests[0].signal.details.supersededByJobId, "job_succeeded_posture_002");
 });
 
-test("private beta signal service captures sanitized client-side upload precheck events", async () => {
+test("private beta signal safe mode excludes tester identity from client events and sync", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-client-event-"));
+  const requests = [];
   const service = createPrivateBetaSignalService({
     signalsPath: path.join(tmp, "signals-ledger.json"),
     now: () => new Date("2026-06-23T10:00:00.000Z"),
     idFactory: () => "signal_client_upload_precheck",
+    syncUrl: "https://mothership.example.test/api/beta-signals",
+    syncToken: "safe-sync-secret",
+    installId: "safe-install-01",
+    fetchImpl: async (_url, options = {}) => {
+      requests.push(JSON.parse(options.body));
+      return { ok: true, status: 202, text: async () => "" };
+    },
   });
 
   const captured = await service.captureClientEvent({
@@ -359,7 +367,13 @@ test("private beta signal service captures sanitized client-side upload precheck
       relativePath: "Evidence/sbi6.pdf",
       sourceText: "raw client facts should never be sent",
     },
-  }, { runtimeMode: "postgres", username: "shivangi@lawzeus.com", userRole: "tester" });
+  }, {
+    runtimeMode: "postgres",
+    username: "shivangi@lawzeus.com",
+    displayName: "Shivangi",
+    userRole: "tester",
+    traceId: "trace-safe-01",
+  });
 
   assert.equal(captured.captured, 1);
   assert.equal(captured.signals[0].source, "client_event");
@@ -374,9 +388,17 @@ test("private beta signal service captures sanitized client-side upload precheck
   assert.equal(captured.signals[0].details.action, "create_matter");
   assert.equal(captured.signals[0].details.errorClass, "RangeError");
   assert.equal(captured.signals[0].details.errorMessage, "Cannot create a string longer than 0x1fffffe8 characters");
-  assert.equal(captured.signals[0].details.username, "shivangi@lawzeus.com");
-  assert.equal(captured.signals[0].details.userRole, "tester");
-  assert.doesNotMatch(JSON.stringify(captured), /sbi6\.pdf|Evidence|raw client facts/);
+  assert.equal(captured.signals[0].details.traceId, "trace-safe-01");
+  assert.equal(captured.signals[0].details.username, undefined);
+  assert.equal(captured.signals[0].details.displayName, undefined);
+  assert.equal(captured.signals[0].details.userRole, undefined);
+  assert.doesNotMatch(JSON.stringify(captured), /sbi6\.pdf|Evidence|raw client facts|shivangi@lawzeus\.com|Shivangi|tester/);
+
+  const synced = await service.syncQueuedSignals();
+  assert.equal(synced.sent, 1);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].signal.details.traceId, "trace-safe-01");
+  assert.doesNotMatch(JSON.stringify(requests), /shivangi@lawzeus\.com|Shivangi|tester|safe-sync-secret/);
 });
 
 test("private beta signal service reopens resolved client-event recurrences but preserves suppression", async () => {
@@ -549,12 +571,32 @@ test("private beta signal firm-internal mode keeps richer monitor context but st
   assert.equal(health.signals[0].details.storePaths.skills, "/Users/aksingh/matter-workbench/configurable-skills.json");
   assert.match(health.signals[0].details.message, /password=\[redacted-secret\]/);
 
+  const clientEvent = await service.captureClientEvent({
+    code: "upload.precheck_hash_unavailable",
+    view: "new_matter",
+    action: "create_matter",
+    stage: "upload_precheck",
+  }, {
+    runtimeMode: "postgres",
+    username: "shivangi@lawzeus.com",
+    displayName: "Shivangi",
+    userRole: "tester",
+    traceId: "trace-firm-01",
+  });
+  assert.equal(clientEvent.signals[0].details.username, "shivangi@lawzeus.com");
+  assert.equal(clientEvent.signals[0].details.displayName, "Shivangi");
+  assert.equal(clientEvent.signals[0].details.userRole, "tester");
+
   assert.equal(requests.length, 0);
   const synced = await service.syncQueuedSignals();
-  assert.equal(synced.sent, 3);
-  assert.equal(requests.length, 3);
+  assert.equal(synced.sent, 4);
+  assert.equal(requests.length, 4);
   assert.equal(requests[0].body.signal.telemetryMode, "firm_internal");
   assert.match(requests[0].body.signal.details.detail, /The 2023 notice appears/);
   assert.equal(requests[0].body.signal.details.evidence[1], "source text: Client says notice was sent on 12 March 2023.");
+  const syncedClientEvent = requests.find((request) => request.body.signal.source === "client_event");
+  assert.equal(syncedClientEvent.body.signal.details.username, "shivangi@lawzeus.com");
+  assert.equal(syncedClientEvent.body.signal.details.displayName, "Shivangi");
+  assert.equal(syncedClientEvent.body.signal.details.userRole, "tester");
   assert.doesNotMatch(JSON.stringify(requests), /sk-attention-secret|sk-job-secret|sk-provider-secret|sk-sample-secret|signal-sync-secret/);
 });

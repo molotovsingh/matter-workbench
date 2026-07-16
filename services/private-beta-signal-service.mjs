@@ -22,6 +22,7 @@ const DEFAULT_LIMIT = 100;
 
 const ALLOWED_SOURCES = new Set(["matter_attention", "job_status", "skill_factory_health", "client_event"]);
 const ALLOWED_SEVERITIES = new Set(["blocker", "warning", "info", "error"]);
+const FIRM_INTERNAL_IDENTITY_DETAIL_KEYS = new Set(["displayName", "userRole", "username"]);
 
 export function createPrivateBetaSignalService({
   appDir = process.cwd(),
@@ -501,9 +502,9 @@ function buildClientEventSignal({
       action,
       ...(errorClass ? { errorClass } : {}),
       ...(errorMessage ? { errorMessage } : {}),
-      ...(username ? { username } : {}),
-      ...(displayName ? { displayName } : {}),
-      ...(userRole ? { userRole } : {}),
+      ...(normalizedTelemetryMode === "firm_internal" && username ? { username } : {}),
+      ...(normalizedTelemetryMode === "firm_internal" && displayName ? { displayName } : {}),
+      ...(normalizedTelemetryMode === "firm_internal" && userRole ? { userRole } : {}),
       ...(traceId ? { traceId } : {}),
       ...(requestId ? { requestId } : {}),
     },
@@ -640,6 +641,7 @@ function sanitizeDetails(details = {}, { telemetryMode = "safe" } = {}) {
   ]);
   for (const [key, value] of Object.entries(details)) {
     if (!allowed.has(key)) continue;
+    if (FIRM_INTERNAL_IDENTITY_DETAIL_KEYS.has(key) && normalizedTelemetryMode !== "firm_internal") continue;
     if (key === "evidence") safe.evidence = sanitizeEvidenceList(value, { telemetryMode: normalizedTelemetryMode });
     else if ((key === "metadata" || key === "storePaths") && normalizedTelemetryMode === "firm_internal") {
       safe[key] = sanitizeDiagnosticValue(value);
