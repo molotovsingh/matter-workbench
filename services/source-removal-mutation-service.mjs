@@ -68,14 +68,18 @@ export function createSourceRemovalMutationService({
   } = {}) {
     const request = normalizeRemovalRequest({ matterRoot, matterName, fileId, reason, idempotencyKey });
     const repairPath = path.join(request.matterRoot, SOURCE_REMOVAL_REPAIR_RELATIVE);
-    await assertNoBlockingRepairState(repairPath);
+    const repairState = await readBlockingRepairState(repairPath, request.matterRoot);
+    const isRepairRetry = Boolean(repairState
+      && normalizeFileId(repairState.file_id) === request.fileId
+      && normalizeText(repairState.idempotency_key, 500) === request.idempotencyKey);
+    if (repairState && !isRepairRetry) throw sourceRemovalRepairRequiredError();
 
     const existingTombstone = await sourceTombstoneForFileId(request.matterRoot, request.fileId);
     const sourceRecord = existingTombstone || await findLocalSourceRecord(request.matterRoot, request.fileId);
     if (!sourceRecord) {
       throw makeHttpError(`${request.fileId} is not present in the matter source register.`, 404, "source_removal.source_not_found");
     }
-    if (isInactiveSourceStatus(sourceRecord.status) || existingTombstone) {
+    if ((isInactiveSourceStatus(sourceRecord.status) || existingTombstone) && !isRepairRetry) {
       return mutationResult({
         matterName: request.matterName,
         fileId: request.fileId,
@@ -86,24 +90,26 @@ export function createSourceRemovalMutationService({
       });
     }
 
-    const occurredAt = isoNow(now);
-    const eventId = idFactory();
+    const mutationRequest = isRepairRetry
+      ? { ...request, reason: normalizeText(existingTombstone?.reason, 2000) || request.reason }
+      : request;
+    const occurredAt = normalizeIso(repairState?.occurred_at) || isoNow(now);
+    const eventId = normalizeText(repairState?.event_id, 200) || idFactory();
     const repairBase = {
       schema_version: SOURCE_REMOVAL_REPAIR_SCHEMA_VERSION,
       status: "pending",
       phase: "starting",
-      matter_name: request.matterName,
-      file_id: request.fileId,
-      idempotency_key: request.idempotencyKey,
+      matter_name: mutationRequest.matterName,
+      file_id: mutationRequest.fileId,
+      idempotency_key: mutationRequest.idempotencyKey,
       event_id: eventId,
       occurred_at: occurredAt,
     };
-    await writeRepairState(repairPath, repairBase);
 
     let preview = null;
     try {
       preview = typeof previewBuilder === "function"
-        ? await previewBuilder({ matterRoot: request.matterRoot, fileId: request.fileId })
+        ? await previewBuilder({ matterRoot: mutationRequest.matterRoot, fileId: mutationRequest.fileId })
         : null;
     } catch {
       preview = null;
@@ -111,44 +117,47 @@ export function createSourceRemovalMutationService({
 
     const eventPayload = sourceRemovalEventPayload({
       source: sourceRecord,
-      request,
+      request: mutationRequest,
       eventId,
       occurredAt,
       actor,
     });
     const currentnessRecords = await buildLocalCurrentnessRecords({
-      matterRoot: request.matterRoot,
-      matterName: request.matterName,
-      fileId: request.fileId,
+      matterRoot: mutationRequest.matterRoot,
+      matterName: mutationRequest.matterName,
+      fileId: mutationRequest.fileId,
       preview,
       eventId,
       observedAt: occurredAt,
     });
 
+    let mutationStarted = Boolean(isRepairRetry && existingTombstone);
     try {
+      await writeRepairState(repairPath, repairBase);
       await writeRepairState(repairPath, { ...repairBase, phase: "tombstone_manifest" });
-      await upsertLocalSourceTombstone(request.matterRoot, {
+      await upsertLocalSourceTombstone(mutationRequest.matterRoot, {
         ...sourceRecord,
-        file_id: request.fileId,
+        file_id: mutationRequest.fileId,
         status: SOURCE_REMOVAL_STATUS,
         event_id: eventId,
         occurred_at: occurredAt,
-        reason: request.reason,
-        idempotency_key: request.idempotencyKey,
+        reason: mutationRequest.reason,
+        idempotency_key: mutationRequest.idempotencyKey,
       });
+      mutationStarted = true;
 
       await writeRepairState(repairPath, { ...repairBase, phase: "matter_event" });
       const service = eventService || createMatterEventsService({ appDir });
       const event = await service.appendEvent(eventPayload);
 
       await writeRepairState(repairPath, { ...repairBase, phase: "artifact_currentness" });
-      const store = currentnessStore || createLocalArtifactCurrentnessStore({ matterRoot: request.matterRoot, now });
+      const store = currentnessStore || createLocalArtifactCurrentnessStore({ matterRoot: mutationRequest.matterRoot, now });
       const currentness = await store.upsertRecords(currentnessRecords);
 
       await rm(repairPath, { force: true });
       return mutationResult({
-        matterName: request.matterName,
-        fileId: request.fileId,
+        matterName: mutationRequest.matterName,
+        fileId: mutationRequest.fileId,
         state: SOURCE_REMOVAL_STATUS,
         eventId: event?.eventId || eventId,
         source: sanitizeSourceForResult(sourceRecord),
@@ -159,6 +168,10 @@ export function createSourceRemovalMutationService({
         ],
       });
     } catch (error) {
+      if (!mutationStarted) {
+        await rm(repairPath, { force: true }).catch(() => {});
+        throw error;
+      }
       await writeRepairState(repairPath, {
         ...repairBase,
         status: "repair_required",
@@ -447,7 +460,7 @@ async function listIntakeFolders(root) {
 }
 
 async function sourceTombstoneForFileId(root, fileId) {
-  const manifest = await readTombstoneManifestForWrite(root, { missingOk: true });
+  const manifest = await readTombstoneManifestForWrite(root);
   return manifest.sources.find((entry) => normalizeFileId(entry.file_id) === fileId && isInactiveSourceStatus(entry.status)) || null;
 }
 
@@ -469,7 +482,7 @@ async function upsertLocalSourceTombstone(root, entry) {
   return next;
 }
 
-async function readTombstoneManifestForWrite(root, { missingOk = false } = {}) {
+async function readTombstoneManifestForWrite(root) {
   const manifestPath = path.join(root, SOURCE_TOMBSTONES_RELATIVE);
   let raw = "";
   try {
@@ -483,34 +496,54 @@ async function readTombstoneManifestForWrite(root, { missingOk = false } = {}) {
     if (parsed?.schema_version !== SOURCE_TOMBSTONES_SCHEMA_VERSION) {
       throw makeHttpError("Source tombstone manifest has an unsupported schema.", 409, "source_removal.tombstone_manifest_invalid");
     }
+    if (!Array.isArray(parsed.sources)) {
+      throw makeHttpError("Source tombstone manifest must contain a sources array.", 409, "source_removal.tombstone_manifest_invalid");
+    }
     return {
       schema_version: SOURCE_TOMBSTONES_SCHEMA_VERSION,
-      sources: Array.isArray(parsed.sources) ? parsed.sources : [],
+      sources: parsed.sources,
     };
   } catch (error) {
     if (error?.statusCode) throw error;
-    if (missingOk) return { schema_version: SOURCE_TOMBSTONES_SCHEMA_VERSION, sources: [] };
     throw makeHttpError(`Source tombstone manifest is invalid: ${safeErrorMessage(error)}`, 409, "source_removal.tombstone_manifest_invalid");
   }
 }
 
-async function assertNoBlockingRepairState(repairPath) {
+async function readBlockingRepairState(repairPath, matterRoot) {
   let raw = "";
   try {
     raw = await readFile(repairPath, "utf8");
   } catch (error) {
-    if (error?.code === "ENOENT") return;
+    if (error?.code === "ENOENT") return null;
     throw makeHttpError(`Source removal repair state could not be read: ${safeErrorMessage(error)}`, 500, "source_removal.repair_state_read_failed");
   }
+  let parsed;
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed?.schema_version === SOURCE_REMOVAL_REPAIR_SCHEMA_VERSION && parsed.status !== "completed") {
-      throw makeHttpError("A previous source-removal mutation needs operator repair before another removal can run.", 409, "source_removal.repair_required");
-    }
-  } catch (error) {
-    if (error?.statusCode) throw error;
-    throw makeHttpError("A previous source-removal repair state is unreadable and needs operator repair.", 409, "source_removal.repair_required");
+    parsed = JSON.parse(raw);
+  } catch {
+    throw sourceRemovalRepairRequiredError("A previous source-removal repair state is unreadable and needs operator repair.");
   }
+  if (parsed?.schema_version !== SOURCE_REMOVAL_REPAIR_SCHEMA_VERSION) {
+    throw sourceRemovalRepairRequiredError("A previous source-removal repair state has an unsupported schema and needs operator repair.");
+  }
+  if (parsed.status === "completed") {
+    await rm(repairPath, { force: true }).catch(() => {});
+    return null;
+  }
+  const phase = normalizeText(parsed.phase, 80);
+  if (["starting", "tombstone_manifest"].includes(phase)) {
+    const fileId = normalizeFileId(parsed.file_id);
+    const tombstone = fileId ? await sourceTombstoneForFileId(matterRoot, fileId) : null;
+    if (!tombstone) {
+      await rm(repairPath, { force: true });
+      return null;
+    }
+  }
+  return parsed;
+}
+
+function sourceRemovalRepairRequiredError(message = "A previous source-removal mutation needs operator repair before another removal can run.") {
+  return makeHttpError(message, 409, "source_removal.repair_required");
 }
 
 async function writeRepairState(repairPath, state) {

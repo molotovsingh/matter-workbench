@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { parseCsv } from "../shared/csv.mjs";
-import { toPosix } from "../shared/safe-paths.mjs";
+import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 
 export const SOURCE_TOMBSTONES_SCHEMA_VERSION = "matter-source-tombstones/v1";
 export const SOURCE_TOMBSTONES_RELATIVE = ".matter-workbench/source-tombstones.json";
@@ -14,28 +14,46 @@ const SUPPRESSING_SOURCE_STATUSES = new Set([
   "deleted",
 ]);
 
-export async function readSourceSuppressionIndex(root, { warnings = [] } = {}) {
+export async function readSourceSuppressionIndex(root, _options = {}) {
   const manifestPath = path.join(root, SOURCE_TOMBSTONES_RELATIVE);
-  let parsed;
+  let raw;
   try {
-    parsed = JSON.parse(await readFile(manifestPath, "utf8"));
+    raw = await readFile(manifestPath, "utf8");
   } catch (error) {
-    if (error?.code !== "ENOENT") {
-      warnings.push(`Skipped invalid ${SOURCE_TOMBSTONES_RELATIVE}: ${error.message}`);
-    }
-    return createSourceSuppressionIndex();
+    if (error?.code === "ENOENT") return createSourceSuppressionIndex();
+    throw sourceSuppressionManifestError(
+      "Source tombstone manifest could not be read.",
+      500,
+      "active_source_set.tombstone_manifest_read_failed",
+    );
   }
 
-  if (parsed?.schema_version !== SOURCE_TOMBSTONES_SCHEMA_VERSION) {
-    warnings.push(`Skipped ${SOURCE_TOMBSTONES_RELATIVE}: unrecognized tombstone schema`);
-    return createSourceSuppressionIndex();
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw sourceSuppressionManifestError(
+      "Source tombstone manifest is invalid JSON.",
+      409,
+      "active_source_set.tombstone_manifest_invalid",
+    );
   }
-  const entries = Array.isArray(parsed.sources)
-    ? parsed.sources
-    : Array.isArray(parsed.tombstones)
-      ? parsed.tombstones
-      : [];
-  return createSourceSuppressionIndex(entries);
+  if (parsed?.schema_version !== SOURCE_TOMBSTONES_SCHEMA_VERSION) {
+    throw sourceSuppressionManifestError(
+      "Source tombstone manifest has an unsupported schema.",
+      409,
+      "active_source_set.tombstone_manifest_invalid",
+    );
+  }
+  if (!Array.isArray(parsed.sources)) {
+    throw sourceSuppressionManifestError(
+      "Source tombstone manifest must contain a sources array.",
+      409,
+      "active_source_set.tombstone_manifest_invalid",
+    );
+  }
+  validateSourceSuppressionEntries(parsed.sources);
+  return createSourceSuppressionIndex(parsed.sources);
 }
 
 export function createSourceSuppressionIndex(entries = []) {
@@ -47,6 +65,38 @@ export function createSourceSuppressionIndex(entries = []) {
     addSourceSuppressionEntry(index, entry);
   }
   return index;
+}
+
+function validateSourceSuppressionEntries(entries = []) {
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw sourceSuppressionManifestError(
+        `Source tombstone manifest entry ${index + 1} must be an object.`,
+        409,
+        "active_source_set.tombstone_manifest_invalid",
+      );
+    }
+    const normalized = normalizeSourceSuppressionEntry(entry);
+    if (!normalized.file_id && !normalized.source_path && !normalized.working_copy_path && !normalized.original_path) {
+      throw sourceSuppressionManifestError(
+        `Source tombstone manifest entry ${index + 1} has no source identity.`,
+        409,
+        "active_source_set.tombstone_manifest_invalid",
+      );
+    }
+    if (!isInactiveSourceStatus(normalized.status)) {
+      throw sourceSuppressionManifestError(
+        `Source tombstone manifest entry ${index + 1} has a non-suppressing status.`,
+        409,
+        "active_source_set.tombstone_manifest_invalid",
+      );
+    }
+  }
+}
+
+function sourceSuppressionManifestError(message, statusCode, code) {
+  return makeHttpError(message, statusCode, code);
 }
 
 export async function addInactiveRegisterRowsToSuppressionIndex(root, intakes = [], index = createSourceSuppressionIndex(), { warnings = [] } = {}) {

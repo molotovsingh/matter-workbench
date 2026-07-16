@@ -121,6 +121,67 @@ test("local source-removal mutation records repair state when event append fails
   );
 });
 
+test("local source-removal mutation resumes the same idempotent request after a partial write", async () => {
+  const root = await makeMatterRoot();
+  let appendAttempts = 0;
+  const service = createSourceRemovalMutationService({
+    matterEventsService: {
+      appendEvent: async (event) => {
+        appendAttempts += 1;
+        if (appendAttempts === 1) throw Object.assign(new Error("ledger unavailable"), { code: "test.ledger_unavailable" });
+        return event;
+      },
+    },
+    now: () => new Date("2026-06-26T00:00:00.000Z"),
+    idFactory: () => "33333333-3333-4333-8333-333333333333",
+  });
+  const request = {
+    matterRoot: root,
+    matterName: "Demo Matter",
+    fileId: "FILE-0002",
+    reason: "Wrong client file uploaded to this matter.",
+    idempotencyKey: "source-removal:demo:FILE-0002:resume",
+    previewBuilder: async () => ({ affected_artifacts: [] }),
+  };
+
+  await assert.rejects(() => service.removeLocalSourceFromActiveRecord(request), /ledger unavailable/);
+  const resumed = await service.removeLocalSourceFromActiveRecord(request);
+
+  assert.equal(resumed.state, SOURCE_REMOVAL_STATUS);
+  assert.equal(resumed.event_id, "33333333-3333-4333-8333-333333333333");
+  assert.equal(appendAttempts, 2);
+  await assert.rejects(() => stat(path.join(root, SOURCE_REMOVAL_REPAIR_RELATIVE)), /ENOENT/);
+});
+
+test("local source-removal mutation clears a stale pre-mutation repair state with no tombstone", async () => {
+  const root = await makeMatterRoot();
+  const repairPath = path.join(root, SOURCE_REMOVAL_REPAIR_RELATIVE);
+  await mkdir(path.dirname(repairPath), { recursive: true });
+  await writeFile(repairPath, JSON.stringify({
+    schema_version: "source-removal-repair/v1",
+    status: "repair_required",
+    phase: "starting",
+    file_id: "FILE-0001",
+    idempotency_key: "abandoned-before-write",
+  }));
+  const service = createSourceRemovalMutationService({
+    matterEventsService: { appendEvent: async (event) => event },
+    idFactory: () => "55555555-5555-4555-8555-555555555555",
+  });
+
+  const result = await service.removeLocalSourceFromActiveRecord({
+    matterRoot: root,
+    matterName: "Demo Matter",
+    fileId: "FILE-0002",
+    reason: "Wrong client file uploaded to this matter.",
+    idempotencyKey: "source-removal:demo:FILE-0002:after-stale-repair",
+    previewBuilder: async () => ({ affected_artifacts: [] }),
+  });
+
+  assert.equal(result.state, SOURCE_REMOVAL_STATUS);
+  await assert.rejects(() => stat(repairPath), /ENOENT/);
+});
+
 test("source-removal mutation validates reason and idempotency before writing", async () => {
   const root = await makeMatterRoot();
   const service = createSourceRemovalMutationService({ matterEventsService: { appendEvent: async (event) => event } });

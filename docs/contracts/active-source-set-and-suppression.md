@@ -48,9 +48,13 @@ Suppressing statuses:
 The manifest stores identifiers and custody metadata only. It must not store
 source text, extracted evidence blocks, or legal work product.
 
-Invalid or missing manifests fail safe for current beta behavior: missing means
-no local suppression; invalid manifests are ignored with a warning. Future
-write-side removal must make manifest/event writes atomic and operator-visible.
+Missing and invalid manifests have different meanings. A missing optional
+manifest means no local suppression. A manifest that exists but has invalid
+JSON, an unsupported schema, a missing `sources` array, or an unusable entry
+fails closed with a stable `active_source_set.tombstone_manifest_*` error. It
+must never be treated as an empty suppression set, because that could silently
+reactivate a removed source. Write-side removal must keep manifest/event writes
+atomic and operator-visible.
 
 ## Current Read-Side Behavior
 

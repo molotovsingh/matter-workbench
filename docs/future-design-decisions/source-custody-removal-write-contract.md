@@ -135,9 +135,12 @@ mutation queue and perform, in order:
 5. return the source id, event id, and affected-artifact summary.
 
 If a local append fails after a manifest write, the operation must surface a
-repair-required state and block later removals until repaired. A future
-implementation may use a single local transaction journal and operator repair UI
-to make this stronger.
+repair-required state. Retrying the same file with the same idempotency key now
+resumes the journaled tombstone/event/currentness sequence; idempotent event and
+currentness writes make that retry safe. A stale pre-mutation journal with no
+matching tombstone is cleared automatically. Different removals remain blocked
+while a genuinely partial mutation is unresolved. An operator-visible repair UI
+is still required for irrecoverable or mismatched repair state.
 
 ## Active Source Set Effects
 

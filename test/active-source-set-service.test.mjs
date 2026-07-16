@@ -42,19 +42,35 @@ test("source suppression index treats removed and quarantined source rows as ina
   assert.equal(isInactiveSourceStatus("exact-duplicate"), false);
 });
 
-test("source suppression manifest is optional and fail-safe on invalid JSON", async () => {
+test("source suppression manifest is optional but fails closed when present and invalid", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "active-source-set-test-"));
   const warnings = [];
   const empty = await readSourceSuppressionIndex(root, { warnings });
   assert.equal(isSourceSuppressed({ file_id: "FILE-0001" }, empty), false);
   assert.deepEqual(warnings, []);
 
-  await mkdir(path.join(root, path.dirname(SOURCE_TOMBSTONES_RELATIVE)), { recursive: true });
-  await writeFile(path.join(root, SOURCE_TOMBSTONES_RELATIVE), "not json");
-  const invalidWarnings = [];
-  const invalid = await readSourceSuppressionIndex(root, { warnings: invalidWarnings });
-  assert.equal(isSourceSuppressed({ file_id: "FILE-0001" }, invalid), false);
-  assert.match(invalidWarnings.join("\n"), /Skipped invalid \.matter-workbench\/source-tombstones\.json/);
+  const manifestPath = path.join(root, SOURCE_TOMBSTONES_RELATIVE);
+  await mkdir(path.dirname(manifestPath), { recursive: true });
+  await writeFile(manifestPath, "not json");
+  await assert.rejects(
+    () => readSourceSuppressionIndex(root),
+    (error) => error?.statusCode === 409 && error?.code === "active_source_set.tombstone_manifest_invalid",
+  );
+
+  await writeFile(manifestPath, JSON.stringify({ schema_version: "matter-source-tombstones/v2", sources: [] }));
+  await assert.rejects(
+    () => readSourceSuppressionIndex(root),
+    (error) => error?.statusCode === 409 && error?.code === "active_source_set.tombstone_manifest_invalid",
+  );
+
+  await writeFile(manifestPath, JSON.stringify({
+    schema_version: SOURCE_TOMBSTONES_SCHEMA_VERSION,
+    sources: [{ file_id: "FILE-0001", status: "active" }],
+  }));
+  await assert.rejects(
+    () => readSourceSuppressionIndex(root),
+    (error) => error?.statusCode === 409 && error?.code === "active_source_set.tombstone_manifest_invalid",
+  );
 });
 
 test("inactive File Register rows can seed the suppression index", async () => {
