@@ -159,6 +159,57 @@ test("copilot web research normalizes fake answer provider output", async () => 
   assert.deepEqual(answer.research, { provider: "exa", query: "NCLT IBC", result_count: 1 });
 });
 
+test("copilot web research validates matter citations against the context packet", async () => {
+  const citedPacket = {
+    ...packet,
+    evidence_blocks: [{
+      citation: "FILE-0001 p1.b1",
+      source_label: "Agreement",
+      source_short_label: "Agreement",
+      text: "The agreement requires payment on 1 January.",
+    }],
+  };
+  const answers = [
+    {
+      answer_status: "answered",
+      answer_markdown: "The agreement fixes payment on 1 January [FILE-0001 p1.b1].",
+      matter_sources: [
+        { raw_citation: "FILE-0001 p1.b1", source_label: "Invented label", snippet: "Invented snippet" },
+        { raw_citation: "FILE-9999 p9.b9", source_label: "Invented source", snippet: "Invented evidence" },
+      ],
+      public_sources: [{ id: "WEB-0001" }],
+    },
+    {
+      answer_status: "answered",
+      answer_markdown: "An unsupported matter record says otherwise [FILE-9999 p9.b9].",
+      matter_sources: [],
+      public_sources: [{ id: "WEB-0001" }],
+    },
+  ];
+  const service = createCopilotWebResearchService({
+    env: { COPILOT_WEB_RESEARCH_ENABLED: "true", EXA_API_KEY: "exa-test" },
+    webResearchProvider: async () => ({
+      sources: [{ id: "WEB-0001", title: "Public authority", url: "https://example.test/authority" }],
+    }),
+    researchAnswerProvider: async () => answers.shift(),
+  });
+
+  const partial = await service.answerResearchQuestionFromPacket({ packet: citedPacket, question: "When is payment due?" });
+  assert.equal(partial.answer_status, "partial");
+  assert.deepEqual(partial.matter_sources, [{
+    raw_citation: "FILE-0001 p1.b1",
+    source_label: "Invented label",
+    snippet: "Invented snippet",
+  }]);
+  assert.match(partial.warnings.join("\n"), /matter source references could not be verified/i);
+
+  const blocked = await service.answerResearchQuestionFromPacket({ packet: citedPacket, question: "What does the record say?" });
+  assert.equal(blocked.answer_status, "blocked");
+  assert.deepEqual(blocked.matter_sources, []);
+  assert.doesNotMatch(blocked.answer_markdown, /FILE-9999/);
+  assert.match(blocked.warnings.join("\n"), /withheld.*matter citation/i);
+});
+
 test("copilot web research validates public source IDs in structured output and prose", async () => {
   const service = createCopilotWebResearchService({
     env: { COPILOT_WEB_RESEARCH_ENABLED: "true", EXA_API_KEY: "exa-test" },

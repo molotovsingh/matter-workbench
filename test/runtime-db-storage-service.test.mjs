@@ -704,6 +704,7 @@ test("runtime DB storage service exposes stable runtime upload error codes", asy
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence([], [{}]),
+    createPgClient: async () => advisoryLockPgClient(),
   });
   await assert.rejects(
     () => service.addUploadedFilesToMatter({
@@ -800,6 +801,7 @@ test("runtime DB storage service appends uploaded files to a new intake with pay
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
+    createPgClient: async () => advisoryLockPgClient(),
     spawn: (command, args, options = {}) => {
       calls.push({ command, args, input: options.input });
       const input = options.input || "";
@@ -900,6 +902,7 @@ test("runtime DB storage service reserves add-files allocation under a matter ro
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
+    createPgClient: async () => advisoryLockPgClient(),
     spawn: jsonSpawnSequence(calls, [
       {
         matter: { ...matter, nextFileNumber: 3 },
@@ -931,7 +934,7 @@ test("runtime DB storage service reserves add-files allocation under a matter ro
   assert.doesNotMatch(calls[2].input, /'multipart_upload'/i);
 });
 
-test("runtime DB storage service serializes add-files manifest merges for one matter", async () => {
+test("runtime DB storage service serializes add-files manifest merges across service instances", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-runtime-db-queued-add-upload-"));
   const firstFile = path.join(tmp, "first.pdf");
   const secondFile = path.join(tmp, "second.pdf");
@@ -939,9 +942,11 @@ test("runtime DB storage service serializes add-files manifest merges for one ma
   await writeFile(secondFile, "%PDF-1.7 second supplemental affidavit");
   const calls = [];
   let allocationCount = 0;
-  const service = createRuntimeDbStorageService({
+  const createPgClient = advisoryLockCoordinator();
+  const serviceOptions = {
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
+    createPgClient,
     spawn: (_command, _args, options = {}) => {
       const input = options.input || "";
       let kind = "other";
@@ -978,16 +983,18 @@ test("runtime DB storage service serializes add-files manifest merges for one ma
         stderr: "",
       };
     },
-  });
+  };
+  const firstService = createRuntimeDbStorageService(serviceOptions);
+  const secondService = createRuntimeDbStorageService(serviceOptions);
 
   await Promise.all([
-    service.addUploadedFilesToMatter({
+    firstService.addUploadedFilesToMatter({
       matter,
       label: "First Follow Up",
       files: [{ index: 0, tempPath: firstFile, filename: "first.pdf", bytes: 35 }],
       relativePaths: ["supplement/first.pdf"],
     }),
-    service.addUploadedFilesToMatter({
+    secondService.addUploadedFilesToMatter({
       matter,
       label: "Second Follow Up",
       files: [{ index: 0, tempPath: secondFile, filename: "second.pdf", bytes: 36 }],
@@ -1711,6 +1718,34 @@ function jsonSpawnSequence(calls, payloads) {
       stdout: `${JSON.stringify(payload)}\n`,
       stderr: "",
     };
+  };
+}
+
+function advisoryLockPgClient() {
+  return {
+    connect: async () => {},
+    query: async () => ({ rows: [] }),
+    end: async () => {},
+  };
+}
+
+function advisoryLockCoordinator() {
+  let owner = null;
+  const waiters = [];
+  return async () => {
+    const client = advisoryLockPgClient();
+    client.query = async (text) => {
+      if (/pg_advisory_xact_lock/i.test(String(text))) {
+        if (owner) await new Promise((resolve) => waiters.push(resolve));
+        owner = client;
+      }
+      if (/^(commit|rollback)\b/i.test(String(text)) && owner === client) {
+        owner = null;
+        waiters.shift()?.();
+      }
+      return { rows: [] };
+    };
+    return client;
   };
 }
 

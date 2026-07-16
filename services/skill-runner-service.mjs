@@ -106,6 +106,7 @@ export function createSkillRunnerService({
       throw retrySourceNotFoundError(failedRunId);
     }
     if (failedJob.status !== "failed") throw retrySourceNotFailedError(failedJob);
+    assertRetryMatterMatches(failedJob, request);
     const key = normalizeSlash(slash || failedJob.metadata?.skill?.slash || failedJob.slash || "");
     const { runner } = resolveRunner(key);
     const stageRetrySupported = Boolean(runner.supportsStageRetry || failedJob.metadata?.skill?.stageRetrySupported === true);
@@ -225,6 +226,21 @@ function retrySourceNotFailedError(job = {}) {
   error.code = "native_skill.retry_source_not_failed";
   error.jobId = job.id;
   return error;
+}
+
+function assertRetryMatterMatches(job = {}, request = {}) {
+  const jobMatterId = String(job.matterId || "").trim();
+  const requestMatterId = String(request.matterId || "").trim();
+  const jobMatterName = String(job.matterName || "").trim();
+  const requestMatterName = String(request.matterName || request.matter || "").trim();
+  const idMismatch = jobMatterId && requestMatterId && jobMatterId !== requestMatterId;
+  const nameMismatch = jobMatterName && requestMatterName && jobMatterName !== requestMatterName;
+  if (!idMismatch && !nameMismatch) return;
+  const error = new Error("Retry matter does not match the failed native skill job.");
+  error.statusCode = 409;
+  error.code = "native_skill.retry_matter_mismatch";
+  error.jobId = job.id;
+  throw error;
 }
 
 function recoveryRetryStageId(job = {}) {

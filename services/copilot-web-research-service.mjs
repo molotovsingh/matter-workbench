@@ -10,6 +10,11 @@ import {
 } from "./web-research-providers.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
+import {
+  answerHasUnsupportedRawCitations,
+  buildSourceResolver,
+  normalizeSources,
+} from "./matter-copilot-service.mjs";
 import { extractLegalSourceIds } from "../shared/legal-source-ids.mjs";
 import {
   extractCorpusFingerprintsFromSources,
@@ -104,6 +109,7 @@ export function createCopilotWebResearchService({
       publicSources,
       providerWarnings,
       searchQuery: research.query || queries[0] || normalizedQuestion,
+      packet,
     });
   }
 
@@ -168,20 +174,40 @@ function normalizeResearchQuestion(value) {
   return question;
 }
 
-function normalizeResearchAnswer({ answer, question, config, publicSources = [], providerWarnings = [], searchQuery = "" }) {
+function normalizeResearchAnswer({ answer, question, config, publicSources = [], providerWarnings = [], searchQuery = "", packet }) {
   const raw = answer && typeof answer === "object" && !Array.isArray(answer) ? answer : {};
-  const sourceValidation = validatePublicSources(raw.public_sources, publicSources, raw.answer_markdown);
+  const answerMarkdown = String(raw.answer_markdown || "").trim();
+  const sourceValidation = validatePublicSources(raw.public_sources, publicSources, answerMarkdown);
+  const sourceResolver = buildSourceResolver(packet);
+  const matterSourceValidation = normalizeSources(raw.matter_sources, sourceResolver);
+  const unsupportedInlineMatterCitation = answerHasUnsupportedRawCitations(
+    answerMarkdown,
+    matterSourceValidation.sources,
+    sourceResolver,
+  );
+  const blocked = unsupportedInlineMatterCitation;
+  const normalizedStatus = normalizeAnswerStatus(raw.answer_status);
   const warnings = [
     ...sourceValidation.warnings,
+    ...(matterSourceValidation.unsupportedCount > 0
+      ? ["Some matter source references could not be verified and were ignored."]
+      : []),
+    ...(blocked
+      ? ["The answer was withheld because a matter citation could not be verified against the current matter record."]
+      : []),
     ...normalizeWarnings(providerWarnings),
     ...normalizeWarnings(raw.warnings),
   ];
   return {
     schema_version: COPILOT_WEB_RESEARCH_ANSWER_SCHEMA_VERSION,
     question,
-    answer_status: normalizeAnswerStatus(raw.answer_status),
-    answer_markdown: String(raw.answer_markdown || "").trim(),
-    matter_sources: Array.isArray(raw.matter_sources) ? raw.matter_sources : [],
+    answer_status: blocked
+      ? "blocked"
+      : normalizedStatus === "answered" && matterSourceValidation.unsupportedCount > 0 ? "partial" : normalizedStatus,
+    answer_markdown: blocked
+      ? "I could not verify the matter source references for that research answer, so I am not showing it as supported."
+      : answerMarkdown,
+    matter_sources: blocked ? [] : matterSourceValidation.sources,
     public_sources: sourceValidation.sources,
     warnings,
     research: normalizeResearchMetadata({

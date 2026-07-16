@@ -54,6 +54,36 @@ test("runtime DB upload sessions are created before file bytes and track file re
   assert.deepEqual(second.items.map((item) => item.relativePath), ["a.txt", "b.txt"]);
 });
 
+test("committed runtime DB upload retries recover the idempotent extraction job", async () => {
+  const db = createFakeUploadSessionDb();
+  const sessionId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const matterId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  db.sessions.set(sessionId, {
+    id: sessionId,
+    matter_id: matterId,
+    matter_name: "Committed Matter",
+    status: "committed",
+    action: "add_files",
+    expected_file_count: 1,
+    received_file_count: 1,
+    matter: { id: matterId, name: "Committed Matter", matterName: "Committed Matter" },
+  });
+  db.items.set(sessionId, []);
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://runtime.example/mwb",
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    createPgClient: async () => fakePgClient(db),
+  });
+
+  const first = await service.commitUploadSession(sessionId);
+  const second = await service.commitUploadSession(sessionId);
+
+  assert.equal(first.alreadyCommitted, true);
+  assert.equal(second.alreadyCommitted, true);
+  assert.deepEqual([...db.processingJobs.keys()], [`upload-session:${sessionId}:extract`]);
+  assert.equal(db.processingJobEnqueueAttempts, 2);
+});
+
 test("runtime DB upload sessions can be cancelled and staged payloads are cleared", async () => {
   const db = createFakeUploadSessionDb();
   const service = createRuntimeDbStorageService({
@@ -81,6 +111,7 @@ test("runtime DB upload sessions can be cancelled and staged payloads are cleare
   assert.equal(cancelled.items[0].status, "cancelled");
   assert.equal(cancelled.items[0].payload, null);
   assert.equal(db.items.get(created.id)[0].payload, null);
+  assert.ok(db.queries.some((query) => /pg_advisory_xact_lock/i.test(query)));
 });
 
 function createFakeUploadSessionDb() {
@@ -88,6 +119,9 @@ function createFakeUploadSessionDb() {
     nextSessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     sessions: new Map(),
     items: new Map(),
+    processingJobs: new Map(),
+    processingJobEnqueueAttempts: 0,
+    queries: [],
   };
 }
 
@@ -97,10 +131,25 @@ function fakePgClient(db) {
     async end() {},
     async query(sql, values = []) {
       const text = String(sql || "");
-      if (/^begin\b/i.test(text) || /^commit\b/i.test(text) || /^rollback\b/i.test(text) || /mwb_runtime_role_guard/i.test(text) || /set_config\('app\.tenant_id'/i.test(text)) {
+      db.queries.push(text);
+      if (/^begin\b/i.test(text) || /^commit\b/i.test(text) || /^rollback\b/i.test(text) || /mwb_runtime_role_guard/i.test(text) || /set_config\('app\.tenant_id'/i.test(text) || /pg_advisory_xact_lock/i.test(text)) {
         return { rows: [] };
       }
       if (/select id from matters/i.test(text)) return { rows: [] };
+      if (/insert into processing_jobs/i.test(text)) {
+        db.processingJobEnqueueAttempts += 1;
+        const [matterId, kind, idempotencyKey] = values;
+        if (!db.processingJobs.has(idempotencyKey)) {
+          db.processingJobs.set(idempotencyKey, {
+            id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            matter_id: matterId,
+            kind,
+            status: "queued",
+            idempotency_key: idempotencyKey,
+          });
+        }
+        return { rows: [db.processingJobs.get(idempotencyKey)] };
+      }
       if (/insert into upload_sessions/i.test(text)) {
         const row = {
           id: db.nextSessionId,
@@ -175,7 +224,7 @@ function fakePgClient(db) {
         session.status = "cancelled";
         session.finished_at = new Date("2026-06-30T00:00:03Z");
         session.updated_at = new Date("2026-06-30T00:00:03Z");
-        return { rows: [] };
+        return { rows: [{ id: session.id }] };
       }
       if (/update upload_session_items\s+set status = 'cancelled'/i.test(text)) {
         const rows = db.items.get(values[0]) || [];

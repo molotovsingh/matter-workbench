@@ -150,6 +150,9 @@ test("runtime DB source-removal SQL locks matter/document, appends event, and av
   assert.match(sql, /update documents d/i);
   assert.match(sql, /set status = 'removed_from_active_record'/i);
   assert.match(sql, /insert into matter_events/i);
+  assert.match(sql, /join updated_document sd on true/i);
+  assert.doesNotMatch(sql, /join selected_document sd on true/i);
+  assert.match(sql, /where exists \(select 1 from updated_document\)/i);
   assert.match(sql, /source_file\.removed_from_active_record/);
   assert.match(sql, /on conflict \(tenant_id, idempotency_key\) do nothing/i);
   assert.match(sql, /insert into matter_artifact_currentness/i);

@@ -328,7 +328,7 @@ function blockedUnsupportedCitationAnswer({
   };
 }
 
-function buildSourceResolver(packet) {
+export function buildSourceResolver(packet) {
   const byCitation = new Map();
   const byLabel = new Map();
   for (const block of Array.isArray(packet?.evidence_blocks) ? packet.evidence_blocks : []) {
@@ -381,7 +381,7 @@ function indexSourceLabel(byLabel, label, block) {
   if (!blocks.some((candidate) => candidate.citation === block.citation)) blocks.push(block);
 }
 
-function normalizeSources(rawSources, sourceResolver) {
+export function normalizeSources(rawSources, sourceResolver) {
   const sources = [];
   const seen = new Set();
   let unsupportedCount = 0;
@@ -432,7 +432,7 @@ function resolveSourceReference(sourceReference, source = {}, sourceResolver = {
   return candidates[0];
 }
 
-function answerHasUnsupportedRawCitations(answerMarkdown, sources = [], sourceResolver = {}) {
+export function answerHasUnsupportedRawCitations(answerMarkdown, sources = [], sourceResolver = {}) {
   const tokens = extractRawCitationTokens(answerMarkdown);
   if (!tokens.length) return false;
   const allowed = new Set(sources.map((source) => source.raw_citation).filter(Boolean));

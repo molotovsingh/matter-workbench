@@ -283,7 +283,7 @@ export function createRuntimeDbStorageService({
     if (!normalizedMatter.id) throw makeHttpError("Matter id is required for runtime DB upload", 400, "runtime_db.upload.matter_id_required");
     const safeRelativePaths = validateRuntimeUploadInputs({ files, relativePaths, action: "adding files" });
 
-    return withMatterWriteQueue(normalizedMatter, async () => {
+    return withSerializedMatterWrite(normalizedMatter, async () => {
       const actor = runtimeDbUserFromRequestContext();
       const allocation = queryJson({
         databaseUrl,
@@ -493,12 +493,43 @@ export function createRuntimeDbStorageService({
     });
   }
 
+  function uploadSessionSerializationMatter(session = {}, sessionId = "") {
+    const matter = normalizeMatter(session.matter || session.metadata?.allocation?.matter || {
+      id: session.matterId,
+      name: session.matterName,
+    });
+    if (matter.id || matter.name) return matter;
+    return { name: `upload-session:${sessionId}` };
+  }
+
+  async function enqueuePostUploadExtraction({ session = {}, matter = null, intakeId = "" } = {}) {
+    const normalizedMatter = normalizeMatter(matter || session.matter || {
+      id: session.matterId,
+      name: session.matterName,
+    });
+    if (!normalizedMatter.id) return null;
+    return enqueueProcessingJob({
+      matter: normalizedMatter,
+      kind: "extract",
+      idempotencyKey: `upload-session:${session.id}:extract`,
+      metadata: {
+        uploadSessionId: session.id,
+        ...(intakeId ? { intakeId } : {}),
+        preparationChain: "post_upload/v1",
+        preparationChainId: session.id,
+        stage: "extract",
+      },
+    });
+  }
+
   async function commitUploadSession(sessionId) {
     ensureEnabled();
-    return withMatterWriteQueue({ id: `upload-session:${sessionId}` }, async () => {
+    const initialSession = await readUploadSession(sessionId);
+    return withSerializedMatterWrite(uploadSessionSerializationMatter(initialSession, sessionId), async () => {
       const { session, items } = await readUploadSessionForCommit(sessionId);
       if (!session) throw makeHttpError("Upload session not found.", 404, "upload_session.not_found");
       if (session.status === "committed") {
+        await enqueuePostUploadExtraction({ session, matter: session.matter || initialSession.matter });
         return { session, matter: session.matter || null, alreadyCommitted: true };
       }
       if (["failed", "cancelled"].includes(session.status)) {
@@ -563,12 +594,7 @@ export function createRuntimeDbStorageService({
         receivedDate: uploadPlan.receivedDate,
       }),
     });
-    await enqueueProcessingJob({
-      matter,
-      kind: "extract",
-      idempotencyKey: `upload-session:${session.id}:extract`,
-      metadata: { uploadSessionId: session.id, preparationChain: "post_upload/v1", preparationChainId: session.id, stage: "extract" },
-    });
+    await enqueuePostUploadExtraction({ session, matter });
     return {
       session: await readUploadSession(session.id),
       matter,
@@ -620,12 +646,7 @@ export function createRuntimeDbStorageService({
         receivedDate: uploadPlan.receivedDate,
       }),
     });
-    await enqueueProcessingJob({
-      matter,
-      kind: "extract",
-      idempotencyKey: `upload-session:${session.id}:extract`,
-      metadata: { uploadSessionId: session.id, intakeId: uploadPlan.intakeId, preparationChain: "post_upload/v1", preparationChainId: session.id, stage: "extract" },
-    });
+    await enqueuePostUploadExtraction({ session, matter, intakeId: uploadPlan.intakeId });
     return {
       session: await readUploadSession(session.id),
       matter,
@@ -782,26 +803,32 @@ export function createRuntimeDbStorageService({
 
   async function cancelUploadSession(sessionId) {
     ensureEnabled();
-    return withRuntimeDbClient(async (client) => {
-      const session = await readUploadSessionWithClient(client, sessionId, { includePayload: false, forUpdate: true });
-      if (!session) throw makeHttpError("Upload session not found.", 404, "upload_session.not_found");
-      if (session.status === "committed") return session;
-      await client.query([
-        "update upload_sessions",
-        "set status = 'cancelled',",
-        "    error_code = null,",
-        "    error_message = null,",
-        "    finished_at = coalesce(finished_at, now()),",
-        "    updated_at = now()",
-        "where tenant_id = current_app_tenant_id() and id = $1::uuid",
-      ].join("\n"), [session.id]);
-      await client.query([
-        "update upload_session_items",
-        "set status = 'cancelled', payload = null, updated_at = now()",
-        "where tenant_id = current_app_tenant_id() and upload_session_id = $1::uuid",
-        "  and status <> 'committed'",
-      ].join("\n"), [session.id]);
-      return readUploadSessionWithClient(client, session.id, { includePayload: false });
+    const initialSession = await readUploadSession(sessionId);
+    return withSerializedMatterWrite(uploadSessionSerializationMatter(initialSession, sessionId), async () => {
+      return withRuntimeDbClient(async (client) => {
+        const session = await readUploadSessionWithClient(client, sessionId, { includePayload: false, forUpdate: true });
+        if (!session) throw makeHttpError("Upload session not found.", 404, "upload_session.not_found");
+        if (["committed", "cancelled", "failed"].includes(session.status)) return session;
+        const result = await client.query([
+          "update upload_sessions",
+          "set status = 'cancelled',",
+          "    error_code = null,",
+          "    error_message = null,",
+          "    finished_at = coalesce(finished_at, now()),",
+          "    updated_at = now()",
+          "where tenant_id = current_app_tenant_id() and id = $1::uuid",
+          "  and status not in ('committed', 'cancelled', 'failed')",
+          "returning id",
+        ].join("\n"), [session.id]);
+        if (!result.rows?.length) return readUploadSessionWithClient(client, session.id, { includePayload: false });
+        await client.query([
+          "update upload_session_items",
+          "set status = 'cancelled', payload = null, updated_at = now()",
+          "where tenant_id = current_app_tenant_id() and upload_session_id = $1::uuid",
+          "  and status <> 'committed'",
+        ].join("\n"), [session.id]);
+        return readUploadSessionWithClient(client, session.id, { includePayload: false });
+      });
     });
   }
 
@@ -1358,6 +1385,18 @@ export function createRuntimeDbStorageService({
         code: "runtime_db.storage.not_configured",
       });
     }
+  }
+
+  async function withSerializedMatterWrite(matter, operation) {
+    const normalizedMatter = normalizeMatter(matter);
+    return withMatterWriteQueue(normalizedMatter, async () => {
+      const identity = normalizedMatter.id ? `id:${normalizedMatter.id}` : `name:${normalizedMatter.name}`;
+      if (!identity) return operation();
+      return withRuntimeDbClient(async (client) => {
+        await client.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [`${tenantId}:${identity}`]);
+        return operation();
+      });
+    });
   }
 
   async function withMatterWriteQueue(matter, operation) {

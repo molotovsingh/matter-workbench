@@ -125,20 +125,30 @@ test("skill runner service keeps retry requests bound to the failed job matter",
 
   const failed = await runnerService.start({
     slash: "/demo_skill",
-    request: { matterName: "Source Matter" },
+    request: { matterName: "Source Matter", matterRoot: "/matters/source" },
     mode: "inline",
   });
   assert.equal(failed.job.status, "failed");
 
+  await assert.rejects(
+    () => runnerService.retry({
+      failedRunId: failed.runId,
+      request: { matterName: "Other Matter", matterRoot: "/matters/other" },
+      mode: "inline",
+    }),
+    (error) => error?.statusCode === 409 && error?.code === "native_skill.retry_matter_mismatch",
+  );
+
   const retried = await runnerService.retry({
     failedRunId: failed.runId,
-    request: { matterName: "Other Matter" },
+    request: { matterName: "Source Matter", matterRoot: "/matters/source" },
     mode: "inline",
   });
 
   assert.equal(retried.job.status, "succeeded");
   assert.equal(retried.job.matterName, "Source Matter");
   assert.equal(seenRequests[1].matterName, "Source Matter");
+  assert.equal(seenRequests[1].matterRoot, "/matters/source");
   assert.equal(seenRequests[1].resumeFromRunId, "job_retry_matter_1");
 });
 
