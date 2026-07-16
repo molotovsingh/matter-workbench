@@ -1,4 +1,9 @@
 import { routePrivateBetaFeedbackTriage } from "../services/private-beta-feedback-triage-service.mjs";
+import {
+  CLOSED_PRIVATE_BETA_SIGNAL_STATUSES,
+  PRIVATE_BETA_SIGNAL_STATUSES,
+  normalizePrivateBetaSignalStatus,
+} from "../shared/private-beta-signal-lifecycle.mjs";
 import { redactSensitiveText, redactSensitiveValues } from "../shared/secret-redaction.mjs";
 
 const RELATED_SIGNAL_WINDOW_MS = 2 * 60 * 60 * 1000;
@@ -6,9 +11,7 @@ const PREPARATION_PIPELINE_RE = /no extraction records|run extract|source index|
 const ACTION_LANES = Object.freeze(["fix_now", "investigate", "product_decision", "watch"]);
 const SEVERITIES = Object.freeze(["blocker", "error", "warning", "info"]);
 const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
-const SIGNAL_STATUSES = Object.freeze(["active", "resolved", "superseded", "suppressed"]);
-const REPORT_STATUSES = Object.freeze([...FEEDBACK_STATUSES, ...SIGNAL_STATUSES]);
-const CLOSED_SIGNAL_STATUSES = new Set(["resolved", "superseded", "suppressed"]);
+const REPORT_STATUSES = Object.freeze([...FEEDBACK_STATUSES, ...PRIVATE_BETA_SIGNAL_STATUSES]);
 
 export function buildMothershipReport(dataset = {}, { generatedAt = new Date().toISOString(), includeResolvedSignals = false } = {}) {
   const metricSummary = summarizeMetrics(dataset.metrics || []);
@@ -386,7 +389,7 @@ function normalizePatienceRisk(value = "") {
 function annotateTriage(item = {}, context = {}) {
   const currentMatterState = latestMatterStateForItem(item, context.latestMatterHealth);
   const currentness = classifyCurrentness(item, context.latestRuntimeEvidenceAt, currentMatterState);
-  if (item.kind === "signal" && CLOSED_SIGNAL_STATUSES.has(item.status)) {
+  if (item.kind === "signal" && CLOSED_PRIVATE_BETA_SIGNAL_STATUSES.has(item.status)) {
     return {
       ...item,
       currentness,
@@ -658,7 +661,7 @@ function statusDispositionForItem(item = {}) {
       nextAction: "Inspect the current signal state and latest matter context before changing code.",
     };
   }
-  if (CLOSED_SIGNAL_STATUSES.has(status)) {
+  if (CLOSED_PRIVATE_BETA_SIGNAL_STATUSES.has(status)) {
     return {
       status,
       actionState: "closed",
@@ -820,8 +823,7 @@ function normalizeFeedbackStatus(value = "") {
 }
 
 function normalizeSignalStatus(value = "") {
-  const status = String(value || "active").trim().toLowerCase();
-  return SIGNAL_STATUSES.includes(status) ? status : "active";
+  return normalizePrivateBetaSignalStatus(value);
 }
 
 function severityForFeedbackCategory(category = "") {

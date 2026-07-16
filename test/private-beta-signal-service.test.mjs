@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -377,6 +377,55 @@ test("private beta signal service captures sanitized client-side upload precheck
   assert.equal(captured.signals[0].details.username, "shivangi@lawzeus.com");
   assert.equal(captured.signals[0].details.userRole, "tester");
   assert.doesNotMatch(JSON.stringify(captured), /sbi6\.pdf|Evidence|raw client facts/);
+});
+
+test("private beta signal service reopens resolved client-event recurrences but preserves suppression", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-beta-signal-recurrence-"));
+  const signalsPath = path.join(tmp, "signals-ledger.json");
+  const event = {
+    code: "upload.precheck_hash_unavailable",
+    view: "new_matter",
+    action: "create_matter",
+    stage: "upload_precheck",
+    severity: "warning",
+    matterName: "Recurring Matter",
+  };
+  const firstService = createPrivateBetaSignalService({
+    signalsPath,
+    now: () => new Date("2026-07-10T10:00:00.000Z"),
+    idFactory: () => "signal_recurrence",
+  });
+  await firstService.captureClientEvent(event, { runtimeMode: "postgres" });
+
+  const resolvedStore = JSON.parse(await readFile(signalsPath, "utf8"));
+  resolvedStore.signals[0].status = "resolved";
+  resolvedStore.signals[0].statusUpdatedAt = "2026-07-10T11:00:00.000Z";
+  await writeFile(signalsPath, JSON.stringify(resolvedStore));
+  const recurrenceService = createPrivateBetaSignalService({
+    signalsPath,
+    now: () => new Date("2026-07-11T10:00:00.000Z"),
+    idFactory: () => "signal_recurrence_new",
+  });
+  const reopened = await recurrenceService.captureClientEvent(event, { runtimeMode: "postgres" });
+
+  assert.equal(reopened.captured, 1);
+  assert.equal(reopened.signals[0].status, "active");
+  assert.equal(reopened.signals[0].occurrenceCount, 2);
+  assert.equal(reopened.signals[0].statusUpdatedAt, "2026-07-11T10:00:00.000Z");
+
+  const suppressedStore = JSON.parse(await readFile(signalsPath, "utf8"));
+  suppressedStore.signals[0].status = "suppressed";
+  suppressedStore.signals[0].statusUpdatedAt = "2026-07-11T11:00:00.000Z";
+  await writeFile(signalsPath, JSON.stringify(suppressedStore));
+  const suppressed = await createPrivateBetaSignalService({
+    signalsPath,
+    now: () => new Date("2026-07-12T10:00:00.000Z"),
+  }).captureClientEvent(event, { runtimeMode: "postgres" });
+
+  assert.equal(suppressed.captured, 1);
+  assert.equal(suppressed.signals[0].status, "suppressed");
+  assert.equal(suppressed.signals[0].occurrenceCount, 3);
+  assert.equal(suppressed.signals[0].lastSeenAt, "2026-07-12T10:00:00.000Z");
 });
 
 test("private beta signal service queues failed sync and retries later", async () => {

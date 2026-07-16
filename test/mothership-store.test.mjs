@@ -126,8 +126,10 @@ test("store inserts feedback and signals idempotently with parameterized payload
   assert.match(inserts[0].text, /on conflict \(installation_id, feedback_id\) do nothing/i);
   assert.match(inserts[2].text, /on conflict \(installation_id, signal_id\) do update/i);
   assert.match(inserts[2].text, /greatest\(mothership_signal_events\.occurrence_count, excluded\.occurrence_count\)/i);
-  assert.match(inserts[2].text, /where mothership_signal_events\.status = 'active'/i);
-  assert.match(inserts[2].text, /and excluded\.status = 'active'/i);
+  assert.match(inserts[2].text, /status = case[\s\S]*mothership_signal_events\.status in \('resolved', 'superseded'\)[\s\S]*excluded\.source <> 'job_status'[\s\S]*then 'active'/i);
+  assert.match(inserts[2].text, /where excluded\.status = 'active'/i);
+  assert.match(inserts[2].text, /operatorStatusHistory/);
+  assert.doesNotMatch(inserts[2].text, /where mothership_signal_events\.status = 'active'/i);
 });
 
 test("store accepts signal lifecycle updates by signal id or fingerprint", async () => {

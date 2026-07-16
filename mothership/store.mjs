@@ -1,11 +1,14 @@
 import process from "node:process";
 
+import {
+  PRIVATE_BETA_SIGNAL_STATUSES,
+} from "../shared/private-beta-signal-lifecycle.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 import { httpError } from "./http.mjs";
 import { generateIngestionToken, hashIngestionToken } from "./tokens.mjs";
 
 const FEEDBACK_STATUSES = Object.freeze(["new", "reviewed", "needs_evidence", "fixed", "parked", "not_reproducible"]);
-export const SIGNAL_STATUSES = Object.freeze(["active", "resolved", "superseded", "suppressed"]);
+export const SIGNAL_STATUSES = PRIVATE_BETA_SIGNAL_STATUSES;
 
 export function createMothershipStore({
   database,
@@ -204,12 +207,39 @@ export function createMothershipStore({
            first_seen_at = least(mothership_signal_events.first_seen_at, excluded.first_seen_at),
            last_seen_at = greatest(mothership_signal_events.last_seen_at, excluded.last_seen_at),
            received_at = now(),
+           status = case
+             when mothership_signal_events.status in ('resolved', 'superseded')
+               and excluded.status = 'active'
+               and excluded.source <> 'job_status'
+             then 'active'
+             else mothership_signal_events.status
+           end,
+           status_updated_at = case
+             when mothership_signal_events.status in ('resolved', 'superseded')
+               and excluded.status = 'active'
+               and excluded.source <> 'job_status'
+             then excluded.last_seen_at
+             else mothership_signal_events.status_updated_at
+           end,
            payload = case
-             when excluded.last_seen_at >= mothership_signal_events.last_seen_at then excluded.payload
+             when excluded.last_seen_at >= mothership_signal_events.last_seen_at then
+               excluded.payload
+               || jsonb_build_object('status', case
+                 when mothership_signal_events.status in ('resolved', 'superseded')
+                   and excluded.status = 'active'
+                   and excluded.source <> 'job_status'
+                 then 'active'
+                 else mothership_signal_events.status
+               end)
+               || case when mothership_signal_events.payload ? 'operatorStatus'
+                 then jsonb_build_object('operatorStatus', mothership_signal_events.payload->'operatorStatus')
+                 else '{}'::jsonb end
+               || case when mothership_signal_events.payload ? 'operatorStatusHistory'
+                 then jsonb_build_object('operatorStatusHistory', mothership_signal_events.payload->'operatorStatusHistory')
+                 else '{}'::jsonb end
              else mothership_signal_events.payload
            end
-       where mothership_signal_events.status = 'active'
-         and excluded.status = 'active'
+       where excluded.status = 'active'
        returning id, status, (xmax = 0) as inserted`,
       [
         normalizedId,

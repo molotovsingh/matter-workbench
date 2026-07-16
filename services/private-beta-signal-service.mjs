@@ -8,6 +8,10 @@ import {
   markTelemetrySyncQueued,
   normalizeTelemetrySyncConfig,
 } from "./telemetry-sync-client.mjs";
+import {
+  normalizePrivateBetaSignalStatus,
+  shouldReopenPrivateBetaSignalOnRecurrence,
+} from "../shared/private-beta-signal-lifecycle.mjs";
 import { redactSensitiveText } from "../shared/secret-redaction.mjs";
 
 const LEDGER_SCHEMA_VERSION = "private-beta-signal-ledger/v1";
@@ -18,7 +22,6 @@ const DEFAULT_LIMIT = 100;
 
 const ALLOWED_SOURCES = new Set(["matter_attention", "job_status", "skill_factory_health", "client_event"]);
 const ALLOWED_SEVERITIES = new Set(["blocker", "warning", "info", "error"]);
-const SIGNAL_LIFECYCLE_STATUSES = new Set(["active", "resolved", "superseded", "suppressed"]);
 
 export function createPrivateBetaSignalService({
   appDir = process.cwd(),
@@ -147,14 +150,19 @@ export function createPrivateBetaSignalService({
         const index = store.signals.findIndex((signal) => signal.fingerprint === candidate.fingerprint);
         if (index >= 0) {
           const existing = store.signals[index];
-          if (existing.status && existing.status !== "active" && candidate.status === "active") continue;
           const seenAt = candidate.lastSeenAt;
           const lifecycleUpdate = candidate.status && candidate.status !== "active";
+          const activeRecurrence = candidate.status === "active";
+          const reopen = activeRecurrence && shouldReopenPrivateBetaSignalOnRecurrence(existing);
+          const retainSuppression = activeRecurrence && existing.status === "suppressed";
+          if (activeRecurrence && existing.status !== "active" && !reopen && !retainSuppression) continue;
           if (lifecycleUpdate && existing.status === candidate.status && normalizeIso(existing.statusUpdatedAt) === normalizeIso(candidate.statusUpdatedAt)) continue;
           const updated = normalizeSignal({
             ...existing,
-            status: lifecycleUpdate ? candidate.status : existing.status,
-            statusUpdatedAt: lifecycleUpdate ? candidate.statusUpdatedAt || candidate.updatedAt || seenAt : existing.statusUpdatedAt,
+            status: lifecycleUpdate ? candidate.status : reopen ? "active" : existing.status,
+            statusUpdatedAt: lifecycleUpdate
+              ? candidate.statusUpdatedAt || candidate.updatedAt || seenAt
+              : reopen ? seenAt : existing.statusUpdatedAt,
             summary: candidate.summary,
             details: candidate.details,
             updatedAt: seenAt,
@@ -745,8 +753,7 @@ function normalizeSeverity(severity) {
 }
 
 function normalizeLifecycleStatus(value = "active") {
-  const text = sanitizeText(value || "active", 20).trim().toLowerCase();
-  return SIGNAL_LIFECYCLE_STATUSES.has(text) ? text : "active";
+  return normalizePrivateBetaSignalStatus(value);
 }
 
 function normalizeTelemetryMode(value) {

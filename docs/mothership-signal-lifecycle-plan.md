@@ -43,9 +43,15 @@ Report behavior:
 
 Ingest behavior:
 
-- Active signal re-ingest can update only currently active rows.
-- Closed rows are not reopened just because an old client sees the same failed
-  job again.
+- Active recurrence updates occurrence and last-seen evidence idempotently.
+- `resolved` and `superseded` non-job signals reopen on a later active
+  recurrence; the Mothership row and local ledger both return to `active`.
+- A repeated observation of the same historical `job_status` row does not
+  reopen it. A genuinely new failed job has a new job-bound fingerprint and
+  creates new active evidence.
+- `suppressed` signals retain suppression while still recording recurrence
+  counts and last-seen time; suppression must be lifted explicitly or by a
+  later accepted expiry policy.
 - Lifecycle updates can match by `signal_id` or by `fingerprint`, so a local
   client can supersede an already-synced server row even if the local signal id
   differs.
