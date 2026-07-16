@@ -142,6 +142,9 @@ test("runtime DB matter context and rerun advice read routes stay DB-native", as
 
   assert.match(previewSource, /assertRuntimeDbContextReadAvailable/);
   assert.match(previewSource, /readMatterContextPacket/);
+  assert.match(previewSource, /readSourceRemovalPreviewState/);
+  assert.match(previewSource, /sourceRecord: previewState\.sourceRecord/);
+  assert.match(previewSource, /artifactInventory: previewState\.artifactInventory/);
   assert.match(previewSource, /buildSourceRemovalImpactPreviewFromPacket/);
   assert.match(previewSource, /return;\n\s*}\n\s*assertFilesystemWorkflowAvailable/);
   assert.doesNotMatch(previewSource, /runRuntimeDbMaterializedRead/);

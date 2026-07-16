@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -55,7 +58,15 @@ function packetFixture() {
 }
 
 test("source removal impact preview summarizes active-source effects without source text", () => {
-  const preview = buildSourceRemovalImpactPreviewFromPacket(packetFixture(), { fileId: "file-0001" });
+  const preview = buildSourceRemovalImpactPreviewFromPacket(packetFixture(), {
+    fileId: "file-0001",
+    artifactInventory: {
+      sourceIndexPresent: true,
+      listOfDatesPresent: true,
+      matterStoryPresent: true,
+      customSkillOutputPaths: ["20_Workshop/Issue Map.md"],
+    },
+  });
 
   assert.equal(preview.schema_version, SOURCE_REMOVAL_IMPACT_PREVIEW_SCHEMA_VERSION);
   assert.equal(preview.file_id, "FILE-0001");
@@ -70,8 +81,13 @@ test("source removal impact preview summarizes active-source effects without sou
   assert.deepEqual(preview.affected_artifacts.map((artifact) => artifact.family), [
     "source_index",
     "list_of_dates",
-    "matter_story_and_source_backed_outputs",
+    "matter_story",
+    "custom_skill_output",
   ]);
+  assert.equal(
+    preview.affected_artifacts.find((artifact) => artifact.family === "custom_skill_output").artifact_path,
+    "20_Workshop/Issue Map.md",
+  );
   assert.equal(preview.affected_artifacts.find((artifact) => artifact.family === "list_of_dates").reference_count, 2);
   assert.match(preview.warnings.join("\n"), /must not delete bytes/);
   assert.match(preview.warnings.join("\n"), /Paid\/model regeneration must be a separate explicit action/);
@@ -90,7 +106,7 @@ test("source removal impact preview reports inactive or missing sources without 
   assert.equal(preview.physical_deletion, false);
   assert.deepEqual(preview.active_context, { source_records: 0, evidence_blocks: 0 });
   assert.equal(Array.isArray(preview.affected_artifacts), false);
-  assert.match(preview.warnings.join("\n"), /not in the active source set or is already inactive/);
+  assert.match(preview.warnings.join("\n"), /not in the active source register or is already inactive/);
 });
 
 test("source removal impact preview validates FILE ids and can wrap a packet builder", async () => {
@@ -107,10 +123,44 @@ test("source removal impact preview validates FILE ids and can wrap a packet bui
       return packetFixture();
     },
   });
-  assert.equal(preview.can_remove, true);
+  assert.equal(preview.can_remove, false);
+  assert.match(preview.warnings.join("\n"), /active source register/);
 
   await assert.rejects(
     () => previewSourceRemovalImpact({ fileId: "FILE-0001", matterContextBuilder: async () => packetFixture() }),
     (error) => error.statusCode === 400 && error.code === "source_removal_preview.matter_required",
   );
+});
+
+test("source removal preview permits a registered source before extraction and finds custom outputs", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "source-removal-preview-register-"));
+  const intake = path.join(root, "00_Inbox", "Intake 01 - Initial");
+  const workshop = path.join(root, "20_Workshop");
+  await mkdir(intake, { recursive: true });
+  await mkdir(workshop, { recursive: true });
+  await writeFile(path.join(intake, "File Register.csv"), [
+    "file_id,original_name,status,source_path",
+    "FILE-0042,registered.txt,active,00_Inbox/Intake 01 - Initial/registered.txt",
+  ].join("\n"));
+  await writeFile(path.join(workshop, "Issue Map.md"), "# Issue Map\n");
+  await writeFile(path.join(workshop, "Issue Map.json"), JSON.stringify({
+    schema_version: "configurable-skill-run/v1",
+    outputPath: "20_Workshop/Issue Map.md",
+  }));
+
+  const preview = await previewSourceRemovalImpact({
+    matterRoot: root,
+    fileId: "FILE-0042",
+    matterContextBuilder: async () => ({ sources: [], evidence_blocks: [], library_artifacts: [] }),
+  });
+
+  assert.equal(preview.can_remove, true);
+  assert.equal(preview.source.original_name, "registered.txt");
+  assert.deepEqual(preview.active_context, { source_records: 1, evidence_blocks: 0 });
+  assert.deepEqual(preview.affected_artifacts, [{
+    family: "custom_skill_output",
+    artifact_path: "20_Workshop/Issue Map.md",
+    effect: "needs_review",
+    reason: "Custom skill output may depend on the active source set.",
+  }]);
 });

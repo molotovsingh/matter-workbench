@@ -64,10 +64,15 @@ test("local source-removal mutation writes tombstone, event, and currentness wit
 
   const currentness = JSON.parse(await readFile(path.join(root, ARTIFACT_CURRENTNESS_RELATIVE), "utf8"));
   assert.deepEqual(currentness.records.map((record) => record.artifactFamily), [
+    "custom_skill_output",
     "list_of_dates",
     "matter_story",
     "source_index",
   ]);
+  assert.equal(
+    currentness.records.find((record) => record.artifactFamily === "custom_skill_output").artifactPath,
+    "20_Workshop/Issue Notes.md",
+  );
   assert.equal(currentness.records.find((record) => record.artifactFamily === "list_of_dates").dependencyState, "chronology_regeneration_needed");
   assert.equal(currentness.records.find((record) => record.artifactFamily === "matter_story").state, "needs_review");
   assert.doesNotMatch(JSON.stringify(currentness), /FILE-0002 text|Fixture chronology|Fixture story/);
@@ -264,5 +269,11 @@ async function makeMatterRoot() {
   }, null, 2));
   await writeFile(path.join(root, "10_Library", "Case Timeline.md"), "# Fixture chronology\n");
   await writeFile(path.join(root, "20_Workshop", "The Story.md"), "# Fixture story\n");
+  await writeFile(path.join(root, "20_Workshop", "Issue Notes.md"), "# Source-backed issue notes\n");
+  await writeFile(path.join(root, "20_Workshop", "Issue Notes.json"), JSON.stringify({
+    schema_version: "configurable-skill-run/v1",
+    outputPath: "20_Workshop/Issue Notes.md",
+    runId: "run_issue_notes",
+  }, null, 2));
   return root;
 }

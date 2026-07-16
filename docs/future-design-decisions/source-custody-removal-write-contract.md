@@ -51,6 +51,13 @@ A source-removal mutation must require:
 - authenticated actor context;
 - impact preview or equivalent server-side impact calculation.
 
+Preview and mutation use the same custody authority for source eligibility:
+`File Register.csv` in local mode and `documents` in runtime DB mode. Extraction
+records and Matter Context enrich the preview with evidence counts and labels,
+but they do not decide whether a registered, not-yet-extracted source can be
+removed. A source tombstone or inactive custody status always wins and makes the
+preview non-removable.
+
 The mutation must reject:
 
 - blank reasons;
@@ -158,9 +165,14 @@ After a successful mutation:
 At minimum, removal must mark these as not current or needing review when present:
 
 - Source Index / source labels;
-- List of Dates;
+- Case Timeline;
 - Matter Story;
 - source-backed custom-skill outputs.
+
+Both storage modes enumerate current custom-skill outputs rather than treating
+them as an undocumented gap. Runtime DB removal composes the shared artifact
+currentness upsert builder used by the standalone service; it must not carry a
+second hand-written conflict/update clause.
 
 Do not silently regenerate paid/model artifacts during the removal mutation.
 Regeneration is a separate explicit refresh action unless a future policy says

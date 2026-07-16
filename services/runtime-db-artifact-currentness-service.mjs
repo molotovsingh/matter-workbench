@@ -99,6 +99,27 @@ function buildUpsertArtifactCurrentnessMutationSql({ record, returning = false }
     : normalized.matterName
       ? `    and name = ${sqlString(normalized.matterName)}`
       : "    and false";
+  const upsertCte = buildArtifactCurrentnessUpsertCteSql({
+    cteName: "upserted",
+    sourceSql: [
+      "values (",
+      "  current_app_tenant_id(),",
+      "  (select id from target_matter),",
+      `  ${sqlNullableUuid(normalized.artifactId)},`,
+      `  ${sqlString(normalized.artifactFamily)},`,
+      `  ${sqlString(normalized.artifactPath || "")},`,
+      `  ${sqlString(normalized.state)},`,
+      `  ${sqlString(normalized.dependencyState || "")},`,
+      `  ${sqlString(normalized.reasonCode || "")},`,
+      `  ${sqlNullableUuid(normalized.sourceEventId)},`,
+      `  ${sqlJson(normalized.affectedFileIds || [])},`,
+      `  ${sqlJson(normalized.metadata || {})},`,
+      `  ${sqlTimestamp(normalized.observedAt)},`,
+      `  ${sqlTimestamp(normalized.updatedAt || normalized.observedAt)}`,
+      ")",
+    ].join("\n"),
+    returning: returning ? "*" : "id",
+  });
   const insert = [
     "with target_matter as (",
     "  select id, name",
@@ -107,41 +128,62 @@ function buildUpsertArtifactCurrentnessMutationSql({ record, returning = false }
     matterPredicate,
     "  order by updated_at desc",
     "  limit 1",
-    "), upserted as (",
-    "  insert into matter_artifact_currentness (tenant_id, matter_id, artifact_id, artifact_family, artifact_path, state, dependency_state, reason_code, source_event_id, affected_file_ids_json, metadata_json, observed_at, updated_at)",
-    "  values (",
-    "    current_app_tenant_id(),",
-    "    (select id from target_matter),",
-    `    ${sqlNullableUuid(normalized.artifactId)},`,
-    `    ${sqlString(normalized.artifactFamily)},`,
-    `    ${sqlString(normalized.artifactPath || "")},`,
-    `    ${sqlString(normalized.state)},`,
-    `    ${sqlString(normalized.dependencyState || "")},`,
-    `    ${sqlString(normalized.reasonCode || "")},`,
-    `    ${sqlNullableUuid(normalized.sourceEventId)},`,
-    `    ${sqlJson(normalized.affectedFileIds || [])},`,
-    `    ${sqlJson(normalized.metadata || {})},`,
-    `    ${sqlTimestamp(normalized.observedAt)},`,
-    `    ${sqlTimestamp(normalized.updatedAt || normalized.observedAt)}`,
-    "  )",
-    "  on conflict (tenant_id, matter_id, artifact_family, artifact_path) do update set",
-    "    artifact_id = excluded.artifact_id,",
-    "    state = excluded.state,",
-    "    dependency_state = excluded.dependency_state,",
-    "    reason_code = excluded.reason_code,",
-    "    source_event_id = excluded.source_event_id,",
-    "    affected_file_ids_json = excluded.affected_file_ids_json,",
-    "    metadata_json = excluded.metadata_json,",
-    "    observed_at = excluded.observed_at,",
-    "    updated_at = excluded.updated_at",
-    returning ? "  returning *" : "  returning id",
-    ")",
+    "),",
+    upsertCte,
   ];
   if (!returning) return [...insert, "select 1 from upserted limit 1;"].join("\n");
   return [
     ...insert,
     selectArtifactCurrentnessJson("upserted"),
   ].join("\n");
+}
+
+export function buildArtifactCurrentnessUpsertCteSql({
+  cteName = "upserted_currentness",
+  sourceSql = "",
+  includeArtifactId = true,
+  returning = "*",
+} = {}) {
+  if (!/^[a-z][a-z0-9_]*$/i.test(cteName)) throw new Error("Artifact currentness CTE name is invalid.");
+  const columns = [
+    "tenant_id",
+    "matter_id",
+    ...(includeArtifactId ? ["artifact_id"] : []),
+    "artifact_family",
+    "artifact_path",
+    "state",
+    "dependency_state",
+    "reason_code",
+    "source_event_id",
+    "affected_file_ids_json",
+    "metadata_json",
+    "observed_at",
+    "updated_at",
+  ];
+  const updates = [
+    ...(includeArtifactId ? ["artifact_id = excluded.artifact_id"] : []),
+    "state = excluded.state",
+    "dependency_state = excluded.dependency_state",
+    "reason_code = excluded.reason_code",
+    "source_event_id = excluded.source_event_id",
+    "affected_file_ids_json = excluded.affected_file_ids_json",
+    "metadata_json = excluded.metadata_json",
+    "observed_at = excluded.observed_at",
+    "updated_at = excluded.updated_at",
+  ];
+  return [
+    `${cteName} as (`,
+    `  insert into matter_artifact_currentness (${columns.join(", ")})`,
+    indentSql(sourceSql, "  "),
+    "  on conflict (tenant_id, matter_id, artifact_family, artifact_path) do update set",
+    ...updates.map((update, index) => `    ${update}${index < updates.length - 1 ? "," : ""}`),
+    `  returning ${returning === "id" ? "id" : "*"}`,
+    ")",
+  ].join("\n");
+}
+
+function indentSql(sql, prefix) {
+  return String(sql || "").split("\n").map((line) => `${prefix}${line}`).join("\n");
 }
 
 export function listArtifactCurrentnessSql({ tenantId, matterName = "", artifactFamily = "", limit = DEFAULT_LIMIT } = {}) {

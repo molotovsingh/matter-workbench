@@ -497,8 +497,16 @@ export async function handleMatterWorkflowApiRequest({ request, requestUrl, resp
         if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
           const matter = await runtimeDbMatterForQuery(matterStore, requestUrl);
           assertRuntimeDbContextReadAvailable({ runtimeDbStorageService });
-          const packet = await runtimeDbStorageService.readMatterContextPacket(matter);
-          sendJson(response, 200, runtimeDbReadResponse(buildSourceRemovalImpactPreviewFromPacket(packet, { fileId }), matter));
+          assertRuntimeDbSourceRemovalPreviewAvailable({ runtimeDbStorageService });
+          const [packet, previewState] = await Promise.all([
+            runtimeDbStorageService.readMatterContextPacket(matter),
+            runtimeDbStorageService.readSourceRemovalPreviewState(matter, fileId),
+          ]);
+          sendJson(response, 200, runtimeDbReadResponse(buildSourceRemovalImpactPreviewFromPacket(packet, {
+            fileId,
+            sourceRecord: previewState.sourceRecord,
+            artifactInventory: previewState.artifactInventory,
+          }), matter));
           return;
         }
         assertFilesystemWorkflowAvailable(matterStore, "Preview source removal impact");
@@ -831,6 +839,12 @@ function assertRuntimeDbListOfDatesLabelRefreshAvailable({ runtimeDbStorageServi
 function assertRuntimeDbContextReadAvailable({ runtimeDbStorageService } = {}) {
   if (typeof runtimeDbStorageService?.readMatterContextPacket !== "function") {
     throw makeRuntimeWorkflowUnavailableError("matter_workflow.context_required");
+  }
+}
+
+function assertRuntimeDbSourceRemovalPreviewAvailable({ runtimeDbStorageService } = {}) {
+  if (typeof runtimeDbStorageService?.readSourceRemovalPreviewState !== "function") {
+    throw makeRuntimeWorkflowUnavailableError("matter_workflow.source_removal_preview_required");
   }
 }
 

@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { writeFileAtomic } from "../shared/atomic-file.mjs";
-import { parseCsv } from "../shared/csv.mjs";
 import { makeHttpError, toPosix } from "../shared/safe-paths.mjs";
 import {
   sqlString,
@@ -25,6 +24,9 @@ import {
   buildSourceRemovalArtifactCurrentnessEffects,
 } from "./artifact-currentness-service.mjs";
 import { createLocalArtifactCurrentnessStore } from "./local-artifact-currentness-store.mjs";
+import { listLocalConfigurableSkillOutputPaths } from "./configurable-skill-run-artifacts.mjs";
+import { findLocalSourceRegisterRecord } from "./local-source-register-service.mjs";
+import { buildArtifactCurrentnessUpsertCteSql } from "./runtime-db-artifact-currentness-service.mjs";
 import { previewSourceRemovalImpact } from "./source-removal-impact-preview-service.mjs";
 import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
 import {
@@ -75,7 +77,7 @@ export function createSourceRemovalMutationService({
     if (repairState && !isRepairRetry) throw sourceRemovalRepairRequiredError();
 
     const existingTombstone = await sourceTombstoneForFileId(request.matterRoot, request.fileId);
-    const sourceRecord = existingTombstone || await findLocalSourceRecord(request.matterRoot, request.fileId);
+    const sourceRecord = existingTombstone || await findLocalSourceRegisterRecord(request.matterRoot, request.fileId);
     if (!sourceRecord) {
       throw makeHttpError(`${request.fileId} is not present in the matter source register.`, 404, "source_removal.source_not_found");
     }
@@ -232,6 +234,28 @@ export function buildRuntimeDbSourceRemovalMutationSql(input = {}) {
     reason: request.reason,
     physical_deletion: false,
   });
+  const currentnessUpsertCte = buildArtifactCurrentnessUpsertCteSql({
+    cteName: "upserted_currentness",
+    includeArtifactId: false,
+    sourceSql: [
+      "select",
+      "  current_app_tenant_id(),",
+      "  tm.id,",
+      "  ac.artifact_family,",
+      "  ac.artifact_path,",
+      "  ac.state,",
+      "  ac.dependency_state,",
+      "  ac.reason_code,",
+      "  (select id from selected_event limit 1),",
+      `  jsonb_build_array(${sqlString(request.fileId)}),`,
+      "  jsonb_build_object('mutation', 'source_removal'),",
+      `  ${sqlTimestamp(request.occurredAt)},`,
+      `  ${sqlTimestamp(request.occurredAt)}`,
+      "from target_matter tm",
+      "join artifact_candidates ac on true",
+      "where exists (select 1 from updated_document)",
+    ].join("\n"),
+  });
   return wrapRuntimeDbWriteTransaction([
     `select set_config('app.tenant_id', ${sqlString(input.tenantId)}, false);`,
     "with target_matter as (",
@@ -305,35 +329,8 @@ export function buildRuntimeDbSourceRemovalMutationSql(input = {}) {
     "  left join storage_objects so on so.id = ma.storage_object_id and so.tenant_id = ma.tenant_id",
     "  where exists (select 1 from updated_document)",
     "    and coalesce(so.object_key, '') <> ''",
-    "), upserted_currentness as (",
-    "  insert into matter_artifact_currentness (tenant_id, matter_id, artifact_family, artifact_path, state, dependency_state, reason_code, source_event_id, affected_file_ids_json, metadata_json, observed_at, updated_at)",
-    "  select",
-    "    current_app_tenant_id(),",
-    "    tm.id,",
-    "    ac.artifact_family,",
-    "    ac.artifact_path,",
-    "    ac.state,",
-    "    ac.dependency_state,",
-    "    ac.reason_code,",
-    "    (select id from selected_event limit 1),",
-    `    jsonb_build_array(${sqlString(request.fileId)}),`,
-    "    jsonb_build_object('mutation', 'source_removal'),",
-    `    ${sqlTimestamp(request.occurredAt)},`,
-    `    ${sqlTimestamp(request.occurredAt)}`,
-    "  from target_matter tm",
-    "  join artifact_candidates ac on true",
-    "  where exists (select 1 from updated_document)",
-    "  on conflict (tenant_id, matter_id, artifact_family, artifact_path) do update set",
-    "    state = excluded.state,",
-    "    dependency_state = excluded.dependency_state,",
-    "    reason_code = excluded.reason_code,",
-    "    source_event_id = excluded.source_event_id,",
-    "    affected_file_ids_json = excluded.affected_file_ids_json,",
-    "    metadata_json = excluded.metadata_json,",
-    "    observed_at = excluded.observed_at,",
-    "    updated_at = excluded.updated_at",
-    "  returning *",
-    ")",
+    "),",
+    currentnessUpsertCte,
     "select jsonb_build_object(",
     `  'schema_version', ${sqlString(SOURCE_REMOVAL_MUTATION_SCHEMA_VERSION)},`,
     `  'file_id', ${sqlString(request.fileId)},`,
@@ -394,14 +391,23 @@ async function buildLocalCurrentnessRecords({ matterRoot, matterName, fileId, pr
   const sourceIndexPresent = affectedFamilies.has("source_index") || await fileExists(path.join(matterRoot, SOURCE_INDEX_RELATIVE));
   const listOfDatesAffected = affectedFamilies.has("list_of_dates")
     || await anyFileExists(matterRoot, CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES);
-  const matterStoryPresent = await fileExists(path.join(matterRoot, DISPUTE_STORY_OUTPUT_RELATIVE));
+  const matterStoryPresent = affectedFamilies.has("matter_story")
+    || await fileExists(path.join(matterRoot, DISPUTE_STORY_OUTPUT_RELATIVE));
+  const previewCustomSkillOutputPaths = (Array.isArray(preview?.affected_artifacts) ? preview.affected_artifacts : [])
+    .filter((artifact) => artifact?.family === "custom_skill_output")
+    .map((artifact) => artifact.artifact_path || artifact.artifactPath)
+    .filter(Boolean);
+  const customSkillOutputPaths = [...new Set([
+    ...previewCustomSkillOutputPaths,
+    ...await listLocalConfigurableSkillOutputPaths({ matterRoot }),
+  ])];
   return buildSourceRemovalArtifactCurrentnessEffects({
     matterName,
     fileId,
     sourceIndexPresent,
     listOfDatesAffected,
     matterStoryPresent,
-    customSkillOutputPaths: [],
+    customSkillOutputPaths,
     sourceEventId: eventId,
     observedAt,
   });
@@ -428,35 +434,6 @@ function sourceRemovalEventPayload({ source, request, eventId, occurredAt, actor
     occurredAt,
     createdAt: occurredAt,
   };
-}
-
-async function findLocalSourceRecord(root, fileId) {
-  const intakes = await listIntakeFolders(root);
-  for (const intake of intakes) {
-    const registerPath = path.join(root, "00_Inbox", intake.name, "File Register.csv");
-    let rows = [];
-    try {
-      rows = parseCsv(await readFile(registerPath, "utf8"));
-    } catch (error) {
-      if (error?.code === "ENOENT") continue;
-      throw makeHttpError(`File Register.csv could not be read: ${safeErrorMessage(error)}`, 500, "source_removal.file_register_read_failed");
-    }
-    const row = rows.find((entry) => normalizeFileId(entry.file_id) === fileId);
-    if (row) return { ...row, intake_dir: `00_Inbox/${intake.name}` };
-  }
-  return null;
-}
-
-async function listIntakeFolders(root) {
-  try {
-    const entries = await readdir(path.join(root, "00_Inbox"), { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isDirectory() && /^Intake (\d{2,})\b/.test(entry.name))
-      .map((entry) => ({ name: entry.name, intakeNumber: Number(entry.name.match(/^Intake (\d{2,})/)?.[1] || 0) }))
-      .sort((a, b) => a.intakeNumber - b.intakeNumber);
-  } catch {
-    return [];
-  }
 }
 
 async function sourceTombstoneForFileId(root, fileId) {

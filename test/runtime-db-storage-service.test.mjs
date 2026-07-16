@@ -19,6 +19,54 @@ const matter = {
   jurisdiction: "India",
 };
 
+test("runtime DB source-removal preview state uses document custody and current artifacts", async () => {
+  const queries = [];
+  const service = createRuntimeDbStorageService({
+    databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
+    tenantId,
+    createPgClient: async () => ({
+      async connect() {},
+      async end() {},
+      async query(sql, values = []) {
+        const text = String(sql || "");
+        queries.push({ text, values });
+        if (/^begin$|^commit$|^rollback$|mwb_runtime_role_guard|set_config\('app\.tenant_id'/i.test(text)) return { rows: [] };
+        if (/select d\.file_id/i.test(text)) {
+          return { rows: [{ file_id: "FILE-0042", original_name: "registered.txt", document_type: "Text", status: "uploaded" }] };
+        }
+        if (/select 'stored'::text as source_kind/i.test(text)) {
+          return { rows: [
+            { source_kind: "stored", object_key: "DB Matter/10_Library/Source Index.json" },
+            { source_kind: "stored", object_key: "DB Matter/10_Library/Case Timeline.md" },
+            { source_kind: "stored", object_key: "DB Matter/20_Workshop/The Story.md" },
+            { source_kind: "custom_skill_output", object_key: "DB Matter/20_Workshop/Issue Map.md" },
+          ] };
+        }
+        throw new Error(`Unexpected query: ${text}`);
+      },
+    }),
+  });
+
+  const state = await service.readSourceRemovalPreviewState(matter, "file-0042");
+
+  assert.equal(state.sourceRecord.file_id, "FILE-0042");
+  assert.equal(state.sourceRecord.status, "uploaded");
+  assert.deepEqual(state.artifactInventory, {
+    sourceIndexPresent: true,
+    listOfDatesPresent: true,
+    matterStoryPresent: true,
+    customSkillOutputPaths: ["20_Workshop/Issue Map.md"],
+  });
+  assert.ok(queries.some(({ text }) => /from documents d/i.test(text)));
+  assert.ok(queries.some(({ text }) => /ma\.artifact_family = 'custom_skill_output'/i.test(text)));
+  const queryCount = queries.length;
+  await assert.rejects(
+    () => service.readSourceRemovalPreviewState(matter, "not-a-file"),
+    (error) => error?.code === "source_removal_preview.file_id_required",
+  );
+  assert.equal(queries.length, queryCount);
+});
+
 test("runtime DB storage service builds workspace tree from storage payload metadata", async () => {
   const calls = [];
   const service = createRuntimeDbStorageService({

@@ -68,6 +68,7 @@ import {
 } from "./runtime-db-query.mjs";
 import { runtimeDbSafeRoleGuardSql } from "./runtime-db-sql-safety.mjs";
 import { createRuntimeDbProcessingJobStore } from "./runtime-db-processing-job-store.mjs";
+import { createRuntimeDbSourceRemovalPreviewStore } from "./runtime-db-source-removal-preview-store.mjs";
 import {
   buildAdvisorySnapshotSql,
   buildMatterAddFilesAllocationSql,
@@ -116,6 +117,11 @@ export function createRuntimeDbStorageService({
     ensureEnabled,
     actorProvider: runtimeDbUserFromRequestContext,
     persistActor: persistRuntimeDbActor,
+    normalizeMatter,
+  });
+  const { readSourceRemovalPreviewState } = createRuntimeDbSourceRemovalPreviewStore({
+    withRuntimeDbClient,
+    ensureEnabled,
     normalizeMatter,
   });
 
@@ -1306,6 +1312,7 @@ export function createRuntimeDbStorageService({
     readMatterStatus,
     readPrepareMatterPlan,
     readRerunAdvice,
+    readSourceRemovalPreviewState,
     persistMatterJson,
     persistTextArtifacts,
     readFilePreview,

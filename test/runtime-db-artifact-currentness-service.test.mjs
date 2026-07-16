@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  buildArtifactCurrentnessUpsertCteSql,
   createRuntimeDbArtifactCurrentnessService,
   listArtifactCurrentnessSql,
   upsertArtifactCurrentnessMutationSql,
@@ -52,6 +54,22 @@ test("runtime DB artifact currentness mutation SQL can be embedded in a larger t
   assert.doesNotMatch(sql, /set_config\('app\.tenant_id'/);
   assert.match(sql, /and id = '22222222-2222-4222-8222-222222222222'::uuid/);
   assert.match(sql, /select 1 from upserted limit 1/i);
+});
+
+test("runtime DB source-removal SQL composes the shared currentness upsert", async () => {
+  const cte = buildArtifactCurrentnessUpsertCteSql({
+    cteName: "source_removal_currentness",
+    includeArtifactId: false,
+    sourceSql: "select current_app_tenant_id(), matter_id, artifact_family, artifact_path, state, dependency_state, reason_code, source_event_id, affected_file_ids_json, metadata_json, observed_at, updated_at from candidates",
+  });
+  assert.match(cte, /^source_removal_currentness as \(/);
+  assert.match(cte, /insert into matter_artifact_currentness/i);
+  assert.doesNotMatch(cte.split("\n")[1], /artifact_id/);
+  assert.doesNotMatch(cte, /artifact_id = excluded\.artifact_id/);
+
+  const removalSource = await readFile(new URL("../services/source-removal-mutation-service.mjs", import.meta.url), "utf8");
+  assert.match(removalSource, /buildArtifactCurrentnessUpsertCteSql/);
+  assert.doesNotMatch(removalSource, /insert into matter_artifact_currentness/);
 });
 
 test("runtime DB artifact currentness list SQL returns normalized records", () => {

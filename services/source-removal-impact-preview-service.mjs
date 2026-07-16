@@ -1,5 +1,20 @@
-import { buildMatterContextPacket } from "./matter-context-service.mjs";
+import { stat } from "node:fs/promises";
+import path from "node:path";
+
+import {
+  CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES,
+  SOURCE_INDEX_RELATIVE,
+} from "../shared/matter-artifacts.mjs";
 import { makeHttpError } from "../shared/safe-paths.mjs";
+import {
+  isInactiveSourceStatus,
+  readSourceSuppressionIndex,
+  sourceSuppressionEntryFor,
+} from "./active-source-set-service.mjs";
+import { listLocalConfigurableSkillOutputPaths } from "./configurable-skill-run-artifacts.mjs";
+import { findLocalSourceRegisterRecord } from "./local-source-register-service.mjs";
+import { buildMatterContextPacket } from "./matter-context-service.mjs";
+import { DISPUTE_STORY_OUTPUT_RELATIVE } from "./matter-story-service.mjs";
 
 export const SOURCE_REMOVAL_IMPACT_PREVIEW_SCHEMA_VERSION = "source-removal-impact-preview/v1";
 
@@ -7,32 +22,47 @@ const FILE_ID_RE = /^FILE-\d{4,}$/;
 
 export async function previewSourceRemovalImpact({ matterRoot, fileId, matterContextBuilder = buildMatterContextPacket } = {}) {
   if (!matterRoot) throw makeHttpError("Matter root is required.", 400, "source_removal_preview.matter_required");
-  const packet = await matterContextBuilder(matterRoot);
-  return buildSourceRemovalImpactPreviewFromPacket(packet, { fileId });
+  const normalizedFileId = requireFileId(fileId);
+  const [packet, registerRecord, suppressionIndex, customSkillOutputPaths] = await Promise.all([
+    matterContextBuilder(matterRoot),
+    findLocalSourceRegisterRecord(matterRoot, normalizedFileId),
+    readSourceSuppressionIndex(matterRoot),
+    listLocalConfigurableSkillOutputPaths({ matterRoot }),
+  ]);
+  const suppressedSource = sourceSuppressionEntryFor(registerRecord || { file_id: normalizedFileId }, suppressionIndex);
+  return buildSourceRemovalImpactPreviewFromPacket(packet, {
+    fileId: normalizedFileId,
+    sourceRecord: suppressedSource || registerRecord,
+    artifactInventory: {
+      sourceIndexPresent: await fileExists(path.join(matterRoot, SOURCE_INDEX_RELATIVE)),
+      listOfDatesPresent: await anyFileExists(matterRoot, CASE_TIMELINE_ARTIFACT_RELATIVE_CANDIDATES),
+      matterStoryPresent: await fileExists(path.join(matterRoot, DISPUTE_STORY_OUTPUT_RELATIVE)),
+      customSkillOutputPaths,
+    },
+  });
 }
 
-export function buildSourceRemovalImpactPreviewFromPacket(packet = {}, { fileId } = {}) {
-  const normalizedFileId = normalizeFileId(fileId);
-  if (!normalizedFileId) {
-    throw makeHttpError("A valid FILE-NNNN id is required.", 400, "source_removal_preview.file_id_required");
-  }
-
-  const source = activeSourceForFileId(packet, normalizedFileId);
+export function buildSourceRemovalImpactPreviewFromPacket(packet = {}, options = {}) {
+  const normalizedFileId = requireFileId(options.fileId);
+  const packetSource = activeSourceForFileId(packet, normalizedFileId);
+  const hasSourceOverride = Object.hasOwn(options, "sourceRecord");
+  const sourceRecord = hasSourceOverride ? options.sourceRecord : packetSource;
+  const source = sourceRecord && !isInactiveSourceStatus(sourceRecord.status)
+    ? { ...sourceRecord, ...(packetSource || {}), file_id: normalizedFileId }
+    : null;
   const evidenceBlockCount = activeEvidenceBlockCount(packet, normalizedFileId);
   const listOfDatesReferences = listOfDatesReferenceCount(packet, normalizedFileId);
-  const sourceIndexPresent = hasSourceIndex(packet);
+  const artifactInventory = normalizeArtifactInventory(packet, options.artifactInventory);
   const affectedArtifacts = affectedArtifactsFor({
     source,
-    evidenceBlockCount,
     listOfDatesReferences,
-    sourceIndexPresent,
+    artifactInventory,
   });
   const canRemove = Boolean(source);
   const warnings = [];
   if (!canRemove) {
-    warnings.push(`${normalizedFileId} is not in the active source set or is already inactive.`);
-  }
-  if (canRemove) {
+    warnings.push(`${normalizedFileId} is not in the active source register or is already inactive.`);
+  } else {
     warnings.push("Removal must not delete bytes, extracted records, source descriptors, or generated artifacts.");
     warnings.push("Paid/model regeneration must be a separate explicit action.");
   }
@@ -79,22 +109,32 @@ function listOfDatesReferenceCount(packet = {}, fileId = "") {
   return count;
 }
 
-function hasSourceIndex(packet = {}) {
-  return (Array.isArray(packet.library_artifacts) ? packet.library_artifacts : [])
-    .some((artifact) => artifact?.kind === "source_index");
+function normalizeArtifactInventory(packet = {}, input = undefined) {
+  const inventory = input && typeof input === "object" ? input : {};
+  const artifacts = Array.isArray(packet.library_artifacts) ? packet.library_artifacts : [];
+  return {
+    sourceIndexPresent: typeof inventory.sourceIndexPresent === "boolean"
+      ? inventory.sourceIndexPresent
+      : artifacts.some((artifact) => artifact?.kind === "source_index"),
+    listOfDatesPresent: typeof inventory.listOfDatesPresent === "boolean"
+      ? inventory.listOfDatesPresent
+      : artifacts.some((artifact) => artifact?.kind === "list_of_dates" || artifact?.kind === "list_of_dates_markdown"),
+    matterStoryPresent: inventory.matterStoryPresent === true,
+    customSkillOutputPaths: normalizeArtifactPaths(inventory.customSkillOutputPaths),
+  };
 }
 
-function affectedArtifactsFor({ source, evidenceBlockCount, listOfDatesReferences, sourceIndexPresent }) {
+function affectedArtifactsFor({ source, listOfDatesReferences, artifactInventory }) {
   if (!source) return [];
   const affected = [];
-  if (sourceIndexPresent) {
+  if (artifactInventory.sourceIndexPresent) {
     affected.push({
       family: "source_index",
       effect: "mark_stale_or_refresh_needed",
       reason: "Source labels and active source inventory include the target source.",
     });
   }
-  if (listOfDatesReferences > 0 || evidenceBlockCount > 0) {
+  if (artifactInventory.listOfDatesPresent) {
     affected.push({
       family: "list_of_dates",
       effect: "chronology_regeneration_needed",
@@ -102,11 +142,21 @@ function affectedArtifactsFor({ source, evidenceBlockCount, listOfDatesReference
       reason: "Chronology may cite or depend on the target source.",
     });
   }
-  affected.push({
-    family: "matter_story_and_source_backed_outputs",
-    effect: "needs_review",
-    reason: "Source-backed generated outputs may depend on the active source set.",
-  });
+  if (artifactInventory.matterStoryPresent) {
+    affected.push({
+      family: "matter_story",
+      effect: "needs_review",
+      reason: "Matter Story may depend on the active source set.",
+    });
+  }
+  for (const artifactPath of artifactInventory.customSkillOutputPaths) {
+    affected.push({
+      family: "custom_skill_output",
+      artifact_path: artifactPath,
+      effect: "needs_review",
+      reason: "Custom skill output may depend on the active source set.",
+    });
+  }
   return affected;
 }
 
@@ -116,8 +166,10 @@ function sanitizeSource(source = {}) {
     source_id: normalizeText(source.source_id),
     source_label: normalizeText(source.source_label),
     source_short_label: normalizeText(source.source_short_label),
+    original_name: normalizeText(source.original_name),
     document_type: normalizeText(source.document_type),
     source_path: normalizeText(source.source_path),
+    status: normalizeText(source.status),
   });
 }
 
@@ -137,9 +189,36 @@ function escapeRegExp(value = "") {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function requireFileId(value = "") {
+  const fileId = normalizeFileId(value);
+  if (!fileId) throw makeHttpError("A valid FILE-NNNN id is required.", 400, "source_removal_preview.file_id_required");
+  return fileId;
+}
+
 function normalizeFileId(value = "") {
   const text = normalizeText(value).toUpperCase();
   return FILE_ID_RE.test(text) ? text : "";
+}
+
+function normalizeArtifactPaths(values = []) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => String(value || "").trim().replaceAll("\\", "/").replace(/^\/+/, ""))
+    .filter(Boolean))].sort();
+}
+
+async function anyFileExists(root, relativePaths = []) {
+  for (const relativePath of relativePaths) {
+    if (await fileExists(path.join(root, relativePath))) return true;
+  }
+  return false;
+}
+
+async function fileExists(filePath) {
+  try {
+    return (await stat(filePath)).isFile();
+  } catch {
+    return false;
+  }
 }
 
 function normalizeText(value = "") {

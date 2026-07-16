@@ -39,6 +39,13 @@ test("source-removal route removes a source from the active record without delet
   const address = app.server.address();
   const baseUrl = `http://${address.address}:${address.port}`;
   try {
+    const unextractedPreviewResponse = await fetch(`${baseUrl}/api/source-removal-impact-preview?matter=${encodeURIComponent("Removal Route Matter")}&fileId=FILE-0001`);
+    const unextractedPreview = await unextractedPreviewResponse.json();
+    assert.equal(unextractedPreviewResponse.status, 200);
+    assert.equal(unextractedPreview.can_remove, true);
+    assert.equal(unextractedPreview.source.original_name, "wrong-file.txt");
+    assert.equal(unextractedPreview.active_context.evidence_blocks, 0);
+
     const removeResponse = await fetch(`${baseUrl}/api/source-removal/remove-from-active-record`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -61,6 +68,11 @@ test("source-removal route removes a source from the active record without delet
     assert.match(tombstone, /FILE-0001/);
     assert.match(tombstone, /removed_from_active_record/);
     assert.equal(await readFile(sourcePath, "utf8"), "Wrong file bytes must be retained.");
+
+    const inactivePreviewResponse = await fetch(`${baseUrl}/api/source-removal-impact-preview?matter=${encodeURIComponent("Removal Route Matter")}&fileId=FILE-0001`);
+    const inactivePreview = await inactivePreviewResponse.json();
+    assert.equal(inactivePreviewResponse.status, 200);
+    assert.equal(inactivePreview.can_remove, false);
 
     const missingReason = await fetch(`${baseUrl}/api/source-removal/remove-from-active-record`, {
       method: "POST",
