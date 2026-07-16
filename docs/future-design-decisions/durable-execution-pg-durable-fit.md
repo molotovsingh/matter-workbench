@@ -1,7 +1,7 @@
 # Durable Execution And `pg_durable` Fit
 
 Date: 2026-07-11
-Status: Parked for later product decision; tool adoption rejected for current implementation
+Status: Parked evaluation; Mothership telemetry-triage spike is credible; Matter Workbench runtime adoption rejected
 Priority: Medium
 
 ## Decision Summary
@@ -10,11 +10,25 @@ The **durable-execution pattern survives review** and remains relevant to Matter
 Workbench: long-running work should have durable stage boundaries, idempotent
 external effects, bounded retries, observable state, and restart recovery.
 
-Adopting **`pg_durable` now does not survive review**. Matter Workbench should not
-replace its current job, upload-session, or native-run machinery with
-`pg_durable`, and this note is not implementation permission.
+Adopting **`pg_durable` now as Matter Workbench's runtime orchestrator does not
+survive review**. Matter Workbench should not replace its current job,
+upload-session, or native-run machinery with `pg_durable`, and this note is not
+implementation permission.
 
-The reasons are:
+A narrower idea **does survive review as a spike candidate**: using
+`pg_durable` inside the separate Mothership service to orchestrate telemetry
+**triage after ingestion**. Telemetry delivery and telemetry triage are distinct:
+
+```text
+Matter Workbench -> store and deliver signal -> Mothership ingestion row
+                                               -> durable triage workflow
+                                               -> incident / review / routing state
+```
+
+The first arrow must stay local-first, fast, and independent. The possible
+`pg_durable` boundary starts only after Mothership has safely accepted the row.
+
+The reasons not to use it for the Matter Workbench runtime are:
 
 1. Runtime-DB mode already has a substantial durable substrate:
    `processing_jobs`, unique idempotency keys, execution leases, retry metadata,
@@ -34,8 +48,14 @@ The reasons are:
 The current decision is therefore:
 
 ```text
-keep the pattern; keep hardening the existing runner/job contracts;
-do not adopt pg_durable without a later isolated spike and explicit cutover decision
+Matter Workbench runtime:
+  keep hardening the existing runner/job contracts; do not migrate them now
+
+Mothership telemetry transport:
+  keep local-first outbox delivery; do not put transport on pg_durable
+
+Mothership telemetry triage:
+  allow a later isolated pg_durable spike; adopt only after explicit acceptance
 ```
 
 ## What Was Verified
@@ -112,36 +132,75 @@ not become design authority.
 | Adopting `pg_durable` means all workflow logic must be rewritten into SQL. | Narrowed. | Coordination becomes SQL-shaped, but existing Node work could remain behind HTTP/SQL activity boundaries. That avoids a total rewrite but adds another security, deployment, observability, and failure boundary. |
 | Upload sessions are a direct medium-fit migration target. | Rejected for now. | Their critical receive/validate/commit semantics are already transactional application/database operations. A new orchestrator does not remove the need for atomic commit, matter-scoped serialization, payload cleanup, or idempotent enqueue. |
 | Native skills are a direct queue-replacement target. | Rejected for now. | The durable runner/receipt contract is valuable, but current skills depend on rich JS, provider adapters, matter context, and artifact policy. Moving coordination alone would create two orchestration systems before proving a concrete operational benefit. |
+| Telemetry is a weak fit. | Rejected as too broad. | Telemetry capture and transport are weak fits; Mothership-side telemetry triage is a credible fit when it becomes a multi-stage, recurrence-sensitive, human-in-the-loop workflow. |
 
 ## Fit By Workload
 
-### Possible later fit
+### Strongest candidate: Mothership telemetry triage
 
-The narrowest credible candidate is the **hosted runtime-DB preparation chain**:
+The first credible spike is **not telemetry collection or delivery**. It is the
+Mothership-side workflow that begins after a signal is durably ingested:
+
+```text
+ingested signal
+  -> deduplicate and correlate
+  -> enrich with recurrence and installation history
+  -> classify severity and action lane
+  -> group into an incident or retain as a signal
+  -> wait for operator review when uncertain
+  -> route, resolve, suppress, or reopen
+  -> preserve the triage history
+```
+
+This is a better fit because it is asynchronous, PostgreSQL-backed, branching,
+long-lived, recurrence-sensitive, and potentially human-in-the-loop. Durable
+signals and timers map naturally to operator review, suppression expiry, and
+scheduled recurrence checks.
+
+The deployment boundary matters: any experiment belongs in the **Mothership
+PostgreSQL environment**, not in the Matter Workbench matter database. Signal
+ingestion must commit first and return independently. A triage outage must not
+block a lawyer's request or the Workbench-to-Mothership delivery path.
+
+`pg_durable` would coordinate the triage steps; it would not define the policy.
+Mothership triage still needs explicit rules for:
+
+- duplicate versus recurrence;
+- incident grouping;
+- when a resolved or suppressed signal reopens;
+- suppression expiry;
+- severity and action-lane changes;
+- operator authority and audit history.
+
+In particular, orchestration alone does not fix recurrence evidence being
+discarded on closed signals. Reopen semantics must first exist as tested
+lifecycle rules.
+
+### Secondary possible fit: hosted preparation orchestration
+
+A later, less attractive candidate remains the hosted runtime-DB preparation
+chain:
 
 ```text
 matter_init -> extract -> source_labels -> case_timeline
 ```
 
-Even here, a future spike should initially orchestrate only coarse stage
-boundaries. It must not assume that `pg_durable` gives per-file OCR recovery or
-exactly-once provider calls. Those require finer application checkpoints and
-idempotent activities regardless of orchestrator.
-
-Durable signals may also be relevant later for explicit human approval steps,
-but only after the product defines authorization, expiry, cancellation, and
-audit semantics for those approvals.
+A future spike here should orchestrate only coarse stage boundaries. It must not
+assume that `pg_durable` gives per-file OCR recovery or exactly-once provider
+calls. Those require finer application checkpoints and idempotent activities
+regardless of orchestrator.
 
 ### Poor current fit
 
 Do not target these surfaces in a first evaluation:
 
+- telemetry capture, Workbench outbox storage, or telemetry sync/transport;
 - filesystem-mode execution;
 - browser upload byte receipt or atomic upload commit;
 - source-removal custody mutations;
 - per-file extraction/OCR internals that rely on Node libraries and files;
 - configurable/native legal skill business logic;
-- Copilot Research or telemetry sync;
+- Copilot Research;
 - single transactional database mutations.
 
 ## Relationship To Existing Decisions
@@ -154,50 +213,69 @@ This note does not replace:
   request, stage, persistence, recovery, and receipt contract;
 - [Upload Intake Scheduler](upload-intake-scheduler.md), which owns future
   intake sizing and dependency scheduling;
+- [Private Beta Feedback Capture](private-beta-feedback-capture.md), which owns
+  feedback/signal triage policy and Mothership routing boundaries;
+- [Mothership Signal Lifecycle](../mothership-signal-lifecycle-plan.md), which
+  owns active/resolved/superseded/suppressed semantics and recurrence follow-up;
 - application-level concurrency, idempotency, custody, and artifact contracts.
 
-A future orchestrator may implement the runner contract. It must not redefine
-that contract or bypass its legal/audit boundaries.
+A future orchestrator may implement a triage or runner workflow. It must not
+redefine lifecycle policy, silently reopen/suppress incidents, or bypass legal,
+privacy, authorization, and audit boundaries.
 
 ## Revisit Triggers
 
-Revisit `pg_durable` only when all of the following are true:
+### Mothership telemetry triage
 
-1. Hosted runtime-DB mode is the selected production execution path for the
-   target workflow; filesystem parity is no longer required for that slice.
-2. Real incidents show that the existing job/lease/worker design is materially
-   failing despite bounded retries, crash recovery, idempotency, and operational
-   tests.
-3. The target PostgreSQL service supports the required version, extension,
+A Mothership-side spike may begin when all of the following are true:
+
+1. Signal ingestion remains a short, independently committed operation and can
+   enqueue triage without waiting for it.
+2. The signal/incident lifecycle defines duplicate, recurrence, reopen,
+   suppression-expiry, grouping, and operator-review rules.
+3. Triage has enough branching, waiting, retry, or recurrence behavior that a
+   durable workflow is simpler than one transaction plus an ordinary worker.
+4. Mothership's PostgreSQL service supports the required version, extension,
    `shared_preload_libraries`, background worker, backup/restore, and least-
    privilege model.
-4. One coarse workflow is selected with explicit activity boundaries and no
-   implied migration of all skills or uploads.
-5. External effects have stable idempotency keys independent of `pg_durable`.
-6. Upgrade, rollback, tenant isolation, egress policy, observability, and cost
-   are testable in an isolated environment.
+5. Classifier calls, notifications, and ticket creation have stable idempotency
+   keys independent of `pg_durable`.
+6. Upgrade, rollback, installation isolation, egress policy, observability,
+   retention, and cost are testable in an isolated environment.
 
-## Required Spike Before Any Adoption
+### Matter Workbench runtime
 
-A later spike must use a disposable PostgreSQL environment and compare
-`pg_durable` with the existing `processing_jobs` implementation. It must prove:
+Revisit runtime adoption only if hosted runtime-DB mode is the selected path for
+the target workflow and real incidents show that the existing bounded
+job/lease/worker design is materially insufficient. That is a separate decision
+from Mothership triage and must not be implied by a successful triage spike.
 
-1. A three-stage preparation fixture resumes after terminating both the worker
-   and PostgreSQL between stages.
-2. A crash during a stage does not duplicate a paid/external effect when the
-   activity uses the Workbench idempotency key.
-3. Retry exhaustion, cancellation, timeout, and manual intervention are
-   observable and bounded.
-4. Two tenants cannot inspect, signal, cancel, or influence each other's
-   workflow instances under the intended runtime role model.
-5. Backup/restore and failover preserve useful workflow state.
-6. A pinned extension upgrade and rollback procedure is credible; running
-   preview instances are drained or cancelled as required.
-7. The spike reduces application complexity compared with the current queue; it
-   does not merely add SQL orchestration beside the existing runner.
-8. The current artifact, custody, source identity, currentness, and receipt
-   contracts remain unchanged.
+## Required Mothership Triage Spike Before Any Adoption
 
-Failure of any acceptance item rejects adoption for that workflow. Passing the
-spike permits a separate implementation decision; it does not authorize a broad
-rewrite.
+The preferred first spike must use a disposable Mothership PostgreSQL
+environment and synthetic/redacted signals. It must prove:
+
+1. Ingestion commits and returns successfully even when the triage worker is
+   stopped, broken, or unavailable.
+2. A workflow can run `correlate -> classify -> route/review`, survive worker and
+   PostgreSQL restarts between stages, and resume without losing its history.
+3. Repeated active evidence increments recurrence and can reopen a closed
+   signal/incident under an explicit tested rule; it is not silently discarded.
+4. Duplicate delivery does not create duplicate incidents, notifications,
+   tickets, or classifier charges.
+5. Operator review can be signalled, timed out, cancelled, and audited without
+   overwriting prior triage history.
+6. Retry exhaustion, cancellation, timeout, suppression expiry, and manual
+   intervention are observable and bounded.
+7. One installation cannot inspect, signal, cancel, or influence another
+   installation's workflow instances under the intended role model.
+8. Backup/restore and failover preserve useful workflow and operator-history
+   state.
+9. A pinned extension upgrade and rollback procedure is credible; preview
+   instances are drained or cancelled as required.
+10. The spike reduces Mothership triage complexity instead of adding SQL
+    orchestration beside an equivalent JS state machine.
+
+Failure of any acceptance item rejects adoption for telemetry triage. Passing
+the spike permits a separate Mothership implementation decision; it does not
+authorize Matter Workbench runtime migration or a broad rewrite.
