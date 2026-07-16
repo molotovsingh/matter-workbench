@@ -47,25 +47,53 @@ export function createJobStatusService({
 
   async function createJob(input = {}) {
     return writeMutatedStore(async (store) => {
-      const startedAt = isoNow(now);
-      const requestContext = currentRequestContext();
-      const job = normalizeJobStatus({
-        schema_version: JOB_SCHEMA_VERSION,
-        id: typeof input.id === "string" && input.id.trim() ? input.id.trim() : idFactory(),
-        kind: input.kind,
-        label: input.label,
-        matterName: input.matterName,
-        matterId: input.matterId,
-        status: "running",
-        traceId: input.traceId || requestContext.traceId,
-        requestId: input.requestId || requestContext.requestId,
-        user: input.user || requestContext.user,
-        startedAt,
-        updatedAt: startedAt,
-        metadata: sanitizeMetadata(input.metadata),
-      });
+      const job = newJob(input);
       store.jobs.push(job);
       return job;
+    });
+  }
+
+  async function createSkillRunJob(input = {}, { slash = "", idempotencyKey = "" } = {}) {
+    await finalizeStaleRunningJobs();
+    return writeMutatedStore(async (store) => {
+      const existing = activeSkillRunJob(store.jobs, {
+        slash,
+        matterId: input.matterId,
+        matterName: input.matterName,
+      });
+      if (existing) {
+        const existingKey = normalizeFilter(existing.metadata?.skill?.idempotencyKey);
+        return {
+          created: false,
+          deduplicationReason: existingKey && existingKey === normalizeFilter(idempotencyKey)
+            ? "idempotency_key"
+            : "active_skill_matter",
+          job: existing,
+        };
+      }
+      const job = newJob(input);
+      store.jobs.push(job);
+      return { created: true, deduplicationReason: "", job };
+    });
+  }
+
+  function newJob(input = {}) {
+    const startedAt = isoNow(now);
+    const requestContext = currentRequestContext();
+    return normalizeJobStatus({
+      schema_version: JOB_SCHEMA_VERSION,
+      id: typeof input.id === "string" && input.id.trim() ? input.id.trim() : idFactory(),
+      kind: input.kind,
+      label: input.label,
+      matterName: input.matterName,
+      matterId: input.matterId,
+      status: "running",
+      traceId: input.traceId || requestContext.traceId,
+      requestId: input.requestId || requestContext.requestId,
+      user: input.user || requestContext.user,
+      startedAt,
+      updatedAt: startedAt,
+      metadata: sanitizeMetadata(input.metadata),
     });
   }
 
@@ -241,6 +269,7 @@ export function createJobStatusService({
 
   return {
     createJob,
+    createSkillRunJob,
     updateJob,
     updateJobStage,
     completeJob,
@@ -520,6 +549,19 @@ function parseLimit(value) {
 function parsePositiveInteger(value) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function activeSkillRunJob(jobs = [], { slash = "", matterId = "", matterName = "" } = {}) {
+  const targetSlash = normalizeFilter(slash);
+  const targetMatterId = normalizeFilter(matterId);
+  const targetMatterName = normalizeFilter(matterName).toLowerCase();
+  if (!targetSlash || (!targetMatterId && !targetMatterName)) return null;
+  return [...(Array.isArray(jobs) ? jobs : [])].reverse().find((job) => {
+    if (job?.status !== "running" || normalizeFilter(job.metadata?.skill?.slash) !== targetSlash) return false;
+    const jobMatterId = normalizeFilter(job.matterId);
+    if (targetMatterId && jobMatterId) return targetMatterId === jobMatterId;
+    return Boolean(targetMatterName) && normalizeFilter(job.matterName).toLowerCase() === targetMatterName;
+  }) || null;
 }
 
 function normalizeFilter(value) {

@@ -13,6 +13,7 @@ export function createSkillRunnerService({
   }
   const stageService = createSkillStageService({ jobStatusService, now });
   const runnerMap = new Map(Object.entries(runners || {}));
+  const inFlightStarts = new Map();
 
   function resolveRunner(slash) {
     const key = normalizeSlash(slash);
@@ -21,7 +22,21 @@ export function createSkillRunnerService({
     return { key, runner };
   }
 
-  async function start({ slash, request = {}, idempotencyKey = "", mode = "auto", metadata = {} } = {}) {
+  async function start(input = {}) {
+    const { key } = resolveRunner(input.slash);
+    const scopeKey = skillRunScopeKey(key, input.request);
+    const inFlight = scopeKey ? inFlightStarts.get(scopeKey) : null;
+    if (inFlight) return markDeduplicatedStart(await inFlight, "in_flight");
+    const operation = startOnce({ ...input, slash: key });
+    if (scopeKey) inFlightStarts.set(scopeKey, operation);
+    try {
+      return await operation;
+    } finally {
+      if (scopeKey && inFlightStarts.get(scopeKey) === operation) inFlightStarts.delete(scopeKey);
+    }
+  }
+
+  async function startOnce({ slash, request = {}, idempotencyKey = "", mode = "auto", metadata = {} } = {}) {
     const { key, runner } = resolveRunner(slash);
     if (typeof runner.preflight === "function") {
       const preflight = await runner.preflight({ request });
@@ -35,7 +50,8 @@ export function createSkillRunnerService({
     }
 
     const jobMetadata = normalizeJobMetadata(metadata);
-    const job = await jobStatusService.createJob({
+    const normalizedIdempotencyKey = String(idempotencyKey || "").trim().slice(0, 240);
+    const jobInput = {
       kind: runner.kind || kindFromSlash(key),
       label: runner.label || runner.title || key,
       matterName: request.matterName || request.matter || "",
@@ -46,11 +62,25 @@ export function createSkillRunnerService({
           ...(jobMetadata.skill && typeof jobMetadata.skill === "object" && !Array.isArray(jobMetadata.skill) ? jobMetadata.skill : {}),
           slash: key,
           skillId: runner.id || kindFromSlash(key),
-          idempotencyKey: String(idempotencyKey || "").trim(),
+          idempotencyKey: normalizedIdempotencyKey,
           stageRetrySupported: Boolean(runner.supportsStageRetry),
         },
       },
-    });
+    };
+    const creation = typeof jobStatusService.createSkillRunJob === "function"
+      ? await jobStatusService.createSkillRunJob(jobInput, { slash: key, idempotencyKey: normalizedIdempotencyKey })
+      : { created: true, deduplicationReason: "", job: await jobStatusService.createJob(jobInput) };
+    const job = creation.job;
+    if (!creation.created) {
+      return {
+        accepted: true,
+        queued: true,
+        deduplicated: true,
+        deduplicationReason: creation.deduplicationReason || "active_skill_matter",
+        runId: job.id,
+        job,
+      };
+    }
 
     const payload = {
       runId: job.id,
@@ -149,6 +179,21 @@ export function createSkillRunnerService({
     getReceipt,
     retry,
     resolveRunner,
+  };
+}
+
+function skillRunScopeKey(slash, request = {}) {
+  const matterId = String(request?.matterId || "").trim();
+  const matterName = String(request?.matterName || request?.matter || "").trim().toLowerCase();
+  const matterKey = matterId ? `id:${matterId}` : matterName ? `name:${matterName}` : "";
+  return matterKey ? `${slash}\u0000${matterKey}` : "";
+}
+
+function markDeduplicatedStart(result, reason) {
+  return {
+    ...(result && typeof result === "object" ? result : {}),
+    deduplicated: true,
+    deduplicationReason: reason,
   };
 }
 

@@ -982,6 +982,14 @@ async function runNativeSkillAlias({ slash = "", body = {}, matterStore, runtime
   throw httpError("Native skill is not available.", 404, "native_skill.not_found");
 }
 
+function nativeSkillIdempotencyKey(body = {}) {
+  return typeof body.idempotencyKey === "string"
+    ? body.idempotencyKey.trim().slice(0, 240)
+    : typeof body.idempotency_key === "string"
+      ? body.idempotency_key.trim().slice(0, 240)
+      : "";
+}
+
 function normalizeNativeSkillAliasSlash(value = "") {
   const text = safeDecodeText(value).trim();
   const slash = text.startsWith("/") ? text : `/${text}`;
@@ -1024,6 +1032,7 @@ async function runDescribeSourcesSkill({
     : await skillRunnerService.start({
       slash: "/describe_sources",
       request,
+      idempotencyKey: nativeSkillIdempotencyKey(body),
       mode: "inline",
       metadata: workflowMetadata,
     });
@@ -1117,6 +1126,7 @@ async function runListOfDatesSkill({
     : await skillRunnerService.start({
       slash: CASE_TIMELINE_SKILL_SLASH,
       request,
+      idempotencyKey: nativeSkillIdempotencyKey(body),
       mode: "inline",
       metadata: workflowMetadata,
     });
@@ -1224,6 +1234,7 @@ async function runMwListOfDatesSkill({
     : await skillRunnerService.start({
       slash: MW_LIST_OF_DATES_SLASH,
       request,
+      idempotencyKey: nativeSkillIdempotencyKey(body),
       mode: "inline",
       metadata: workflowMetadata,
     });
@@ -1324,6 +1335,7 @@ async function runMatterStorySkill({
     : await skillRunnerService.start({
       slash: "/the_story",
       request,
+      idempotencyKey: nativeSkillIdempotencyKey(body),
       mode: "inline",
       metadata: workflowMetadata,
     });
@@ -1430,6 +1442,7 @@ async function runProceduralPostureDiagnosisSkill({
     : await skillRunnerService.start({
       slash: "/procedural_posture_diagnosis",
       request,
+      idempotencyKey: nativeSkillIdempotencyKey(body),
       mode: "inline",
       metadata: workflowMetadata,
     });

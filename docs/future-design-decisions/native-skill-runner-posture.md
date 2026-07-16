@@ -110,7 +110,11 @@ providers, UI, or skill catalog pivot.
    legal operations.
 9. **Human authority remains explicit.** Generated artifacts can be source-backed and useful, but
    legal confirmation, override, dispatch, and lawyer-owned draft edits remain explicit boundaries.
-10. **Current code is a migration substrate.** Reusing `job-status-service`, `skill.json`, or
+10. **One active run per skill and matter.** Concurrent inline or queued requests for the same
+    slash and matter reuse the active job instead of repeating paid calls or artifact writes. A
+    caller idempotency key is retained on the job and forwarded by route wrappers; same-process
+    inline duplicates await the original result.
+11. **Current code is a migration substrate.** Reusing `job-status-service`, `skill.json`, or
    existing routes is a practical first slice, not a commitment that those shapes are permanent.
 
 ## Wrong Success Metrics

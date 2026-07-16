@@ -75,6 +75,12 @@ test("runtime DB setup and analysis write routes stay DB-native", async () => {
   assert.doesNotMatch(refreshSource, /runMaterializedMatterWrite/);
 });
 
+test("native skill route wrappers forward caller idempotency keys", async () => {
+  const source = await readFile(matterWorkflowRoutesPath, "utf8");
+  assert.match(source, /function nativeSkillIdempotencyKey/);
+  assert.equal((source.match(/idempotencyKey: nativeSkillIdempotencyKey\(body\)/g) || []).length, 5);
+});
+
 test("runtime DB matter story route stays DB-native", async () => {
   const routeSource = await readRouteSource(
     'exactRoute("POST", "/api/matter-story"',

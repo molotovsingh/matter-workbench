@@ -74,6 +74,89 @@ test("skill runner service can execute an operation inline and return a terminal
   assert.equal(result.receipt.outputFileStatus, "present");
 });
 
+test("skill runner service coalesces simultaneous inline runs for the same skill and matter", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-inline-dedup-"));
+  let runCount = 0;
+  let releaseRun;
+  let signalStarted;
+  const started = new Promise((resolve) => { signalStarted = resolve; });
+  const runner = {
+    id: "dedup_skill",
+    kind: "dedup_skill",
+    async run() {
+      runCount += 1;
+      signalStarted();
+      await new Promise((resolve) => { releaseRun = resolve; });
+      return { state: "written", outputPaths: { markdown: "20_Workshop/Dedup.md" } };
+    },
+  };
+  let jobNumber = 0;
+  const jobStatusService = createJobStatusService({
+    jobsPath: path.join(tmp, "jobs.json"),
+    idFactory: () => `job_dedup_${++jobNumber}`,
+  });
+  const runnerService = createSkillRunnerService({
+    jobStatusService,
+    runners: { "/dedup_skill": runner },
+  });
+  const first = runnerService.start({
+    slash: "/dedup_skill",
+    request: { matterId: "matter-1", matterName: "Matter A" },
+    idempotencyKey: "dedup-request-1",
+    mode: "inline",
+  });
+  await started;
+  const second = runnerService.start({
+    slash: "/dedup_skill",
+    request: { matterId: "matter-1", matterName: "Matter A" },
+    idempotencyKey: "dedup-request-1",
+    mode: "inline",
+  });
+  releaseRun();
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+
+  assert.equal(runCount, 1);
+  assert.equal(firstResult.runId, secondResult.runId);
+  assert.equal(secondResult.deduplicated, true);
+  assert.equal(secondResult.deduplicationReason, "in_flight");
+  assert.equal(firstResult.job.metadata.skill.idempotencyKey, "dedup-request-1");
+  assert.equal((await jobStatusService.listJobs()).jobs.length, 1);
+});
+
+test("skill runner service reuses an active queued job without dispatching twice", async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-queued-dedup-"));
+  let jobNumber = 0;
+  const queued = [];
+  const jobStatusService = createJobStatusService({
+    jobsPath: path.join(tmp, "jobs.json"),
+    idFactory: () => `job_queued_dedup_${++jobNumber}`,
+  });
+  const runnerService = createSkillRunnerService({
+    jobStatusService,
+    runners: { "/demo_skill": DEMO_RUNNER },
+    dispatch: async (payload) => queued.push(payload),
+  });
+  const request = { matterId: "matter-queued", matterName: "Matter Queued" };
+  const first = await runnerService.start({
+    slash: "/demo_skill",
+    request,
+    idempotencyKey: "queued-request-1",
+    mode: "queued",
+  });
+  const second = await runnerService.start({
+    slash: "/demo_skill",
+    request,
+    idempotencyKey: "queued-request-1",
+    mode: "queued",
+  });
+
+  assert.equal(first.runId, second.runId);
+  assert.equal(second.deduplicated, true);
+  assert.equal(second.deduplicationReason, "idempotency_key");
+  assert.equal(queued.length, 1);
+  assert.equal((await jobStatusService.listJobs()).jobs.length, 1);
+});
+
 test("skill runner service refuses stage retry for non-failed jobs", async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "mwb-skill-runner-retry-nonfailed-"));
   const jobStatusService = createJobStatusService({
