@@ -99,14 +99,17 @@ export function createMultipartUploadHandler({
             totalBytes += chunk.length;
             if (totalBytes > maxUploadBytes) {
               const error = uploadTooLargeError(maxUploadBytes);
+              // filePromise.catch(fail) aborts after Busboy finishes this parser callback.
+              // Destroying Busboy synchronously here nulls its file stream before it can
+              // mark the stream truncated, which crashes on Linux.
               rejectOnce(error);
-              fail(error);
             }
           });
           fileStream.on("limit", () => {
             const error = uploadTooLargeError(maxUploadBytes);
+            // Defer parser cleanup through filePromise.catch(fail); Busboy still needs
+            // the current file stream after emitting its synchronous limit event.
             rejectOnce(error);
-            fail(error);
           });
           fileStream.on("error", rejectOnce);
           out.on("error", rejectOnce);
