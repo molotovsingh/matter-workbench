@@ -10,6 +10,6 @@ test("quality pipeline runs the disposable real-PostgreSQL integration gate", as
   assert.match(workflow, /image:\s*postgres:16/);
   assert.match(workflow, /MWB_POSTGRES_TEST_ADMIN_URL:\s*postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/postgres/);
   assert.match(workflow, /- run:\s*npm run test:postgres/);
-  assert.match(workflow, /- run:\s*npm test/);
+  assert.match(workflow, /- run:\s*node scripts\/node-test-file-runner\.mjs/);
   assert.match(workflow, /- run:\s*npm run ui:build/);
 });
