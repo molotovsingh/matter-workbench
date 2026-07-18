@@ -37,6 +37,45 @@ test("runtime DB processing job lease recovery fails exhausted jobs and bounds f
   assert.match(queries[1].text, /for update skip locked/i);
 });
 
+test("runtime DB processing job re-enqueue resets failed and cancelled terminal state", async () => {
+  const queries = [];
+  const store = createRuntimeDbProcessingJobStore({
+    withRuntimeDbClient: async (operation) => operation({
+      async query(text, values = []) {
+        queries.push({ text: String(text), values });
+        return { rows: [{
+          id: "job-1",
+          matter_id: "11111111-1111-4111-8111-111111111111",
+          kind: "extract",
+          status: "queued",
+          idempotency_key: "upload-session:one:extract",
+          attempt_count: 0,
+          max_attempts: 3,
+          progress_json: {},
+        }] };
+      },
+    }),
+    normalizeMatter: (matter) => matter,
+  });
+
+  const job = await store.enqueueProcessingJob({
+    matter: { id: "11111111-1111-4111-8111-111111111111" },
+    kind: "extract",
+    idempotencyKey: "upload-session:one:extract",
+  });
+
+  assert.equal(job.status, "queued");
+  assert.equal(job.attemptCount, 0);
+  assert.equal(queries.length, 1);
+  assert.match(queries[0].text, /progress_json = case when processing_jobs\.status in \('failed','cancelled'\) then excluded\.progress_json/i);
+  assert.match(queries[0].text, /status = case when processing_jobs\.status in \('failed','cancelled'\) then 'queued'/i);
+  assert.match(queries[0].text, /attempt_count = case[\s\S]*then 0/i);
+  assert.match(queries[0].text, /run_after = case[\s\S]*then now\(\)/i);
+  assert.match(queries[0].text, /finished_at = case[\s\S]*then null/i);
+  assert.match(queries[0].text, /error_code = case[\s\S]*then null/i);
+  assert.match(queries[0].text, /error_message = case[\s\S]*then null/i);
+});
+
 test("runtime DB processing job store keeps normalization and lease SQL independently testable", () => {
   const sql = expireProcessingJobLeasesSql();
   assert.doesNotMatch(sql, /status = 'retrying'/i);

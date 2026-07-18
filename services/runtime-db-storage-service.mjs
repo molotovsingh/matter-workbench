@@ -733,12 +733,18 @@ export function createRuntimeDbStorageService({
   }
 
   async function persistMatterJson(matter, matterJson = {}) {
-    return persistTextArtifacts(matter, [{
-      relativePath: "matter.json",
-      text: `${JSON.stringify(matterJson, null, 2)}\n`,
-      objectRole: "matter_artifact",
-      mimeType: "application/json",
-    }]);
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    return withSerializedMatterWrite(normalizedMatter, async () => {
+      const currentMatterJson = await readMatterJson(normalizedMatter);
+      const mergedMatterJson = mergeRuntimeMatterJsonForPersistence(currentMatterJson, matterJson);
+      return persistTextArtifacts(normalizedMatter, [{
+        relativePath: "matter.json",
+        text: `${JSON.stringify(mergedMatterJson, null, 2)}\n`,
+        objectRole: "matter_artifact",
+        mimeType: "application/json",
+      }]);
+    });
   }
 
   async function describeSources(matter, options = {}) {
@@ -1244,6 +1250,32 @@ function runtimeMatterJsonForStorage(matter = {}) {
     brief_description: stringValue(matter.briefDescription),
     intakes: [],
   };
+}
+
+export function mergeRuntimeMatterJsonForPersistence(currentMatterJson = {}, requestedMatterJson = {}) {
+  const current = currentMatterJson && typeof currentMatterJson === "object" ? currentMatterJson : {};
+  const requested = requestedMatterJson && typeof requestedMatterJson === "object" ? requestedMatterJson : {};
+  return {
+    ...current,
+    ...requested,
+    intakes: mergeRuntimeMatterIntakes(requested.intakes, current.intakes),
+  };
+}
+
+function mergeRuntimeMatterIntakes(requestedIntakes, currentIntakes) {
+  const merged = new Map();
+  for (const intake of [...normalizeRuntimeMatterIntakes(requestedIntakes), ...normalizeRuntimeMatterIntakes(currentIntakes)]) {
+    const key = stringValue(intake.intake_id || intake.intakeId || intake.intake_dir || intake.intakeDir)
+      || JSON.stringify(intake);
+    merged.set(key, intake);
+  }
+  return [...merged.values()];
+}
+
+function normalizeRuntimeMatterIntakes(value) {
+  return Array.isArray(value)
+    ? value.filter((item) => item && typeof item === "object").map((item) => ({ ...item }))
+    : [];
 }
 
 function runtimeWorkspaceMetadataFromMatterJson(metadata = {}, matterJson = {}) {

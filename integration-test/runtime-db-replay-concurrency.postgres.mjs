@@ -44,6 +44,8 @@ test("real PostgreSQL preserves replay, upload terminal state, and active matter
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifySourceRemovalReplay({ admin, runtimeUrl });
       await verifyUploadCommitCancelRace({ admin, runtimeUrl });
+      await verifyMatterJsonStoryMerge({ admin, runtimeUrl });
+      await verifyTerminalExtractionReenqueue({ admin, runtimeUrl });
       await verifyConcurrentMatterNameUniqueness({ admin, runtimeUrl });
     } finally {
       await admin.end();
@@ -181,6 +183,82 @@ async function verifyUploadCommitCancelRace({ admin, runtimeUrl }) {
     assert.equal(row.job_count, 0);
   }
   assert.equal(row.retained_payload_count, 0);
+}
+
+async function verifyMatterJsonStoryMerge({ admin, runtimeUrl }) {
+  const tenantId = randomUUID();
+  const matterId = randomUUID();
+  const matter = { id: matterId, name: "Story Merge Matter" };
+  await admin.query("insert into tenants (id, name, type) values ($1, 'Story merge tenant', 'internal_test')", [tenantId]);
+  await admin.query("insert into matters (id, tenant_id, name) values ($1, $2, $3)", [matterId, tenantId, matter.name]);
+
+  const service = createRuntimeDbStorageService({ databaseUrl: runtimeUrl, tenantId });
+  await service.persistMatterJson(matter, {
+    matter_name: matter.name,
+    intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }],
+  });
+  await service.persistMatterJson(matter, {
+    matter_name: matter.name,
+    intakes: [],
+    brief_description: "Story generated from an earlier matter snapshot.",
+  });
+
+  const persisted = await service.readMatterJson(matter);
+  assert.equal(persisted.brief_description, "Story generated from an earlier matter snapshot.");
+  assert.deepEqual(persisted.intakes, [{
+    intake_id: "INTAKE-01",
+    intake_dir: "00_Inbox/Intake 01 - Initial",
+  }]);
+}
+
+async function verifyTerminalExtractionReenqueue({ admin, runtimeUrl }) {
+  const tenantId = randomUUID();
+  const matterId = randomUUID();
+  await admin.query("insert into tenants (id, name, type) values ($1, 'Terminal retry tenant', 'internal_test')", [tenantId]);
+  await admin.query("insert into matters (id, tenant_id, name) values ($1, $2, 'Terminal Retry Matter')", [matterId, tenantId]);
+
+  const service = createRuntimeDbStorageService({ databaseUrl: runtimeUrl, tenantId });
+  const session = await service.createUploadSession({
+    action: "add_files",
+    matter: { id: matterId, name: "Terminal Retry Matter" },
+    expectedFileCount: 1,
+    expectedBytes: 13,
+    label: "Retry intake",
+  });
+  await service.appendUploadSessionFiles({
+    sessionId: session.id,
+    files: [{ filename: "retry.txt", bytes: Buffer.from("retry payload") }],
+    relativePaths: ["retry.txt"],
+    fileIndexes: [0],
+  });
+  const committed = await service.commitUploadSession(session.id);
+  assert.equal(committed.session.status, "committed");
+
+  const idempotencyKey = `upload-session:${session.id}:extract`;
+  await admin.query([
+    "update processing_jobs",
+    "set status = 'failed', attempt_count = max_attempts, started_at = now() - interval '1 minute', finished_at = now(),",
+    "    error_code = 'provider.invalid_json', error_message = 'terminal integration failure',",
+    "    progress_json = progress_json || '{\"failedStage\":\"extract\"}'::jsonb",
+    "where tenant_id = $1 and idempotency_key = $2",
+  ].join("\n"), [tenantId, idempotencyKey]);
+
+  const replay = await service.commitUploadSession(session.id);
+  assert.equal(replay.alreadyCommitted, true);
+
+  const state = await admin.query([
+    "select status, attempt_count, finished_at, error_code, error_message, (progress_json ? 'failedStage') as retained_failure",
+    "from processing_jobs",
+    "where tenant_id = $1 and idempotency_key = $2",
+  ].join("\n"), [tenantId, idempotencyKey]);
+  assert.deepEqual(state.rows[0], {
+    status: "queued",
+    attempt_count: 0,
+    finished_at: null,
+    error_code: null,
+    error_message: null,
+    retained_failure: false,
+  });
 }
 
 async function verifyConcurrentMatterNameUniqueness({ admin, runtimeUrl }) {

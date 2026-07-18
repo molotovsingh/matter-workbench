@@ -5,7 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createRuntimeDbStorageService } from "../services/runtime-db-storage-service.mjs";
+import {
+  createRuntimeDbStorageService,
+  mergeRuntimeMatterJsonForPersistence,
+} from "../services/runtime-db-storage-service.mjs";
 import { runWithRequestContext, runtimeDbUserFromRequestContext } from "../services/request-context.mjs";
 
 const tenantId = "82dc5ad0-fb23-5c08-a06c-73232cd0281f";
@@ -1450,18 +1453,36 @@ test("runtime DB storage service creates two-pass List of Dates directly from DB
   assert.match(calls.at(-1).input, /10_Library\/Case Timeline\.md/);
 });
 
-test("runtime DB storage service reads and persists matter.json directly in DB custody", async () => {
+test("runtime DB storage service locks matter.json persistence and preserves concurrently added intakes", async () => {
   const calls = [];
+  const advisoryQueries = [];
+  const originalMatterJson = {
+    matter_name: "Legal Caption",
+    intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }],
+  };
+  const currentMatterJson = {
+    ...originalMatterJson,
+    intakes: [
+      ...originalMatterJson.intakes,
+      { intake_id: "INTAKE-02", intake_dir: "00_Inbox/Intake 02 - Added Files" },
+    ],
+  };
   const service = createRuntimeDbStorageService({
     databaseUrl: "postgres://mwb_user:secret@db.example/matter_workbench_shadow",
     tenantId,
     spawn: jsonSpawnSequence(calls, [
-      payloadRow("DB Matter/matter.json", JSON.stringify({
-        matter_name: "Legal Caption",
-        intakes: [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }],
-      }), "application/json"),
+      payloadRow("DB Matter/matter.json", JSON.stringify(originalMatterJson), "application/json"),
+      payloadRow("DB Matter/matter.json", JSON.stringify(currentMatterJson), "application/json"),
       {},
     ]),
+    createPgClient: async () => ({
+      async connect() {},
+      async end() {},
+      async query(text, values = []) {
+        advisoryQueries.push({ text: String(text), values });
+        return { rows: [] };
+      },
+    }),
   });
 
   const matterJson = await service.readMatterJson(matter);
@@ -1471,10 +1492,30 @@ test("runtime DB storage service reads and persists matter.json directly in DB c
   });
 
   assert.equal(matterJson.matter_name, "Legal Caption");
-  assert.deepEqual(matterJson.intakes, [{ intake_id: "INTAKE-01", intake_dir: "00_Inbox/Intake 01 - Initial" }]);
+  assert.deepEqual(matterJson.intakes, originalMatterJson.intakes);
   assert.deepEqual(persisted.map((item) => item.relativePath), ["matter.json"]);
+  assert.ok(advisoryQueries.some(({ text }) => /pg_advisory_xact_lock/i.test(text)));
   assert.match(calls.at(-1).input, /insert into storage_objects/i);
   assert.match(calls.at(-1).input, /matter\.json/);
+  assert.match(calls.at(-1).input, new RegExp(Buffer.from("INTAKE-02").toString("hex"), "i"));
+  assert.match(calls.at(-1).input, new RegExp(Buffer.from("Runtime story description.").toString("hex"), "i"));
+});
+
+test("runtime DB matter.json merge keeps requested story fields and current intake custody", () => {
+  assert.deepEqual(mergeRuntimeMatterJsonForPersistence({
+    matter_name: "Matter A",
+    intakes: [{ intake_id: "INTAKE-01", label: "current" }, { intake_id: "INTAKE-02" }],
+    current_only: true,
+  }, {
+    matter_name: "Matter A",
+    intakes: [{ intake_id: "INTAKE-01", label: "stale" }],
+    brief_description: "Story summary",
+  }), {
+    matter_name: "Matter A",
+    current_only: true,
+    brief_description: "Story summary",
+    intakes: [{ intake_id: "INTAKE-01", label: "current" }, { intake_id: "INTAKE-02" }],
+  });
 });
 
 test("runtime DB storage service synthesizes matter.json metadata when DB custody has no matter artifact", async () => {
