@@ -372,9 +372,11 @@ cluster using an admin role with `CREATEDB` and `CREATEROLE`. The suite creates
 a randomly named database and non-superuser runtime role, applies all
 migrations, proves source-removal replay does not duplicate events or overwrite
 newer currentness, exercises upload commit/cancel across two service instances,
+proves a committed upload can reset a terminal extraction job for a real retry,
 proves concurrent matter creates collapse to one active case-insensitive name,
 and drops the temporary database and role afterward. Do not point this suite at
-a production cluster.
+a production cluster. `.github/workflows/quality-gates.yml` provisions PostgreSQL
+16 and runs this suite automatically on pull requests and pushes to `main`.
 
 For the private/local single-host path, the accepted storage policy is:
 `local-filesystem` storage is allowed only when the matching DB backup, storage
