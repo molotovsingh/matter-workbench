@@ -7,6 +7,7 @@ const workflowPath = new URL("../.github/workflows/quality-gates.yml", import.me
 test("quality pipeline runs the disposable real-PostgreSQL integration gate", async () => {
   const workflow = await readFile(workflowPath, "utf8");
 
+  assert.match(workflow, /node-version:\s*18\.19\.1/);
   assert.match(workflow, /image:\s*postgres:16/);
   assert.match(workflow, /MWB_POSTGRES_TEST_ADMIN_URL:\s*postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/postgres/);
   assert.match(workflow, /- run:\s*npm run test:postgres/);
