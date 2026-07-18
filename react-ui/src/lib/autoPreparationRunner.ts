@@ -6,10 +6,10 @@ import {
   isTransientPreparationStatusError,
   PREPARATION_STATUS_RECONNECT_MESSAGE,
 } from './preparationErrors';
+import { pollPreparationJob } from './preparationJobPolling';
 import { PREPARATION_STAGE_ACTIONS } from './preparationStageActions';
 import type {
   JobStatus,
-  JobStatusList,
   PreparationPlan,
   PreparationProgressStep,
   PreparationQueueRunResponse,
@@ -403,45 +403,28 @@ async function waitForServerPreparationJob({
   onProgress: ProgressUpdate;
   isStale: () => boolean;
 }): Promise<JobStatus | null> {
-  let consecutivePollErrors = 0;
-  for (let poll = 0; poll < SERVER_PREPARATION_MAX_POLLS_PER_STAGE; poll += 1) {
-    if (isStale()) return null;
-    let jobs: JobStatusList;
-    try {
-      jobs = await api.getJobs({ matterName, kind, limit: 20 });
-      consecutivePollErrors = 0;
-    } catch (error) {
-      consecutivePollErrors += 1;
-      if (
-        !isTransientPreparationStatusError(error)
-        || consecutivePollErrors >= SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS
-      ) {
-        throw error;
-      }
-      onProgress(markStageRunning(status, stage, PREPARATION_STATUS_RECONNECT_MESSAGE));
-      await delay(SERVER_PREPARATION_JOB_POLL_MS);
-      continue;
-    }
-    const job = findServerPreparationJob(jobs.jobs || [], { jobId, kind });
-    if (job?.status === 'succeeded') return job;
-    if (job && ['failed', 'cancelled'].includes(job.status)) {
-      const failure = new Error(job.errorMessage || job.summary || `${stageLabel(stage)} did not complete.`) as Error & { code?: string };
-      if (job.errorCode) failure.code = job.errorCode;
-      throw failure;
-    }
-    onProgress(markStageRunning(status, stage, serverQueuedStageDetail(stage, job)));
-    await delay(SERVER_PREPARATION_JOB_POLL_MS);
+  const outcome = await pollPreparationJob({
+    jobId,
+    kind,
+    maxPolls: SERVER_PREPARATION_MAX_POLLS_PER_STAGE,
+    maxConsecutiveErrors: SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS,
+    getJobs: async () => (await api.getJobs({ matterName, kind, limit: 20 })).jobs || [],
+    wait: () => delay(SERVER_PREPARATION_JOB_POLL_MS),
+    isTransientError: isTransientPreparationStatusError,
+    isStale,
+    onTransientError: () => onProgress(markStageRunning(status, stage, PREPARATION_STATUS_RECONNECT_MESSAGE)),
+    onRecovery: () => onProgress(markStageRunning(status, stage)),
+    onPending: (job) => onProgress(markStageRunning(status, stage, serverQueuedStageDetail(stage, job))),
+  });
+  if (outcome.state === 'stale') return null;
+  if (outcome.state === 'succeeded') return outcome.job;
+  if (outcome.state === 'terminal') {
+    const job = outcome.job;
+    const failure = new Error(job.errorMessage || job.summary || `${stageLabel(stage)} did not complete.`) as Error & { code?: string };
+    if (job.errorCode) failure.code = job.errorCode;
+    throw failure;
   }
   throw new Error(`${stageLabel(stage)} is still running on the server. Refresh the matter in a minute to see the latest status.`);
-}
-
-function findServerPreparationJob(jobs: JobStatus[], { jobId, kind }: { jobId?: string; kind?: string }): JobStatus | null {
-  if (jobId) {
-    const exact = jobs.find((job) => job.id === jobId || job.backendJobId === jobId);
-    if (exact) return exact;
-  }
-  if (kind) return jobs.find((job) => job.kind === kind) || null;
-  return jobs[0] || null;
 }
 
 function serverQueuedStageDetail(stage: PreparationStage, job?: JobStatus | null): string {

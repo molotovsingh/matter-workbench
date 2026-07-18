@@ -58,9 +58,9 @@ test("React automatic preparation runner includes Case Timeline, story, posture 
   assert.match(runner, /firstNonCurrentStageBefore\(plan, startStage\)/);
   assert.match(runner, /api\.getJobs\(\{ matterName, kind, limit: 20 \}\)/);
   assert.match(runner, /SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS = 15/);
-  assert.match(runner, /isTransientPreparationStatusError\(error\)/);
+  assert.match(runner, /isTransientError: isTransientPreparationStatusError/);
   assert.match(runner, /PREPARATION_STATUS_RECONNECT_MESSAGE/);
-  assert.match(runner, /consecutivePollErrors >= SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS/);
+  assert.match(runner, /maxConsecutiveErrors: SERVER_PREPARATION_MAX_CONSECUTIVE_POLL_ERRORS/);
   assert.match(runner, /if \(job\.errorCode\) failure\.code = job\.errorCode/);
   assert.match(runner, /server queue unavailable; running needed preparation in the browser session/);
   assert.match(runner, /progress is kept in Activity/);
@@ -193,10 +193,11 @@ test("React automatic preparation sanitizes upstream HTML before showing failure
   assert.match(runner, /const message = formatVisiblePreparationError\(error, stage\);[\s\S]*markStageFailed\(next, stage, message\)/);
 });
 
-test("React automatic preparation matches runtime DB jobs by their backend id", async () => {
+test("React automatic preparation delegates server job polling to the executed polling helper", async () => {
   const runner = await readFile(runnerPath, "utf8");
 
-  assert.match(runner, /job\.id === jobId \|\| job\.backendJobId === jobId/);
+  assert.match(runner, /import \{ pollPreparationJob \} from '\.\/preparationJobPolling';/);
+  assert.match(runner, /const outcome = await pollPreparationJob\(\{/);
 });
 
 test("React automatic preparation suppresses failed-stage UI updates after the matter goes stale", async () => {
