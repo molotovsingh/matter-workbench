@@ -102,14 +102,6 @@ function standardPreparationRowAction(
 }
 
 function proceduralPostureRowAction(stage: PreparationStage, state: string): PreparationRowAction | null {
-  if (state === 'current_unconfirmed') {
-    return {
-      label: 'Confirm in Case Analysis card',
-      hint: 'The diagnosis is saved; use the confirmation controls above before relying on it.',
-      disabled: true,
-      startStage: stage.slash || '',
-    };
-  }
   if (isPreparationStageCurrent(stage)) return null;
   return {
     label: state === 'stale' ? 'Refresh saved Procedural Diagnosis' : 'Run saved Procedural Diagnosis',

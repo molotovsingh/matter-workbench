@@ -492,7 +492,7 @@ export const api = {
   runMatterStory: (body: MatterSkillRunRequest & { overwrite?: boolean }) => postJson<MatterStoryRunResult>('/api/matter-story', body),
   getProceduralPostureDiagnosis: (matterName?: string) => getJson<ProceduralPostureDiagnosisResult>(withQuery('/api/procedural-posture-diagnosis', { matter: matterName })),
   runProceduralPostureDiagnosis: (body: MatterSkillRunRequest & { overwrite?: boolean }) => postJson<ProceduralPostureDiagnosisResult>('/api/procedural-posture-diagnosis', body),
-  confirmProceduralPostureDiagnosis: (body: MatterSkillRunRequest & { decision: 'confirmed' | 'corrected' | 'not_sure' | string; reasonOrCorrection?: string; actor?: string }) =>
+  confirmProceduralPostureDiagnosis: (body: MatterSkillRunRequest & { decision: 'confirmed' | 'corrected' | 'not_sure' | 'rejected' | string; reasonOrCorrection?: string; actor?: string }) =>
     postJson<ProceduralPostureDiagnosisResult>('/api/procedural-posture-diagnosis/confirmation', body),
   getMwListOfDatesStatus: (matterName?: string) => getJson<MwListOfDatesStatus>(withQuery('/api/mw-list-of-dates/status', { matter: matterName })),
   runMwListOfDates: (body: MatterSkillRunRequest & { overwrite?: boolean; proceedUnconfirmed?: boolean; proceedUnconfirmedReason?: string }) =>

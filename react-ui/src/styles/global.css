@@ -1653,6 +1653,7 @@ body { background: var(--c-bg); }
   margin: 2px 0 0;
 }
 .matter-story-body p { color: var(--c-text-secondary); flex: 1; font-size: 13.5px; line-height: 1.65; }
+.posture-approval-row { border-top: 1px solid var(--c-border-light); display: grid; gap: 8px; padding: 12px 20px; }
 .posture-summary-panel { border-top: 1px solid var(--c-border-light); color: var(--c-text-secondary); font-size: 13.5px; line-height: 1.65; padding: 16px 20px; }
 .posture-summary-panel p { margin: 0 0 10px; }
 .posture-route-summary { background: var(--c-bg); border: 1px solid var(--c-border-light); border-radius: 6px; margin: 12px 0; padding: 12px; }

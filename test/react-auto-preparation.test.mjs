@@ -100,11 +100,12 @@ test("React matter overview renders Matter Workbench story before original intak
   assert.match(preparationRowActions, /Run saved Procedural Diagnosis/);
   assert.match(preparationRowActions, /Refresh saved Procedural Diagnosis/);
   assert.match(preparationRowActions, /Creates the Case Analysis Markdown\/JSON artifact, job, and receipt\. Not chat\./);
-  assert.match(overview, /const readyForConfirmation = state === 'current_unconfirmed' && !hasRecordedConfirmation/);
+  assert.match(overview, /const showApprovalControls = postureDecisionStillCurrent\(state\) && !\['confirmed', 'corrected', 'not_sure'\]\.includes\(confirmationState\)/);
   assert.match(overview, /postureConfirmationRecordedMessage/);
-  assert.match(overview, /Confirm working posture/);
-  assert.match(overview, /Disagree \/ correct/);
-  assert.match(overview, /Not sure yet/);
+  assert.match(overview, /Recorded as unconfirmed by user/);
+  assert.match(overview, /'Approve'/);
+  assert.match(overview, /Record rejection/);
+  assert.match(overview, /recordDecision\('rejected'\)/);
   assert.match(overview, /isMwStorySource/);
 });
 

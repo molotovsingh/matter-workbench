@@ -163,6 +163,7 @@ function ProceduralPostureCard({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [correction, setCorrection] = useState('');
+  const [rejecting, setRejecting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   const loadStatus = async () => {
@@ -187,7 +188,7 @@ function ProceduralPostureCard({
     return () => { cancelled = true; };
   }, [matterName, refreshKey]);
 
-  async function recordDecision(decision: 'confirmed' | 'corrected' | 'not_sure') {
+  async function recordDecision(decision: 'confirmed' | 'corrected' | 'not_sure' | 'rejected') {
     setFormError(null);
     const reasonOrCorrection = correction.trim();
     if (decision === 'corrected' && !reasonOrCorrection) {
@@ -203,6 +204,7 @@ function ProceduralPostureCard({
         actor: 'lawyer',
       });
       setCorrection('');
+      setRejecting(false);
       await loadStatus();
     } catch (e) {
       setFormError(getErrorMessage(e));
@@ -241,8 +243,8 @@ function ProceduralPostureCard({
 
   const state = status.state || 'missing';
   const confirmationState = status.confirmation?.state || 'unconfirmed';
-  const hasRecordedConfirmation = confirmationState !== 'unconfirmed';
-  const readyForConfirmation = state === 'current_unconfirmed' && !hasRecordedConfirmation;
+  const hasRecordedConfirmation = ['confirmed', 'corrected', 'not_sure', 'rejected'].includes(confirmationState);
+  const showApprovalControls = postureDecisionStillCurrent(state) && !['confirmed', 'corrected', 'not_sure'].includes(confirmationState);
 
   return (
     <section className="matter-story-card matter-posture-card">
@@ -260,32 +262,38 @@ function ProceduralPostureCard({
       {state === 'blocked' && <p className="muted">{postureBlockedMessage(status)}</p>}
       {state === 'missing' && <p className="muted">Diagnosis has not been generated yet. Use the Procedural Diagnosis row below to run and save it.</p>}
       {state === 'stale' || state === 'needs_reconfirmation' ? <p className="form-error">Case Timeline or Matter Story changed. Use the Procedural Diagnosis row below to refresh the saved diagnosis before relying on it.</p> : null}
-      {hasRecordedConfirmation && postureDecisionStillCurrent(state) && (
+      {hasRecordedConfirmation && !['rejected'].includes(confirmationState) && postureDecisionStillCurrent(state) && (
         <p className="muted">{postureConfirmationRecordedMessage(confirmationState)}</p>
       )}
-      {readyForConfirmation && (
-        <div className="posture-confirmation-panel">
-          <p className="muted">
-            Confirm this as a working posture for analysis, correct it with a reason, or mark it not sure. This is not final legal approval.
-          </p>
-          <textarea
-            value={correction}
-            onChange={(event) => setCorrection(event.target.value)}
-            placeholder="If disagreeing, explain the correct court/forum, stage, remedy, or missing context."
-            rows={3}
-          />
-          {formError && <p className="form-error">{formError}</p>}
-          <div className="form-actions">
+      {showApprovalControls && (
+        <div className="posture-approval-row">
+          {confirmationState === 'rejected'
+            ? <p className="form-error">Rejection recorded. Do not rely on this diagnosis — refresh it from the preparation table before drafting.</p>
+            : <p className="muted" style={{ margin: 0 }}>Recorded as unconfirmed by user.</p>}
+          <div className="form-actions" style={{ marginTop: 0 }}>
             <button type="button" className="run-skill-button" onClick={() => recordDecision('confirmed')} disabled={Boolean(busy)}>
-              {busy === 'confirmed' ? 'Recording…' : 'Confirm working posture'}
+              {busy === 'confirmed' ? 'Recording…' : 'Approve'}
             </button>
-            <button type="button" className="secondary-button" onClick={() => recordDecision('corrected')} disabled={Boolean(busy)}>
-              {busy === 'corrected' ? 'Recording…' : 'Disagree / correct'}
-            </button>
-            <button type="button" className="secondary-button" onClick={() => recordDecision('not_sure')} disabled={Boolean(busy)}>
-              {busy === 'not_sure' ? 'Recording…' : 'Not sure yet'}
+            <button type="button" className="secondary-button" onClick={() => setRejecting((value) => !value)} disabled={Boolean(busy)}>
+              Reject
             </button>
           </div>
+          {rejecting && (
+            <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+              <textarea
+                value={correction}
+                onChange={(event) => setCorrection(event.target.value)}
+                placeholder="Optional: why this diagnosis is rejected (wrong forum, wrong posture, missing context…)."
+                rows={2}
+              />
+              <div className="form-actions" style={{ marginTop: 0 }}>
+                <button type="button" className="secondary-button" onClick={() => recordDecision('rejected')} disabled={Boolean(busy)}>
+                  {busy === 'rejected' ? 'Recording…' : 'Record rejection'}
+                </button>
+              </div>
+            </div>
+          )}
+          {formError && <p className="form-error">{formError}</p>}
         </div>
       )}
     </section>
@@ -498,6 +506,7 @@ function postureConfirmationRecordedMessage(state: string): string {
   if (state === 'confirmed') return 'Working posture confirmed. This record will be rechecked if Case Timeline or Matter Story changes.';
   if (state === 'corrected') return 'Correction recorded. Downstream analysis should use the saved correction note.';
   if (state === 'not_sure') return 'Not-sure response recorded. Revisit this diagnosis before relying on it.';
+  if (state === 'rejected') return 'Rejection recorded. Do not rely on this diagnosis; refresh it before drafting.';
   return 'Response recorded.';
 }
 
@@ -505,6 +514,8 @@ function confirmationStateLabel(state: string): string {
   if (state === 'confirmed') return 'confirmed';
   if (state === 'corrected') return 'corrected';
   if (state === 'not_sure') return 'not sure';
+  if (state === 'rejected') return 'rejected';
+  if (state === 'unconfirmed_by_user') return 'unconfirmed by user';
   return 'unconfirmed';
 }
 

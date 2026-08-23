@@ -270,7 +270,9 @@ test("procedural posture diagnosis writes markdown and JSON sidecar", async () =
   assert.match(markdown, /Status: Provisional — lawyer confirmation required/);
   assert.equal(json.schema_version, "procedural-posture-diagnosis/v1");
   assert.equal(json.status, "mw_inferred");
-  assert.equal(json.confirmation.state, "unconfirmed");
+  assert.equal(json.confirmation.state, "unconfirmed_by_user");
+  assert.equal(json.confirmation.actor, "system");
+  assert.equal(json.confirmation.confirmed_at, "2026-06-29T10:00:00.000Z");
   assert.equal(json.court_forum.value, "Civil court / appropriate forum to be confirmed");
   assert.match(markdown, /## Simple case view/);
   assert.match(markdown, /## Legal routes available from current record/);
@@ -372,4 +374,44 @@ test("procedural posture confirmation requires correction reason and appends Q&A
   assert.match(qna, /# Case Analysis Q&A/);
   assert.match(qna, /Procedural posture confirmation/);
   assert.match(qna, /Proceeding has already been filed/);
+});
+
+test("procedural posture rejection records without a reason and appends Q&A", async () => {
+  const root = await matterRoot();
+  const service = createProceduralPostureDiagnosisService({
+    matterStore: store(root),
+    diagnosisProvider: async () => finalDiagnosisFixture(),
+    now: () => new Date("2026-06-29T14:00:00.000Z"),
+  });
+  await service.runDiagnosis({ overwrite: true, matterContextPacketOverride: contextPacket });
+
+  const result = await service.recordConfirmation({
+    decision: "rejected",
+    reasonOrCorrection: "",
+    actor: "lawyer",
+  });
+
+  assert.equal(result.state, "rejected");
+  const json = JSON.parse(await readFile(path.join(root, PROCEDURAL_POSTURE_DIAGNOSIS_JSON_RELATIVE), "utf8"));
+  const qna = await readFile(path.join(root, CASE_ANALYSIS_QA_RELATIVE), "utf8");
+  assert.equal(json.status, "lawyer_rejected");
+  assert.equal(json.confirmation.state, "rejected");
+  assert.equal(json.confirmation.reason_or_correction, "");
+  assert.match(qna, /Procedural posture confirmation/);
+  assert.match(qna, /Lawyer response:\*\* rejected/);
+});
+
+test("procedural posture status stays current_unconfirmed while recorded as unconfirmed by user", async () => {
+  const root = await matterRoot();
+  const service = createProceduralPostureDiagnosisService({
+    matterStore: store(root),
+    diagnosisProvider: async () => finalDiagnosisFixture(),
+    now: () => new Date("2026-06-29T15:00:00.000Z"),
+  });
+  await service.runDiagnosis({ overwrite: true, matterContextPacketOverride: contextPacket });
+
+  const status = await service.readDiagnosisStatus(root);
+  assert.equal(status.state, "current_unconfirmed");
+  assert.equal(status.confirmation?.state, "unconfirmed_by_user");
+  assert.equal(status.confirmation?.actor, "system");
 });

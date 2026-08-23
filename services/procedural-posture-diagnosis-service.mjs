@@ -41,7 +41,8 @@ export const POSTURE_DIAGNOSIS_AUTHOR = "MW";
 
 const CRITIQUE_RISK_VALUES = ["low", "medium", "high"];
 const CRITIQUE_VERDICT_VALUES = ["usable_with_revisions", "needs_major_revision", "unsafe_to_use"];
-const CONFIRMATION_DECISIONS = new Set(["confirmed", "corrected", "not_sure"]);
+const CONFIRMATION_DECISIONS = new Set(["confirmed", "corrected", "not_sure", "rejected"]);
+const RECORDED_CONFIRMATION_DECISIONS = new Set(["confirmed", "corrected", "not_sure", "rejected"]);
 const FILE_TIME_TOLERANCE_MS = 1;
 const MAX_STORY_CHARS = 16_000;
 const MAX_PACKET_EVIDENCE_BLOCKS = 40;
@@ -180,7 +181,7 @@ export function createProceduralPostureDiagnosisService({
     const normalizedDecision = String(decision || "").trim();
     if (!CONFIRMATION_DECISIONS.has(normalizedDecision)) {
       throw makeHttpError(
-        "Choose confirm, correct, or not sure for the procedural posture diagnosis.",
+        "Choose confirm, correct, reject, or not sure for the procedural posture diagnosis.",
         400,
         "procedural_posture.confirmation_decision_required",
       );
@@ -218,7 +219,9 @@ export function createProceduralPostureDiagnosisService({
         ? "lawyer_confirmed"
         : normalizedDecision === "corrected"
           ? "lawyer_corrected"
-          : "not_sure_unconfirmed",
+          : normalizedDecision === "rejected"
+            ? "lawyer_rejected"
+            : "not_sure_unconfirmed",
       confirmation,
     };
     const qnaAppend = renderConfirmationQnaAppend({ sidecar: nextSidecar, confirmation, recordedAt });
@@ -284,7 +287,7 @@ export async function buildDiagnosisStatus({
 
   const confirmation = normalizeConfirmation(sidecar?.confirmation);
   const changedAfterConfirmation = Boolean(
-    confirmation.state && confirmation.state !== "unconfirmed"
+    RECORDED_CONFIRMATION_DECISIONS.has(confirmation.state)
     && confirmation.confirmed_at
     && upstreamStat
     && Date.parse(upstreamStat.mtime?.toISOString?.() || upstreamStat.updatedAt || "") > Date.parse(confirmation.confirmed_at) + FILE_TIME_TOLERANCE_MS
@@ -715,7 +718,7 @@ function buildDiagnosisSidecar({ finalDiagnosis, packet, generatedAt, aiRuns = {
       disposition: POSTURE_DIAGNOSIS_DISPOSITION_VALUES.includes(item?.disposition) ? item.disposition : "partly_accepted",
       reason: String(item?.reason || "").trim(),
     })).filter((item) => item.critique_signal || item.reason) : [],
-    confirmation: defaultConfirmation(),
+    confirmation: defaultConfirmation(generatedAt),
     ai_runs: aiRuns,
   };
 }
@@ -910,18 +913,18 @@ function normalizeConfirmation(confirmation = {}) {
   };
 }
 
-function defaultConfirmation() {
+function defaultConfirmation(recordedAt = "") {
   return {
-    state: "unconfirmed",
-    confirmed_at: "",
+    state: "unconfirmed_by_user",
+    confirmed_at: String(recordedAt || "").trim(),
     reason_or_correction: "",
-    actor: "unknown",
+    actor: "system",
   };
 }
 
 function sanitizeActor(value) {
   const actor = String(value || "unknown").replace(/\s+/g, "_").toLowerCase();
-  return ["lawyer", "operator", "unknown"].includes(actor) ? actor : "unknown";
+  return ["lawyer", "operator", "system", "unknown"].includes(actor) ? actor : "unknown";
 }
 
 function boundedText(value, maxChars) {
