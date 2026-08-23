@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { formatPreparationStatusError } from '../lib/preparationErrors';
-import type { JobStatus, PreparationRunStatus } from '../types';
+import { elapsedMsBetween } from '../lib/preparationTiming';
+import type { JobStatus, PreparationProgressStep, PreparationRunStatus } from '../types';
 
 type RefreshActiveMatterWorkspace = (opts?: { expectedMatterName?: string; failurePrefix?: string }) => Promise<unknown>;
 
@@ -123,22 +124,67 @@ export function isActivePreparationJob(job: JobStatus): boolean {
 
 export function preparationRunFromBackendJobs(matterName: string, jobs: JobStatus[]): PreparationRunStatus {
   const activeJob = jobs.find(isActivePreparationJob);
+  const runJobs = preparationJobsForActiveChain(jobs, activeJob);
   return {
     matterName,
     state: 'running',
     message: 'Preparation running on server… You can refresh; progress is kept in Activity.',
-    startedAt: activeJob?.startedAt || activeJob?.updatedAt || new Date().toISOString(),
-    steps: PREPARATION_JOB_STEPS.map((step) => backendProgressStep(step, jobs)),
+    startedAt: backendPreparationStartedAt(activeJob, runJobs),
+    steps: PREPARATION_JOB_STEPS.map((step) => backendProgressStep(step, runJobs)),
   };
 }
 
 function backendProgressStep(step: PreparationJobStep, jobs: JobStatus[]): PreparationRunStatus['steps'][number] {
   const job = jobs.find((candidate) => candidate.kind === step.kind);
   if (!job) return { id: step.id, label: step.label, state: 'pending' };
-  if (isActivePreparationJob(job)) return { id: step.id, label: step.label, state: 'running', detail: backendJobDetail(job) };
-  if (job.status === 'succeeded') return { id: step.id, label: step.label, state: 'done' };
-  if (job.status === 'failed' || job.status === 'cancelled') return { id: step.id, label: step.label, state: 'failed', detail: 'Server preparation stopped before this step completed.' };
+  const timing = backendJobTiming(job);
+  if (isActivePreparationJob(job)) return { id: step.id, label: step.label, state: 'running', detail: backendJobDetail(job), ...timing };
+  if (job.status === 'succeeded') return { id: step.id, label: step.label, state: 'done', ...timing };
+  if (job.status === 'failed' || job.status === 'cancelled') return { id: step.id, label: step.label, state: 'failed', detail: 'Server preparation stopped before this step completed.', ...timing };
   return { id: step.id, label: step.label, state: 'pending' };
+}
+
+function preparationJobsForActiveChain(jobs: JobStatus[], activeJob?: JobStatus): JobStatus[] {
+  const chainId = preparationChainId(activeJob);
+  if (!chainId) return jobs;
+  const chainJobs = jobs.filter((job) => preparationChainId(job) === chainId);
+  return chainJobs.length > 0 ? chainJobs : jobs;
+}
+
+function backendPreparationStartedAt(activeJob: JobStatus | undefined, runJobs: JobStatus[]): string {
+  const chainId = preparationChainId(activeJob);
+  if (chainId) {
+    const times = runJobs
+      .map((job) => job.createdAt || job.startedAt || job.updatedAt || '')
+      .filter((value) => Number.isFinite(Date.parse(value)))
+      .sort((a, b) => Date.parse(a) - Date.parse(b));
+    if (times[0]) return times[0];
+  }
+  return activeJob?.createdAt || activeJob?.startedAt || activeJob?.updatedAt || new Date().toISOString();
+}
+
+function preparationChainId(job?: JobStatus): string {
+  const value = [
+    job?.progress?.preparationChainId,
+    job?.progress?.uploadSessionId,
+    job?.metadata?.preparationChainId,
+    job?.metadata?.uploadSessionId,
+  ].find((candidate) => typeof candidate === 'string' && candidate.trim());
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function backendJobTiming(job: JobStatus): Pick<PreparationProgressStep, 'startedAt' | 'finishedAt' | 'durationMs'> {
+  const startedAt = job.startedAt || job.createdAt || job.updatedAt || undefined;
+  const finishedAt = job.finishedAt || undefined;
+  const explicitDuration = Number(job.durationMs);
+  const calculatedDuration = !isActivePreparationJob(job) ? elapsedMsBetween(startedAt, finishedAt) : null;
+  return {
+    startedAt,
+    finishedAt,
+    durationMs: Number.isFinite(explicitDuration) && explicitDuration >= 0
+      ? explicitDuration
+      : calculatedDuration ?? undefined,
+  };
 }
 
 function backendJobDetail(job: JobStatus): string {

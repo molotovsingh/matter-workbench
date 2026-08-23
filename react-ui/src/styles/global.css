@@ -845,10 +845,17 @@ padding: 0 2px;
 .force-preparation-field input, .force-preparation-field textarea { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 4px; color: var(--text); font: inherit; font-size: 13px; letter-spacing: 0; line-height: 1.45; padding: 8px 10px; text-transform: none; }
 .force-preparation-field textarea { min-height: 70px; resize: vertical; }
 .force-preparation-field small { color: var(--muted); font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; }
-.preparation-progress { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
+.preparation-timing-summary { align-items: baseline; background: var(--input-bg); border: 1px solid var(--border-subtle); border-radius: 5px; color: var(--muted); display: inline-flex; font-size: 11px; gap: 8px; margin-top: 8px; padding: 6px 9px; text-transform: uppercase; }
+.preparation-timing-summary strong { color: var(--text); font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 13px; letter-spacing: 0.02em; }
+.preparation-timing-summary.running { border-color: var(--warning-border); }
+.preparation-timing-live { color: var(--warning-text); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
+.preparation-progress { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 16px 0; }
 .preparation-progress-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: flex-start; border: 1px solid var(--border-subtle); border-radius: 5px; padding: 9px 10px; color: var(--muted); font-size: 12px; min-width: 0; }
+.preparation-progress-copy { min-width: 0; }
+.preparation-progress-heading { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; }
 .preparation-progress-step strong { display: block; color: var(--text); font-size: 12px; line-height: 1.25; }
-.preparation-progress-step span:last-child { display: block; line-height: 1.35; overflow-wrap: anywhere; }
+.preparation-step-duration { color: var(--muted); font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 10px; line-height: 1.25; white-space: nowrap; }
+.preparation-progress-detail { display: block; line-height: 1.35; margin-top: 3px; overflow-wrap: anywhere; }
 .preparation-progress-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-light); margin-top: 4px; }
 .preparation-progress-step.running { border-color: var(--warning-border); background: var(--warning-bg); }
 .preparation-progress-step.done .preparation-progress-dot { background: var(--success); }

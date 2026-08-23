@@ -8,6 +8,7 @@ import {
 } from './preparationErrors';
 import { pollPreparationJob } from './preparationJobPolling';
 import { PREPARATION_STAGE_ACTIONS } from './preparationStageActions';
+import { elapsedMsBetween, formatPreparationDuration } from './preparationTiming';
 import type {
   JobStatus,
   PreparationPlan,
@@ -714,28 +715,42 @@ function startStageHeartbeat(
 function stageRunningDetail(stage: PreparationStage, elapsedMs = 0): string {
   const stepId = stepIdForStage(stage);
   if (stepId === 'extract') {
-    const elapsed = elapsedMs >= LONG_RUNNING_STAGE_HEARTBEAT_MS ? ` Still reading documents (${formatElapsed(elapsedMs)} elapsed).` : '';
+    const elapsed = elapsedMs >= LONG_RUNNING_STAGE_HEARTBEAT_MS ? ` Still reading documents (${formatPreparationDuration(elapsedMs)} elapsed).` : '';
     return `Reading documents. Large or scanned PDFs can take several minutes.${elapsed} Keep this page open; the matter will update when this step finishes.`;
   }
   if (stepId === 'matter-init') return 'Registering file IDs and source records…';
   return `Running ${stageLabel(stage)}…`;
 }
 
-function formatElapsed(elapsedMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes <= 0) return `${seconds}s`;
-  return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-}
-
 function markStep(status: PreparationRunStatus, stepId: string | null, state: PreparationProgressStep['state'], detail = ''): PreparationRunStatus {
   if (!stepId) return status;
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
   return {
     ...status,
-    steps: status.steps.map((step) => (
-      step.id === stepId ? { ...step, state, detail: detail || undefined } : step
-    )),
+    steps: status.steps.map((step) => {
+      if (step.id !== stepId) return step;
+      if (state === 'running') {
+        const startingNow = step.state !== 'running';
+        return {
+          ...step,
+          state,
+          detail: detail || undefined,
+          startedAt: startingNow ? nowIso : step.startedAt || nowIso,
+          finishedAt: startingNow ? undefined : step.finishedAt,
+          durationMs: startingNow ? undefined : step.durationMs,
+        };
+      }
+      const finishingNow = step.state === 'running' && (state === 'done' || state === 'failed' || state === 'skipped');
+      const durationMs = finishingNow ? elapsedMsBetween(step.startedAt, nowIso, nowMs) : step.durationMs;
+      return {
+        ...step,
+        state,
+        detail: detail || undefined,
+        finishedAt: finishingNow ? nowIso : step.finishedAt,
+        durationMs: durationMs ?? undefined,
+      };
+    }),
   };
 }
 

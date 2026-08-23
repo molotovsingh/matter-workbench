@@ -319,6 +319,7 @@ export interface JobStatus {
   status: 'running' | 'succeeded' | 'failed' | 'cancelled' | string;
   matterName?: string;
   matterId?: string;
+  createdAt?: string;
   startedAt: string;
   updatedAt?: string;
   finishedAt?: string;
@@ -332,6 +333,7 @@ export interface JobStatus {
   errorCode?: string;
   failureClass?: string;
   stages?: JobStageStatus[];
+  progress?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 }
 
@@ -1306,6 +1308,9 @@ export interface PreparationProgressStep {
   label: string;
   state: PreparationStepState;
   detail?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
 }
 
 export interface PreparationRunStatus {

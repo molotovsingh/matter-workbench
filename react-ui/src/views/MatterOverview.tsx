@@ -12,6 +12,12 @@ import { RERUN_ADVICE_STATES } from '../lib/rerunAdviceState';
 import { PREPARATION_STAGE_ACTIONS } from '../lib/preparationStageActions';
 import { getPreparationRowAction, isPreparationStageCurrent } from '../lib/preparationRowActions';
 import { formatPreparationStatusError } from '../lib/preparationErrors';
+import {
+  formatPreparationDuration,
+  PREPARATION_CLOCK_TICK_MS,
+  preparationRunElapsedMs,
+  preparationStepElapsedMs,
+} from '../lib/preparationTiming';
 import { useBackendPreparationJobs } from '../hooks/useBackendPreparationJobs';
 import { PostureSummary } from '../components/matters/PostureSummary';
 import type {
@@ -588,6 +594,7 @@ function PipelineCard({
   const forceReasonReady = forceReason.trim().length >= 10;
   const forceConfirmationReady = forceConfirmation.trim().toUpperCase() === 'REBUILD';
   const isPreparationRunning = preparationRun?.state === 'running';
+  const preparationClockNow = usePreparationClock(preparationRun);
   const forceDisabled = isPreparationRunning || !forceReasonReady || !forceConfirmationReady;
 
   useEffect(() => {
@@ -632,6 +639,7 @@ function PipelineCard({
       <p className="muted">
         {preparationSummaryText(preparationRun, stages)}
       </p>
+      {preparationRun && <PreparationTimingSummary run={preparationRun} nowMs={preparationClockNow} />}
       <details className="force-preparation-rebuild">
         <summary>Advanced: force full rebuild</summary>
         <div className="form-warning">
@@ -672,7 +680,7 @@ function PipelineCard({
           </div>
         </div>
       </details>
-      {preparationRun && <PreparationProgress run={preparationRun} />}
+      {preparationRun && <PreparationProgress run={preparationRun} nowMs={preparationClockNow} />}
       {backendJobsError && <p className="muted">{backendJobsError}</p>}
       {hasBackendPreparationFailure && !isPreparationRunning && (
         <p className="form-error">A server preparation job stopped before finishing. Open Activity for details, then run needed preparation again.</p>
@@ -705,18 +713,54 @@ function PipelineCard({
   );
 }
 
-function PreparationProgress({ run }: { run: PreparationRunStatus }) {
+function usePreparationClock(run: PreparationRunStatus | null): number {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNowMs(Date.now());
+    if (run?.state !== 'running') return undefined;
+    const timer = window.setInterval(() => setNowMs(Date.now()), PREPARATION_CLOCK_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [run?.state, run?.startedAt, run?.finishedAt]);
+
+  return nowMs;
+}
+
+function PreparationTimingSummary({ run, nowMs }: { run: PreparationRunStatus; nowMs: number }) {
+  const elapsedMs = preparationRunElapsedMs(run, nowMs);
+  if (elapsedMs === null) return null;
+  const running = run.state === 'running';
+  return (
+    <div className={`preparation-timing-summary ${running ? 'running' : 'finished'}`} aria-label="Matter preparation timing">
+      <span>{running ? 'Elapsed' : 'Total preparation time'}</span>
+      <strong>{formatPreparationDuration(elapsedMs)}</strong>
+      {running && <span className="preparation-timing-live">Live</span>}
+    </div>
+  );
+}
+
+function PreparationProgress({ run, nowMs }: { run: PreparationRunStatus; nowMs: number }) {
   return (
     <div className="preparation-progress" aria-label="Matter preparation progress">
-      {run.steps.map((step) => (
-        <div key={step.id} className={`preparation-progress-step ${step.state}`}>
-          <span className="preparation-progress-dot" />
-          <div>
-            <strong>{step.label}</strong>
-            {step.detail && <span>{step.detail}</span>}
+      {run.steps.map((step) => {
+        const elapsedMs = preparationStepElapsedMs(step, nowMs);
+        return (
+          <div key={step.id} className={`preparation-progress-step ${step.state}`}>
+            <span className="preparation-progress-dot" />
+            <div className="preparation-progress-copy">
+              <div className="preparation-progress-heading">
+                <strong>{step.label}</strong>
+                {elapsedMs !== null && (
+                  <span className="preparation-step-duration">
+                    {formatPreparationDuration(elapsedMs)} {step.state === 'running' ? 'elapsed' : 'total'}
+                  </span>
+                )}
+              </div>
+              {step.detail && <span className="preparation-progress-detail">{step.detail}</span>}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
