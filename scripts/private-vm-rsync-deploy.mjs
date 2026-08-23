@@ -201,6 +201,22 @@ export function buildPrivateVmRsyncDeployPlan({
       ],
     },
     {
+      id: "guard_active_processing_jobs_before_migrate",
+      title: "Refuse database migration while runtime processing jobs are active",
+      command: [
+        "ssh",
+        remote,
+        [
+          "set -e",
+          `cd ${shellQuote(appDir)}`,
+          "set -a",
+          ". \"$HOME/.config/matter-workbench/runtime.env\"",
+          "set +a",
+          "node scripts/private-vm-processing-drain-check.mjs",
+        ].join(" && "),
+      ],
+    },
+    {
       id: "runtime_db_migrate",
       title: "Apply runtime database migrations before activation",
       command: [
@@ -214,6 +230,22 @@ export function buildPrivateVmRsyncDeployPlan({
           + "test -n \"$migration_url\" || { printf '%s\\n' 'runtime DB migrations require MWB_MIGRATION_DATABASE_URL, MWB_RUNTIME_DATABASE_URL, MWB_DATABASE_URL, or DATABASE_URL'; exit 1; }; "
           + "MWB_DATABASE_URL=\"$migration_url\" npm run db:migrate --silent; "
           + "else printf '%s\\n' 'runtime DB mode absent; skipping runtime migrations'; fi",
+      ],
+    },
+    {
+      id: "guard_active_processing_jobs_before_activation",
+      title: "Recheck the runtime processing queue immediately before restart",
+      command: [
+        "ssh",
+        remote,
+        [
+          "set -e",
+          `cd ${shellQuote(appDir)}`,
+          "set -a",
+          ". \"$HOME/.config/matter-workbench/runtime.env\"",
+          "set +a",
+          "node scripts/private-vm-processing-drain-check.mjs",
+        ].join(" && "),
       ],
     },
     {

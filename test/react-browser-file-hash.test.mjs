@@ -6,7 +6,7 @@ import ts from "typescript";
 const helperPath = new URL("../react-ui/src/lib/browserFileHash.ts", import.meta.url);
 
 test("browser file hashing is explicitly unavailable without Web Crypto subtle digest", async () => {
-  const { canHashFileSha256, hashFileSha256 } = await importHelper();
+  const { browserFileHashSkipReason, canHashFileSha256, hashFileSha256 } = await importHelper();
   const originalCrypto = globalThis.crypto;
   try {
     Object.defineProperty(globalThis, "crypto", {
@@ -15,6 +15,7 @@ test("browser file hashing is explicitly unavailable without Web Crypto subtle d
     });
 
     assert.equal(canHashFileSha256(), false);
+    assert.equal(browserFileHashSkipReason([fakeFile("hello")]), "crypto_unavailable");
     await assert.rejects(
       () => hashFileSha256(fakeFile("hello")),
       /Browser SHA-256 hashing is unavailable/,
@@ -82,7 +83,7 @@ test("browser file hashing degrades to unavailable when file reads exceed browse
 });
 
 test("browser file hashing skips very large selections before reading file bytes", async () => {
-  const { hashFilesSha256IfAvailable } = await importHelper("large-files");
+  const { browserFileHashSkipReason, hashFilesSha256IfAvailable } = await importHelper("large-files");
   const originalCrypto = globalThis.crypto;
   let readAttempted = false;
 
@@ -98,14 +99,16 @@ test("browser file hashing skips very large selections before reading file bytes
       },
     });
 
-    const result = await hashFilesSha256IfAvailable([{
+    const files = [{
       size: 1024 * 1024 * 1024,
       async arrayBuffer() {
         readAttempted = true;
         return new ArrayBuffer(0);
       },
-    }]);
+    }];
+    const result = await hashFilesSha256IfAvailable(files);
 
+    assert.equal(browserFileHashSkipReason(files), "selection_too_large");
     assert.equal(result, null);
     assert.equal(readAttempted, false);
   } finally {

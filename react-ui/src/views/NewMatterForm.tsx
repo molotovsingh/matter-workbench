@@ -10,8 +10,8 @@ import {
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
 import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
-import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
-import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
+import { browserFileHashSkipReason, hashFilesSha256IfAvailable } from '../lib/browserFileHash';
+import { reportUploadPrecheckSkippedLargeBatch, reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
 import { UploadSessionRecoveryCard } from '../components/upload/UploadSessionRecoveryCard';
 import {
   cancelUploadSessionDraft,
@@ -146,15 +146,23 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
       if (!bypassOverlap) {
         setProgressMessage(`Checking ${files.length} file(s) for duplicate matter overlap…`);
         appendTerminal([`[new-matter] checking ${files.length} file(s) for duplicate matter overlap…`]);
-        const hashes = await hashFilesSha256IfAvailable(files.map((f) => f.file));
+        const selectedFiles = files.map((f) => f.file);
+        const hashSkipReason = browserFileHashSkipReason(selectedFiles);
+        const hashes = await hashFilesSha256IfAvailable(selectedFiles);
         if (!hashes) {
-          reportUploadPrecheckUnavailable({
+          const telemetryInput = {
             files,
             matterName: cleanName,
-            view: 'new_matter',
-            action: 'create_matter',
-          });
-          appendTerminal(['[new-matter] Duplicate check is unavailable in this browser; creating without duplicate warning.']);
+            view: 'new_matter' as const,
+            action: 'create_matter' as const,
+          };
+          if (hashSkipReason === 'selection_too_large') {
+            reportUploadPrecheckSkippedLargeBatch(telemetryInput);
+            appendTerminal(['[new-matter] Large batch selected. Duplicate precheck was skipped to keep the browser responsive; upload is continuing normally.']);
+          } else {
+            reportUploadPrecheckUnavailable(telemetryInput);
+            appendTerminal(['[new-matter] Browser duplicate precheck could not run; upload is continuing normally without a duplicate warning.']);
+          }
         } else {
           const checkResult = await api.checkOverlap({ hashes, proposedName: cleanName });
           const warnings = checkResult.warnings ?? [];
@@ -198,7 +206,10 @@ export default function NewMatterForm({ onCancel, onCreated }: Props) {
           })
         : await createMatterWithLegacyMultipart({ cleanName, metadata, files });
       const createdName = created.folderName || cleanName;
-      appendTerminal([`[new-matter] created "${createdName}"`]);
+      appendTerminal([
+        `[new-matter] upload complete: "${createdName}" created with ${created.fileCount || files.length} source file(s)`,
+        '[new-matter] automatic preparation is starting; follow progress in Activity',
+      ]);
       await switchActiveMatter(createdName, {
         startMessage: false,
         successMessage: false,

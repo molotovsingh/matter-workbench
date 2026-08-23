@@ -188,17 +188,52 @@ test("React new-matter form checks overlap before creating a matter", async () =
   assert.match(newMatter, /setBypassOverlap\(true\)/);
 });
 
-test("React upload forms report browser-only duplicate-check telemetry without leaking filenames", async () => {
+test("React upload forms distinguish intentional large-batch precheck skips from browser failures", async () => {
   const newMatter = await readFile(newMatterPath, "utf8");
   const addFiles = await readFile(addFilesPath, "utf8");
   const uploadTelemetry = await readFile(uploadTelemetryPath, "utf8");
 
-  assert.match(newMatter, /reportUploadPrecheckUnavailable\(/);
-  assert.match(addFiles, /reportUploadPrecheckUnavailable\(/);
+  for (const source of [newMatter, addFiles]) {
+    assert.match(source, /browserFileHashSkipReason/);
+    assert.match(source, /reportUploadPrecheckSkippedLargeBatch\(/);
+    assert.match(source, /reportUploadPrecheckUnavailable\(/);
+    assert.match(source, /Duplicate precheck was skipped to keep the browser responsive; upload is continuing normally/);
+  }
   assert.match(uploadTelemetry, /capturePrivateBetaClientSignal/);
+  assert.match(uploadTelemetry, /upload\.precheck_skipped_large_batch/);
+  assert.match(uploadTelemetry, /severity: 'info'/);
   assert.match(uploadTelemetry, /upload\.precheck_hash_unavailable/);
   assert.match(uploadTelemetry, /sizeBucketForFiles/);
   assert.doesNotMatch(uploadTelemetry, /relativePath|fileName|\.name\b/);
+});
+
+test("React large-batch precheck telemetry is informational and filename-safe", async () => {
+  const calls = [];
+  const { reportUploadPrecheckSkippedLargeBatch } = await importUploadTelemetry({
+    capturePrivateBetaClientSignal: async (body) => {
+      calls.push(body);
+      return { captured: 1, sent: 0, queued: 1, failed: 0, skipped: 0 };
+    },
+  });
+
+  reportUploadPrecheckSkippedLargeBatch({
+    files: [
+      { relativePath: "Court Cases/.DS_Store", file: { name: ".DS_Store", size: 100 * 1024 * 1024 } },
+      { relativePath: "Court Cases/order.pdf", file: { name: "order.pdf", size: 100 * 1024 * 1024 } },
+    ],
+    matterName: "LIC matter",
+    view: "add_files",
+    action: "add_files",
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].code, "upload.precheck_skipped_large_batch");
+  assert.equal(calls[0].severity, "info");
+  assert.equal(calls[0].stage, "upload_precheck");
+  assert.equal(calls[0].fileCount, 2);
+  assert.equal(calls[0].sizeBucket, "100_500_mb");
+  assert.equal(calls[0].errorClass, "LargeBatchPolicy");
+  assert.doesNotMatch(JSON.stringify(calls[0]), /Court Cases|DS_Store|order\.pdf/);
 });
 
 test("React upload forms report submit failures without leaking filenames", async () => {
@@ -243,6 +278,8 @@ test("React new-matter form switches to the server-returned matter folder after 
   assert.match(newMatter, /createMatterWithUploadSession\(/);
   assert.match(newMatter, /return api\.newMatter\(fd\)/);
   assert.match(newMatter, /const createdName = created\.folderName \|\| cleanName/);
+  assert.match(newMatter, /upload complete:/);
+  assert.match(newMatter, /automatic preparation is starting; follow progress in Activity/);
   assert.match(newMatter, /await switchActiveMatter\(createdName,/);
   assert.match(newMatter, /onCreated\(createdName, \{ autoPrepare: true \}\)/);
 });

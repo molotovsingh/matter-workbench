@@ -15,6 +15,24 @@ interface UploadSubmitFailureTelemetryInput extends UploadTelemetryInput {
   error: unknown;
 }
 
+export function reportUploadPrecheckSkippedLargeBatch(input: UploadTelemetryInput): void {
+  void api.capturePrivateBetaClientSignal({
+    code: 'upload.precheck_skipped_large_batch',
+    category: 'upload',
+    severity: 'info',
+    view: input.view,
+    action: input.action,
+    stage: 'upload_precheck',
+    matterName: input.matterName,
+    fileCount: input.files.length,
+    sizeBucket: sizeBucketForFiles(input.files),
+    errorClass: 'LargeBatchPolicy',
+    errorMessage: 'Duplicate precheck was skipped for a large selection to keep the browser responsive.',
+  }).catch(() => {
+    // Client telemetry must never interrupt the user's upload.
+  });
+}
+
 export function reportUploadPrecheckUnavailable(input: UploadTelemetryInput): void {
   void api.capturePrivateBetaClientSignal({
     code: 'upload.precheck_hash_unavailable',
@@ -27,7 +45,7 @@ export function reportUploadPrecheckUnavailable(input: UploadTelemetryInput): vo
     fileCount: input.files.length,
     sizeBucket: sizeBucketForFiles(input.files),
     errorClass: 'BrowserHashUnavailable',
-    errorMessage: 'Browser duplicate check was unavailable before upload.',
+    errorMessage: 'Browser duplicate check could not run; upload continued without a duplicate warning.',
   }).catch(() => {
     // Client telemetry must never interrupt the user's upload.
   });

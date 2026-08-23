@@ -15,11 +15,13 @@ test("React Add Files keeps overlap and upload responses scoped to the starting 
   assert.match(source, /activeMatterNameRef\.current === matterName/);
 });
 
-test("React Add Files skips duplicate pre-check when browser hashing is unavailable", async () => {
+test("React Add Files continues safely when duplicate pre-check is skipped", async () => {
   const source = await readFile(addFilesPath, "utf8");
 
+  assert.match(source, /browserFileHashSkipReason/);
   assert.match(source, /hashFilesSha256IfAvailable/);
   assert.match(source, /if \(!hashes\)/);
-  assert.match(source, /Duplicate check is unavailable in this browser/);
+  assert.match(source, /hashSkipReason === 'selection_too_large'/);
+  assert.match(source, /upload is continuing normally/);
   assert.match(source, /api\.checkOverlap/);
 });

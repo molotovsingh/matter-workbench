@@ -1,8 +1,16 @@
 export const BROWSER_HASH_UNAVAILABLE_MESSAGE = 'Browser SHA-256 hashing is unavailable';
 export const BROWSER_HASH_MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 
+export type BrowserFileHashSkipReason = 'crypto_unavailable' | 'selection_too_large';
+
 export function canHashFileSha256(): boolean {
   return typeof globalThis.crypto?.subtle?.digest === 'function';
+}
+
+export function browserFileHashSkipReason(files: BrowserHashFile[]): BrowserFileHashSkipReason | null {
+  if (isTooLargeForBrowserHash(files)) return 'selection_too_large';
+  if (!canHashFileSha256()) return 'crypto_unavailable';
+  return null;
 }
 
 type BrowserHashFile = Pick<File, 'arrayBuffer'> & Partial<Pick<File, 'size'>>;
@@ -20,8 +28,7 @@ export async function hashFileSha256(file: BrowserHashFile): Promise<string> {
 }
 
 export async function hashFilesSha256IfAvailable(files: BrowserHashFile[]): Promise<string[] | null> {
-  if (!canHashFileSha256()) return null;
-  if (isTooLargeForBrowserHash(files)) return null;
+  if (browserFileHashSkipReason(files)) return null;
 
   try {
     const hashes: string[] = [];

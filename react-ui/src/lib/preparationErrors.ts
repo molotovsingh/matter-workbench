@@ -5,7 +5,7 @@ export interface PreparationErrorContext {
   slash?: string;
 }
 
-export const PREPARATION_STATUS_RECONNECT_MESSAGE = 'Reconnecting to preparation status… Last known progress remains visible.';
+export const PREPARATION_STATUS_RECONNECT_MESSAGE = 'Connection briefly interrupted. The server job continues; reconnecting to status…';
 
 export function isTransientPreparationStatusError(error: unknown): boolean {
   if (error instanceof TypeError && /fetch|network/i.test(error.message)) return true;

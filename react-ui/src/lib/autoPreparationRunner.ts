@@ -428,9 +428,9 @@ async function waitForServerPreparationJob({
 }
 
 function serverQueuedStageDetail(stage: PreparationStage, job?: JobStatus | null): string {
-  if (job?.status === 'running') return `Server is running ${stageLabel(stage)}. You can refresh; progress is kept in Activity.`;
-  if (job?.status === 'queued' || job?.status === 'retrying') return `${stageLabel(stage)} is queued on the server. You can refresh; progress is kept in Activity.`;
-  return `Queueing ${stageLabel(stage)} on the server…`;
+  if (job?.status === 'running') return `Files are saved. The server is running ${stageLabel(stage)}. You may leave this page; progress is kept in Activity.`;
+  if (job?.status === 'queued' || job?.status === 'retrying') return `Files are saved. ${stageLabel(stage)} is queued on the server. You may leave this page; progress is kept in Activity.`;
+  return `Files are saved. Queueing ${stageLabel(stage)} on the server…`;
 }
 
 function isBackendPreparationQueueUnavailable(error: unknown): boolean {

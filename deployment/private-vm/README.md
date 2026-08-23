@@ -120,8 +120,12 @@ reusing the active release path.
 Only then does it build React, apply runtime database migrations when
 `MWB_RUNTIME_DB=postgres` or `MWB_RUNTIME_DB_STORAGE=postgres`, switch the
 `current` symlink, restart the user-level service, and run the VM-local service
-check plus rendered UI hardening pass. Runtime-DB deployment fails before
-activation if no migration-capable URL is available. The deploy helper checks
+check plus rendered UI hardening pass. Before migrations and again immediately
+before activation, the helper checks the shared runtime processing queue and
+refuses to continue while any job is queued, running, or retrying. Wait for
+Activity to drain and rerun the same deploy command; the active release is not
+restarted. Runtime-DB deployment also fails before activation if no
+migration-capable URL is available. The deploy helper checks
 `MWB_MIGRATION_DATABASE_URL`, then `MWB_RUNTIME_DATABASE_URL`, then
 `MWB_DATABASE_URL`, then `DATABASE_URL`, and passes the selected value to the
 migration runner without printing it.

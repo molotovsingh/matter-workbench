@@ -12,8 +12,8 @@ import {
   type CollectedUploadFile,
 } from '../lib/uploadFileCollection';
 import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBatchPreflight';
-import { hashFilesSha256IfAvailable } from '../lib/browserFileHash';
-import { reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
+import { browserFileHashSkipReason, hashFilesSha256IfAvailable } from '../lib/browserFileHash';
+import { reportUploadPrecheckSkippedLargeBatch, reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
 import { UploadSessionRecoveryCard } from '../components/upload/UploadSessionRecoveryCard';
 import {
   addFilesWithUploadSession,
@@ -114,17 +114,25 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
       if (!bypassOverlap) {
         setProgressMessage(`Checking ${collected.length} file(s) for duplicate records…`);
         appendTerminal(['[add-files] checking for duplicates…']);
-        const hashes = await hashFilesSha256IfAvailable(collected.map((c) => c.file));
+        const selectedFiles = collected.map((c) => c.file);
+        const hashSkipReason = browserFileHashSkipReason(selectedFiles);
+        const hashes = await hashFilesSha256IfAvailable(selectedFiles);
         if (activeMatterNameRef.current !== matterName) return;
 
         if (!hashes) {
-          reportUploadPrecheckUnavailable({
+          const telemetryInput = {
             files: collected,
             matterName,
-            view: 'add_files',
-            action: 'add_files',
-          });
-          appendTerminal(['[add-files] Duplicate check is unavailable in this browser; uploading without duplicate warning.']);
+            view: 'add_files' as const,
+            action: 'add_files' as const,
+          };
+          if (hashSkipReason === 'selection_too_large') {
+            reportUploadPrecheckSkippedLargeBatch(telemetryInput);
+            appendTerminal(['[add-files] Large batch selected. Duplicate precheck was skipped to keep the browser responsive; upload is continuing normally.']);
+          } else {
+            reportUploadPrecheckUnavailable(telemetryInput);
+            appendTerminal(['[add-files] Browser duplicate precheck could not run; upload is continuing normally without a duplicate warning.']);
+          }
         } else {
           const checkResult = await api.checkOverlap({
             hashes,
@@ -171,8 +179,12 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
           })
         : await addFilesWithLegacyMultipart({ matterName, label: label.trim(), files: collected });
       if (activeMatterNameRef.current !== matterName) return;
-      appendTerminal([`[add-files] ${collected.length} file(s) added`]);
-      onDone({ autoPrepare: (result.intakeAdded?.unique ?? collected.length) > 0 });
+      const addedCount = result.intakeAdded?.unique ?? collected.length;
+      appendTerminal([
+        `[add-files] upload complete: ${addedCount} source file(s) added to "${matterName}"`,
+        '[add-files] automatic preparation is starting; follow progress in Activity',
+      ]);
+      onDone({ autoPrepare: addedCount > 0 });
     } catch (err) {
       if (activeMatterNameRef.current !== matterName) return;
       reportUploadSubmitFailure({

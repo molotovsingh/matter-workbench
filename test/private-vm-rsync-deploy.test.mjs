@@ -217,6 +217,11 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   );
   assert.doesNotMatch(installAndBuild.command.join(" "), /mothership\.env/);
 
+  const preMigrationGuard = plan.steps.find((step) => step.id === "guard_active_processing_jobs_before_migrate");
+  assert.ok(preMigrationGuard);
+  assert.match(preMigrationGuard.command.join(" "), /private-vm-processing-drain-check\.mjs/);
+  assert.match(preMigrationGuard.command.join(" "), /runtime\.env/);
+
   const runtimeDbMigration = plan.steps.find((step) => step.id === "runtime_db_migrate");
   assert.ok(runtimeDbMigration);
   assert.match(runtimeDbMigration.command.join(" "), /runtime\.env/);
@@ -227,12 +232,23 @@ test("private VM rsync deploy plan builds a fresh release and excludes local-onl
   assert.match(runtimeDbMigration.command.join(" "), /npm run db:migrate --silent/);
   assert.ok(
     plan.steps.findIndex((step) => step.id === "install_and_build")
+      < plan.steps.findIndex((step) => step.id === "guard_active_processing_jobs_before_migrate"),
+  );
+  assert.ok(
+    plan.steps.findIndex((step) => step.id === "guard_active_processing_jobs_before_migrate")
       < plan.steps.findIndex((step) => step.id === "runtime_db_migrate"),
   );
   assert.ok(
     plan.steps.findIndex((step) => step.id === "runtime_db_migrate")
+      < plan.steps.findIndex((step) => step.id === "guard_active_processing_jobs_before_activation"),
+  );
+  assert.ok(
+    plan.steps.findIndex((step) => step.id === "guard_active_processing_jobs_before_activation")
       < plan.steps.findIndex((step) => step.id === "activate_release"),
   );
+  const preActivationGuard = plan.steps.find((step) => step.id === "guard_active_processing_jobs_before_activation");
+  assert.ok(preActivationGuard);
+  assert.match(preActivationGuard.command.join(" "), /private-vm-processing-drain-check\.mjs/);
 
   const mothershipActivation = plan.steps.find((step) => step.id === "activate_mothership_if_configured");
   assert.ok(mothershipActivation);

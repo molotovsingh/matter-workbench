@@ -27,7 +27,10 @@ test("React starts automatic preparation after first upload and added files", as
   assert.match(app, /startAutoPreparation\(matterName,/);
   assert.match(newMatter, /if \(files\.length === 0\) \{ setError\('Attach at least one source file\.'\); return; \}/);
   assert.match(newMatter, /onCreated\(createdName, \{ autoPrepare: true \}\)/);
-  assert.match(addFiles, /onDone\(\{ autoPrepare: \(result\.intakeAdded\?\.unique \?\? collected\.length\) > 0 \}\)/);
+  assert.match(addFiles, /const addedCount = result\.intakeAdded\?\.unique \?\? collected\.length/);
+  assert.match(addFiles, /onDone\(\{ autoPrepare: addedCount > 0 \}\)/);
+  assert.match(addFiles, /upload complete:/);
+  assert.match(addFiles, /automatic preparation is starting; follow progress in Activity/);
 });
 
 test("React automatic preparation tolerates switch render gap but cancels after matter leaves", async () => {
