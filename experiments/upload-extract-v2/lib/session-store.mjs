@@ -72,6 +72,7 @@ export class V2SessionStore {
             outputTextBytes: 0,
             outputTextSha256: "",
             providerCalls: 0,
+            provider: {},
             error: "",
           },
         })),
@@ -168,6 +169,22 @@ export class V2SessionStore {
   async recoverInterruptedExtraction(sessionId) {
     return this.#update(sessionId, async (session) => {
       if (!session) throw notFound(`session not found: ${sessionId}`);
+      const interruptedAt = trustedInterruptedAt(session);
+      for (const run of session.metrics.extractionRuns || []) {
+        if (run.status !== "running") continue;
+        const completedDuringRun = session.files.filter((file) => (
+          file.extraction.finishedAt
+          && Date.parse(file.extraction.finishedAt) >= Date.parse(run.startedAt || "")
+          && Date.parse(file.extraction.finishedAt) <= Date.parse(interruptedAt)
+        ));
+        run.finishedAt = interruptedAt;
+        run.wallMs = elapsedMs(run.startedAt, interruptedAt);
+        run.activeMs = run.wallMs;
+        run.completedFiles = completedDuringRun.length;
+        run.provider = interruptedProviderSummary(completedDuringRun);
+        run.error = "worker process interrupted before run finalizer";
+        run.status = "interrupted";
+      }
       let recovered = 0;
       for (const file of session.files) {
         if (file.extraction.status !== "running") continue;
@@ -221,6 +238,7 @@ export class V2SessionStore {
       file.extraction.outputTextBytes = Math.max(0, Number(result.outputTextBytes) || 0);
       file.extraction.outputTextSha256 = String(result.outputTextSha256 || "");
       file.extraction.providerCalls = Math.max(0, Number(result.providerCalls) || 0);
+      file.extraction.provider = result.provider && typeof result.provider === "object" ? result.provider : {};
       file.extraction.error = safeError(result.error || "");
     });
   }
@@ -264,6 +282,50 @@ export class V2SessionStore {
     this.queues.set(id, next);
     return next;
   }
+}
+
+function trustedInterruptedAt(session) {
+  const updatedAt = String(session.updatedAt || "");
+  return Number.isFinite(Date.parse(updatedAt)) ? updatedAt : nowIso();
+}
+
+function interruptedProviderSummary(files) {
+  const result = { totalCalls: 0, successfulCalls: 0, failedCalls: 0, byProvider: {} };
+  for (const file of files) {
+    const calls = Math.max(0, Number(file.extraction.providerCalls) || 0);
+    if (!calls) continue;
+    result.totalCalls += calls;
+    result.successfulCalls += calls;
+    const isPdf = path.extname(file.relativePath).toLowerCase() === ".pdf";
+    if (!isPdf) continue;
+    const mistralCalls = Math.min(1, calls);
+    const geminiCalls = Math.max(0, calls - mistralCalls);
+    if (mistralCalls) {
+      result.byProvider.mistral ||= emptyInterruptedProvider();
+      result.byProvider.mistral.calls += mistralCalls;
+      result.byProvider.mistral.succeededCalls += mistralCalls;
+      result.byProvider.mistral.pagesProcessed += Math.max(0, Number(file.extraction.pageCount) || 0);
+    }
+    if (geminiCalls) {
+      result.byProvider.gemini ||= emptyInterruptedProvider();
+      result.byProvider.gemini.calls += geminiCalls;
+      result.byProvider.gemini.succeededCalls += geminiCalls;
+    }
+  }
+  return result;
+}
+
+function emptyInterruptedProvider() {
+  return {
+    calls: 0,
+    succeededCalls: 0,
+    failedCalls: 0,
+    pagesProcessed: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    estimatedCostUsd: null,
+    usageCheckpoint: "call_counts_only_after_interruption",
+  };
 }
 
 function normalizeDescriptors(files) {

@@ -56,6 +56,10 @@ export function createProviderMetrics({ env = process.env, fetchImpl = fetch } =
     callsForFile(fileIndex) {
       return events.filter((event) => event.fileIndex === Number(fileIndex)).length;
     },
+    async summaryForFile(fileIndex) {
+      await Promise.allSettled(pendingUsageReads);
+      return summarizeProviderEvents(events.filter((event) => event.fileIndex === Number(fileIndex)), env);
+    },
     async summary() {
       await Promise.allSettled(pendingUsageReads);
       return summarizeProviderEvents(events, env);

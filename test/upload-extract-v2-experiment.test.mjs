@@ -97,6 +97,41 @@ test("upload-extract v2 streams, resumes, filters, checkpoints, and resumes extr
   }
 });
 
+test("upload-extract v2 finalizes interrupted run evidence and recovers only in-flight files", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v2-interrupted-"));
+  try {
+    const store = new V2SessionStore({ root });
+    const bytes = Buffer.from("source");
+    await store.createSession({ id: "interrupted", files: [{
+      index: 0,
+      relativePath: "source.txt",
+      expectedBytes: bytes.length,
+      sha256: sha(bytes),
+    }] });
+    await store.markUploadStarted("interrupted", 0);
+    await store.markUploadSucceeded("interrupted", 0, { receivedBytes: bytes.length, sha256: sha(bytes) });
+    await store.commitSession("interrupted");
+    await store.beginExtractionRun("interrupted", {
+      runId: "crashed-run",
+      startedAt: new Date(Date.now() - 1_000).toISOString(),
+      concurrency: 2,
+      attemptedFiles: 1,
+    });
+    await store.markExtractionStarted("interrupted", 0);
+
+    const recovered = await new V2SessionStore({ root }).recoverInterruptedExtraction("interrupted");
+    assert.equal(recovered.state, "paused");
+    assert.equal(recovered.files[0].extraction.status, "pending");
+    assert.equal(recovered.files[0].extraction.attempts, 1);
+    assert.equal(recovered.metrics.recoveredInterruptedFiles, 1);
+    assert.equal(recovered.metrics.extractionRuns[0].status, "interrupted");
+    assert.match(recovered.metrics.extractionRuns[0].error, /interrupted/);
+    assert.ok(recovered.metrics.extractionRuns[0].activeMs >= 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("upload-extract v2 captures real provider response usage without request bodies", async () => {
   const metrics = createProviderMetrics({
     env: { V2_MISTRAL_OCR_USD_PER_1000_PAGES: "1" },

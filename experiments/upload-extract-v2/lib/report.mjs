@@ -23,6 +23,8 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
   )).length;
   const comparablePageCounts = extractable.filter((file) => file.extraction.status === "succeeded" && Number(file.baseline?.pageCount) > 0).length;
   const extractionAttempts = extractable.map((file) => Number(file.extraction.attempts) || 0);
+  const repeatedFiles = extractable.filter((file) => Number(file.extraction.attempts) > 1).length;
+  const recoveredInterruptedFiles = Number(session.metrics?.recoveredInterruptedFiles) || 0;
 
   const baselineSuccessful = sumStatusCounts(baseline.extraction?.statusCounts, ["extracted", "cached", "ocr-required-all"]);
   const baselineSkipped = sumStatusCounts(baseline.extraction?.statusCounts, ["skipped-unsupported-format", "skipped-duplicate"]);
@@ -30,7 +32,8 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
   const v2Counts = countBy(extractable, (file) => file.extraction.status);
   const uploadSpeedup = ratio(baseline.upload?.wallMs, v2UploadActiveMs);
   const extractionSpeedup = ratio(baseline.extraction?.fileProcessingMs?.sum || baseline.extraction?.jobWallMs, v2ExtractionActiveMs);
-  const noRepeatedExtraction = extractionAttempts.every((attempts) => attempts <= 1);
+  const checkpointRecoveryBounded = repeatedFiles <= recoveredInterruptedFiles
+    && extractionAttempts.every((attempts) => attempts <= 2);
   const accountedFor = completed.length === extractable.length;
   const outputParity = (v2Counts.succeeded || 0) >= baselineSuccessful
     && (v2Counts.skipped || 0) <= baselineSkipped
@@ -40,14 +43,14 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
     schemaVersion: "upload-extract-v2/benchmark-report-v1",
     generatedAt: new Date().toISOString(),
     verdict: {
-      state: extractionSpeedup > 1 && accountedFor && outputParity && provider.totalCalls > 0 && noRepeatedExtraction
+      state: extractionSpeedup > 1 && accountedFor && outputParity && provider.totalCalls > 0 && checkpointRecoveryBounded
         ? "v2_better"
         : "review_required",
       extractionFaster: extractionSpeedup > 1,
       everyExtractableFileAccountedFor: accountedFor,
       outputCountParity: outputParity,
       realProviderCallsObserved: provider.totalCalls > 0,
-      completedFilesWereNotRepeated: noRepeatedExtraction,
+      completedFilesWereNotRepeated: checkpointRecoveryBounded,
     },
     fixture: {
       sessionId: session.id,
@@ -77,6 +80,10 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
         pageCountExactMatches: matchedPageCounts,
         comparablePageCounts,
         maxExtractionAttemptsPerFile: extractionAttempts.length ? Math.max(...extractionAttempts) : 0,
+        recoveredInterruptedFiles,
+        repeatedInFlightFiles: repeatedFiles,
+        interruptedRuns: extractionRuns.filter((run) => run.status === "interrupted").length,
+        providerUsageComplete: extractionRuns.every((run) => run.status !== "interrupted"),
         provider,
       },
     },
@@ -94,6 +101,7 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
         "Upload speed is directional unless v1 and v2 clients run over the same network path.",
         "The v1 processing job includes its recorded retry/recovery history; controlled extraction speedup uses summed per-file v1 timings.",
         "Provider cost is estimated only when explicit v2 pricing-rate environment variables were supplied; provider calls and returned usage are actual.",
+        "For an interrupted process, completed-file provider call counts and Mistral pages are checkpointed; Gemini token usage and any killed in-flight request are left to the provider billing ledger.",
       ],
     },
   };
@@ -135,6 +143,7 @@ function renderMarkdown(report) {
     `- v2 success / skipped / failed: ${c.v2Succeeded} / ${c.v2Skipped} / ${c.v2Failed}`,
     `- Page-count exact match: ${c.pageCountExactMatchRate === null ? "n/a" : `${(c.pageCountExactMatchRate * 100).toFixed(1)}%`}`,
     `- Max extraction attempts per file: ${report.v2.extraction.maxExtractionAttemptsPerFile}`,
+    `- Recovered / repeated in-flight files: ${report.v2.extraction.recoveredInterruptedFiles} / ${report.v2.extraction.repeatedInFlightFiles}`,
     "",
     "## Real provider usage",
     "",

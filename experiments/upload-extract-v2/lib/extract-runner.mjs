@@ -95,6 +95,7 @@ export async function runV2Extraction({
         };
       }
       result.providerCalls = providerMetrics.callsForFile(file.index);
+      result.provider = await providerMetrics.summaryForFile(file.index);
       await store.markExtractionFinished(id, file.index, result);
       completedFiles += 1;
       onProgress({ completedFiles, attemptedFiles: selected.length, fileIndex: file.index, status: result.status });
