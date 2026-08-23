@@ -209,6 +209,54 @@ test("runtime fixture export is read-only and substitutes only filtered upload e
   }
 });
 
+test("v2 report keeps redundant duplicate extraction as a review blocker", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v2-duplicate-report-"));
+  const baselinePath = path.join(root, "baseline.json");
+  const reportPath = path.join(root, "report.json");
+  try {
+    const store = new V2SessionStore({ root });
+    await store.createSession({ id: "duplicates", files: [0, 1].map((index) => ({
+      index,
+      relativePath: `copy-${index}.pdf`,
+      expectedBytes: 1,
+      sha256: "c".repeat(64),
+      sourceKind: "real",
+    })) });
+    const manifestPath = path.join(root, "sessions", "duplicates", "session.json");
+    const session = JSON.parse(await readFile(manifestPath, "utf8"));
+    session.state = "complete";
+    for (const file of session.files) {
+      file.upload.status = "uploaded";
+      file.commitDisposition = "ready";
+      file.extraction.status = "succeeded";
+      file.extraction.attempts = 1;
+    }
+    session.metrics.uploadRuns = [{ activeMs: 100, uploadedBytes: 2, peakRssBytes: 1, concurrency: 2 }];
+    session.metrics.extractionRuns = [{
+      startedAt: "2026-01-01T00:00:00Z",
+      finishedAt: "2026-01-01T00:00:01Z",
+      activeMs: 1000,
+      peakRssBytes: 1,
+      concurrency: 2,
+      status: "finished",
+      provider: { totalCalls: 2, successfulCalls: 2, failedCalls: 0, byProvider: { mistral: { calls: 2, succeededCalls: 2, failedCalls: 0, pagesProcessed: 2, estimatedCostUsd: 0.01 } } },
+    }];
+    await writeFile(manifestPath, `${JSON.stringify(session, null, 2)}\n`);
+    await writeFile(baselinePath, `${JSON.stringify({
+      upload: { wallMs: 200 },
+      extraction: { fileProcessingMs: { sum: 2000 }, statusCounts: { extracted: 1, "skipped-duplicate": 1 } },
+    })}\n`);
+
+    const report = await buildV2BenchmarkReport({ root, sessionId: "duplicates", baselineFile: baselinePath, outFile: reportPath });
+    assert.equal(report.verdict.uniqueFileOutcomeParity, true);
+    assert.equal(report.verdict.duplicateHandlingParity, false);
+    assert.equal(report.verdict.state, "review_required");
+    assert.equal(report.v2.extraction.redundantlyProcessedDuplicates, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("v2 report refuses a better verdict without observed paid provider calls", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v2-report-"));
   const baselinePath = path.join(root, "baseline.json");

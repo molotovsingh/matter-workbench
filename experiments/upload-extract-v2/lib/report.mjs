@@ -30,14 +30,21 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
   const baselineSkipped = sumStatusCounts(baseline.extraction?.statusCounts, ["skipped-unsupported-format", "skipped-duplicate"]);
   const baselineFailed = sumStatusCounts(baseline.extraction?.statusCounts, ["failed"]);
   const v2Counts = countBy(extractable, (file) => file.extraction.status);
+  const duplicateAnalysis = analyzeDuplicateOutcomes(extractable);
+  const v2UniqueCounts = countBy(duplicateAnalysis.uniqueFiles, (file) => file.extraction.status);
+  const baselineDuplicateCount = Number(baseline.extraction?.statusCounts?.["skipped-duplicate"]) || 0;
+  const baselineUnsupported = sumStatusCounts(baseline.extraction?.statusCounts, ["skipped-unsupported-format"]);
   const uploadSpeedup = ratio(baseline.upload?.wallMs, v2UploadActiveMs);
   const extractionSpeedup = ratio(baseline.extraction?.fileProcessingMs?.sum || baseline.extraction?.jobWallMs, v2ExtractionActiveMs);
   const checkpointRecoveryBounded = repeatedFiles <= recoveredInterruptedFiles
     && extractionAttempts.every((attempts) => attempts <= 2);
   const accountedFor = completed.length === extractable.length;
-  const outputParity = (v2Counts.succeeded || 0) >= baselineSuccessful
-    && (v2Counts.skipped || 0) <= baselineSkipped
-    && (v2Counts.failed || 0) <= baselineFailed;
+  const uniqueOutcomeParity = (v2UniqueCounts.succeeded || 0) >= baselineSuccessful
+    && (v2UniqueCounts.skipped || 0) <= baselineUnsupported
+    && (v2UniqueCounts.failed || 0) <= baselineFailed;
+  const duplicateHandlingParity = duplicateAnalysis.redundantlyProcessed === 0
+    && duplicateAnalysis.duplicateFiles === baselineDuplicateCount;
+  const outputParity = uniqueOutcomeParity && duplicateHandlingParity;
 
   const report = {
     schemaVersion: "upload-extract-v2/benchmark-report-v1",
@@ -49,6 +56,8 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
       extractionFaster: extractionSpeedup > 1,
       everyExtractableFileAccountedFor: accountedFor,
       outputCountParity: outputParity,
+      uniqueFileOutcomeParity: uniqueOutcomeParity,
+      duplicateHandlingParity,
       realProviderCallsObserved: provider.totalCalls > 0,
       completedFilesWereNotRepeated: checkpointRecoveryBounded,
     },
@@ -76,6 +85,10 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
         configuredConcurrency: max(extractionRuns, "concurrency"),
         peakRssBytes: max(extractionRuns, "peakRssBytes"),
         counts: v2Counts,
+        uniqueFileCounts: v2UniqueCounts,
+        duplicateFiles: duplicateAnalysis.duplicateFiles,
+        redundantlyProcessedDuplicates: duplicateAnalysis.redundantlyProcessed,
+        totalPages: extractable.reduce((sum, file) => sum + (Number(file.extraction.pageCount) || 0), 0),
         fileDurationMs: summarizeNumbers(extractionDurations),
         pageCountExactMatches: matchedPageCounts,
         comparablePageCounts,
@@ -93,15 +106,20 @@ export async function buildV2BenchmarkReport({ root, sessionId, baselineFile, ou
       baselineSuccessful,
       baselineSkipped,
       baselineFailed,
+      baselineDuplicateCount,
       v2Succeeded: v2Counts.succeeded || 0,
       v2Skipped: v2Counts.skipped || 0,
       v2Failed: v2Counts.failed || 0,
+      v2UniqueSucceeded: v2UniqueCounts.succeeded || 0,
+      v2UniqueSkipped: v2UniqueCounts.skipped || 0,
+      v2UniqueFailed: v2UniqueCounts.failed || 0,
       pageCountExactMatchRate: comparablePageCounts ? matchedPageCounts / comparablePageCounts : null,
       caveats: [
         "Upload speed is directional unless v1 and v2 clients run over the same network path.",
         "The v1 processing job includes its recorded retry/recovery history; controlled extraction speedup uses summed per-file v1 timings.",
         "Provider cost is estimated only when explicit v2 pricing-rate environment variables were supplied; provider calls and returned usage are actual.",
         "For an interrupted process, completed-file provider call counts and Mistral pages are checkpointed; Gemini token usage and any killed in-flight request are left to the provider billing ledger.",
+        "v2 unique-file outcomes match v1, but v2 did not suppress five byte-identical duplicates before extraction; that redundant work keeps the verdict at review_required.",
       ],
     },
   };
@@ -140,7 +158,9 @@ function renderMarkdown(report) {
     "## Correctness",
     "",
     `- v1 success / skipped / failed: ${c.baselineSuccessful} / ${c.baselineSkipped} / ${c.baselineFailed}`,
-    `- v2 success / skipped / failed: ${c.v2Succeeded} / ${c.v2Skipped} / ${c.v2Failed}`,
+    `- v2 all-file success / skipped / failed: ${c.v2Succeeded} / ${c.v2Skipped} / ${c.v2Failed}`,
+    `- v2 unique-file success / skipped / failed: ${c.v2UniqueSucceeded} / ${c.v2UniqueSkipped} / ${c.v2UniqueFailed}`,
+    `- Duplicate files / redundantly processed: ${report.v2.extraction.duplicateFiles} / ${report.v2.extraction.redundantlyProcessedDuplicates}`,
     `- Page-count exact match: ${c.pageCountExactMatchRate === null ? "n/a" : `${(c.pageCountExactMatchRate * 100).toFixed(1)}%`}`,
     `- Max extraction attempts per file: ${report.v2.extraction.maxExtractionAttemptsPerFile}`,
     `- Recovered / repeated in-flight files: ${report.v2.extraction.recoveredInterruptedFiles} / ${report.v2.extraction.repeatedInFlightFiles}`,
@@ -149,13 +169,31 @@ function renderMarkdown(report) {
     "",
     `- HTTP calls: ${p.totalCalls}`,
     `- Successful / failed calls: ${p.successfulCalls} / ${p.failedCalls}`,
-    ...Object.entries(p.byProvider || {}).map(([name, value]) => `- ${name}: ${value.calls} calls, ${value.pagesProcessed || 0} pages, estimated cost ${value.estimatedCostUsd ?? "rate not configured"}`),
+    ...Object.entries(p.byProvider || {}).map(([name, value]) => `- ${name}: ${value.calls} calls, ${value.pagesProcessed || 0} pages, estimated cost ${value.estimatedCostUsd ?? (value.costCoverageComplete ? "rate not configured" : "incomplete after interrupted run")}`),
     "",
     "## Caveats",
     "",
     ...c.caveats.map((item) => `- ${item}`),
     "",
   ].join("\n");
+}
+
+function analyzeDuplicateOutcomes(files) {
+  const firstBySha = new Map();
+  const uniqueFiles = [];
+  let duplicateFiles = 0;
+  let redundantlyProcessed = 0;
+  for (const file of files) {
+    const sha = String(file.sha256 || "");
+    if (!sha || !firstBySha.has(sha)) {
+      if (sha) firstBySha.set(sha, file);
+      uniqueFiles.push(file);
+      continue;
+    }
+    duplicateFiles += 1;
+    if (file.extraction.status !== "skipped") redundantlyProcessed += 1;
+  }
+  return { uniqueFiles, duplicateFiles, redundantlyProcessed };
 }
 
 function mergeProviderSummaries(summaries) {
@@ -173,13 +211,17 @@ function mergeProviderSummaries(summaries) {
         inputTokens: 0,
         outputTokens: 0,
         estimatedCostUsd: null,
+        costCoverageComplete: true,
       };
       for (const key of ["calls", "succeededCalls", "failedCalls", "pagesProcessed", "inputTokens", "outputTokens"]) {
         target[key] += Number(value[key]) || 0;
       }
       if (value.estimatedCostUsd !== null && value.estimatedCostUsd !== undefined) {
         target.estimatedCostUsd = (target.estimatedCostUsd || 0) + Number(value.estimatedCostUsd || 0);
+      } else if (Number(value.calls) > 0) {
+        target.costCoverageComplete = false;
       }
+      if (!target.costCoverageComplete) target.estimatedCostUsd = null;
       result.byProvider[provider] = target;
     }
   }
