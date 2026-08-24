@@ -11,7 +11,7 @@ import { classifyPageImages, parsePdfImagesList } from "../experiments/page-extr
 import { classifyNativePage } from "../experiments/page-extract-v3/lib/page-inspector.mjs";
 import { createPdfevalSession, exportPdfevalCandidateText, parsePdfevalCaseList } from "../experiments/page-extract-v3/lib/pdfeval-adapter.mjs";
 import { evaluatePrimaryPage } from "../experiments/page-extract-v3/lib/page-quality.mjs";
-import { runRepairProviderTask } from "../experiments/page-extract-v3/lib/provider-task-runner.mjs";
+import { runPrimaryProviderTask, runRepairProviderTask } from "../experiments/page-extract-v3/lib/provider-task-runner.mjs";
 import { comparePageText } from "../experiments/page-extract-v3/lib/reference-comparison.mjs";
 import { buildV3RoutePlan, V3_ROUTE_PLAN_SCHEMA } from "../experiments/page-extract-v3/lib/route-plan.mjs";
 import { sha256 } from "../experiments/page-extract-v3/lib/util.mjs";
@@ -180,6 +180,34 @@ test("page extract v3 does not escalate primary OCR solely because confidence is
   });
   assert.equal(rejected.needsRepair, true);
   assert.match(rejected.reasons.join(" "), /critical_token/);
+});
+
+test("page extract v3 fingerprints the pinned Mistral primary model", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-page-v3-primary-model-"));
+  const resultFile = path.join(root, "primary.json");
+  const seenModels = [];
+  const task = {
+    id: "primary-1", index: 0, pdfPath: path.join(root, "input.pdf"),
+    units: [{ documentId: "doc", page: 1, sourceSha256: "a".repeat(64) }],
+  };
+  try {
+    const run = (model) => runPrimaryProviderTask({
+      task, resultFile, model, env: { MISTRAL_API_KEY: "test" },
+      providerFactory: ({ model: configuredModel }) => async () => {
+        seenModels.push(configuredModel);
+        return { engine: configuredModel, pages: [{ page: 1, markdown: "Primary page" }] };
+      },
+    });
+    const pinned = await run("mistral-ocr-4-1");
+    const resumed = await run("mistral-ocr-4-1");
+    const changed = await run("mistral-ocr-latest");
+    assert.equal(pinned.model, "mistral-ocr-4-1");
+    assert.equal(resumed.resumed, true);
+    assert.equal(changed.resumed, false);
+    assert.deepEqual(seenModels, ["mistral-ocr-4-1", "mistral-ocr-latest"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("page extract v3 checkpoints a Gemini 3.7 repair task and resumes without a second paid call", async () => {

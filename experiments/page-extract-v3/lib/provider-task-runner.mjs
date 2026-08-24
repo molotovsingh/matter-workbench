@@ -1,5 +1,5 @@
 import { createGeminiOcrProvider } from "../../../extract-utils/gemini-ocr-provider.mjs";
-import { createMistralOcrProvider } from "../../../extract-utils/mistral-ocr-provider.mjs";
+import { createMistralOcrProvider, MISTRAL_OCR_MODEL } from "../../../extract-utils/mistral-ocr-provider.mjs";
 import { createProviderMetrics } from "../../upload-extract-v2/lib/provider-metrics.mjs";
 import { atomicWriteJson, readJsonIfExists, sha256 } from "./util.mjs";
 
@@ -11,8 +11,10 @@ export async function runPrimaryProviderTask({
   env = process.env,
   fetchImpl = fetch,
   maxAttempts = 2,
+  model = env.MISTRAL_OCR_MODEL || MISTRAL_OCR_MODEL,
   providerFactory = createMistralOcrProvider,
 } = {}) {
+  const pinnedModel = String(model || MISTRAL_OCR_MODEL);
   return runProviderTask({
     task,
     resultFile,
@@ -23,10 +25,11 @@ export async function runPrimaryProviderTask({
     createProvider: ({ metrics, pricedEnv }) => providerFactory({
       apiKey: pricedEnv.MISTRAL_API_KEY,
       endpoint: pricedEnv.MISTRAL_OCR_ENDPOINT,
-      model: pricedEnv.MISTRAL_OCR_MODEL,
+      model: pinnedModel,
       timeoutMs: pricedEnv.MISTRAL_OCR_TIMEOUT_MS,
       fetchImpl: metrics.fetchImpl,
     }),
+    model: pinnedModel,
   });
 }
 

@@ -31,6 +31,7 @@ export async function runCurrentProviderCandidate({
   candidateId,
   codeRevision = "",
   primaryCacheCandidateId = "",
+  primaryModel = "",
   preflightConcurrency = 2,
   primaryConcurrency = 4,
   repairConcurrency = 4,
@@ -64,6 +65,7 @@ export async function runCurrentProviderCandidate({
   const configuration = {
     codeRevision: String(codeRevision || ""),
     primaryCacheCandidateId: primaryCacheCandidateId ? safeId(primaryCacheCandidateId, "primary cache candidate id") : "",
+    primaryModel: String(primaryModel || env.MISTRAL_OCR_MODEL || "mistral-ocr-latest"),
     preflightConcurrency: bounded(preflightConcurrency, 2, 8),
     primaryConcurrency: bounded(primaryConcurrency, 4, 32),
     repairConcurrency: bounded(repairConcurrency, 4, 32),
@@ -119,6 +121,7 @@ export async function runCurrentProviderCandidate({
           units: primaryUnits,
           candidateRoot,
           cacheResultDir: primaryCacheResultDir,
+          expectedModel: configuration.primaryModel,
           combinePages,
           concurrency: configuration.preflightConcurrency,
         })
@@ -185,7 +188,13 @@ export async function runCurrentProviderCandidate({
       resultDir: primaryCacheResultDir || path.join(candidateRoot, "tasks", "primary-results"),
       onProgress,
       label: "primary",
-      run: (task, resultFile) => primaryTaskRunner({ task, resultFile, env, fetchImpl }),
+      run: (task, resultFile) => primaryTaskRunner({
+        task,
+        resultFile,
+        model: configuration.primaryModel,
+        env: { ...env, MISTRAL_OCR_MODEL: configuration.primaryModel },
+        fetchImpl,
+      }),
     });
     stageMs.primaryProvider = Math.round(performance.now() - stageStarted);
 
@@ -398,7 +407,7 @@ async function prepareProviderTasks({ kind, units, candidateRoot, maxPages, maxB
   });
 }
 
-export async function prepareCachedPrimaryTasks({ units, candidateRoot, cacheResultDir, combinePages, concurrency }) {
+export async function prepareCachedPrimaryTasks({ units, candidateRoot, cacheResultDir, expectedModel = "", combinePages, concurrency }) {
   const files = (await readdir(cacheResultDir)).filter((file) => file.endsWith(".json")).sort();
   const records = await Promise.all(files.map((file) => readJson(path.join(cacheResultDir, file))));
   const unitMap = new Map(units.map((unit) => [unitKey(unit), unit]));
@@ -406,6 +415,9 @@ export async function prepareCachedPrimaryTasks({ units, candidateRoot, cacheRes
   const definitions = records.map((record, index) => {
     if (record.status !== "succeeded" || record.providerName !== "mistral") {
       throw new Error(`primary cache task is not a successful Mistral result: ${record.taskId || files[index]}`);
+    }
+    if (expectedModel && record.model !== expectedModel) {
+      throw new Error(`primary cache model mismatch: expected ${expectedModel}, found ${record.model || "unrecorded"}`);
     }
     const cachedUnits = record.units.map((cached) => {
       const key = unitKey(cached);
