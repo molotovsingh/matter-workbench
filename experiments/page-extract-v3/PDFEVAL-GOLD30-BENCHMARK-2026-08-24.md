@@ -1,0 +1,151 @@
+# Page Extract V3 — PDFEval Gold30 Benchmark
+
+Date: 2026-08-24  
+Experiment revision: `18b5e8c`  
+Production integration: **none**  
+PDFEval repository mutations: **none**  
+Verdict: **promising, review_required**
+
+## What had and had not already been tested
+
+The sibling `pdf-extraction-eval` repository had already benchmarked individual OCR providers, including Mistral, Gemini Pro, Gemini 3.7 Flash, Textract, and OvisOCR2. It had **not** run Matter Workbench's routed V3 pipeline.
+
+This benchmark is the first run of the complete V3 route:
+
+```text
+conservative native routing → Mistral primary OCR → selective Gemini repair → ordered document assembly
+```
+
+against PDFEval's Gold30 corpus and its human-verified page excerpts.
+
+## Corpus
+
+- 30 Indian Supreme Court judgments;
+- 10 archival, 10 transitional, and 10 modern;
+- 395 pages;
+- 9.7 MiB of source PDFs;
+- eight image-verified excerpts from six judgments;
+- 1,890 verified reference words;
+- 54 verified legal-critical fields.
+
+The PDFEval source tree and evaluator were read-only. An isolated V2-shaped fixture copied and hash-verified the 30 source PDFs for V3 custody and checkpoint compatibility.
+
+## Routing result
+
+| Era | Documents | Pages | Native | Primary OCR |
+| --- | ---: | ---: | ---: | ---: |
+| Archival | 10 | 94 | 0 | 94 |
+| Transitional | 10 | 101 | 0 | 101 |
+| Modern | 10 | 200 | 80 | 120 |
+| **Total** | **30** | **395** | **80** | **315** |
+
+V3 made no native-text shortcut on archival or transitional scans. It accepted 80 conservative native pages from the modern set and sent the other 315 pages to Mistral.
+
+Primary OCR produced all 315 pages. Ninety-two pages were independently escalated because Mistral did not retain every critical token found in the embedded text layer:
+
+| Era | Primary pages | Repair pages |
+| --- | ---: | ---: |
+| Archival | 94 | 30 |
+| Transitional | 101 | 30 |
+| Modern | 120 | 32 |
+| **Total** | **315** | **92** |
+
+This 29.2% repair rate is much higher than Rashmi's 4.6% because the PDFEval scans have text-bearing but noisy embedded layers. The result confirms that ETA and repair prediction must account for workload type, not only page count.
+
+## Human-verified quality
+
+Both completed repair arms produced the same scores on PDFEval's eight existing verified excerpts:
+
+| Candidate | Verified excerpts | Reference words | WER | Normalized CER | Legal-critical fields |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| V3 + Gemini 2.5 Pro repair | 8/8 | 1,890 | **0.95%** | **0.36%** | **54/54** |
+| V3 + Gemini 3.7 LOW repair | 8/8 | 1,890 | **0.95%** | **0.36%** | **54/54** |
+| OvisOCR2 Gold30 | 8/8 | 1,890 | 3.86% | 3.21% | 51/54 |
+
+Across the 1,890 verified words, V3 had zero deletions, two substitutions, and 16 insertions. The verified V3 sample contained:
+
+- six primary-Mistral pages;
+- one native page;
+- one Gemini-repair page.
+
+Therefore, this is strong evidence for the routed pipeline as a whole, but it is **not** enough to declare 3.7 and 2.5 repair quality equivalent across all 92 repair pages.
+
+### Important recovered failure
+
+The known OvisOCR2 failure on the 2018 sale-deed-history page omitted an entire subsection and two checked date fields. V3 independently routed that page to conservative native text. Its verified excerpt retained all seven checked critical fields, with 1.82% WER and 0.87% normalized CER.
+
+## Whole-corpus proxy agreement
+
+Agreement with another OCR system is not ground truth, but it is useful for locating divergence.
+
+| Candidate | Proxy | Coverage | Macro normalized token-sequence agreement |
+| --- | --- | ---: | ---: |
+| V3 + 2.5 repair | OvisOCR2 | 30/30 | **99.43%** |
+| V3 + 3.7 LOW repair | OvisOCR2 | 30/30 | 99.39% |
+| V3 + 2.5 repair | Gemini Pro archival output | 10/10 | **99.08%** |
+| V3 + 3.7 LOW repair | Gemini Pro archival output | 10/10 | 98.90% |
+| V3 + 3.7 LOW | V3 + 2.5 | 30/30 | 99.76% |
+
+The 2.5 arm remains slightly closer to both proxy outputs, consistent with the earlier Rashmi reference comparison.
+
+## Timing, reliability, and cost
+
+Preparation made no provider calls and completed in 6.578s for the 2.5 arm. The 315 primary pages were balanced into 20 batches; 92 repair pages were balanced into 23 batches.
+
+| Repair arm | Reconstructed fresh critical path | Mistral active wall | Repair active wall | Logical fresh cost | Repair cost |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Gemini 2.5 Pro | 791.673s (13m 12s) | 489.437s | 295.071s | $2.652 | $1.392 |
+| Gemini 3.7 LOW | **538.491s (8m 58s)** | 489.437s | **42.743s** | **$1.523** | **$0.263** |
+
+Relative to 2.5 Pro, 3.7 LOW was:
+
+- 6.90× faster in repair;
+- 32.0% faster on the reconstructed end-to-end path;
+- 81.1% cheaper for repair;
+- 42.6% cheaper for the logical fresh run.
+
+Mistral made 24 HTTP attempts for 20 successful batches. Four transient attempts timed out and were retried from the task boundary; every primary batch ultimately succeeded. Both Gemini arms completed all 23 repair calls without failure.
+
+Mistral's Gold30 batch latency was dramatically higher than on Rashmi's corpus. This is direct evidence that user-facing ETAs need live, corpus-sensitive recalibration after the first few batches.
+
+## Interpretation
+
+This run closes an important evidence gap: V3 has now been tested against human-verified legal OCR excerpts rather than only the frozen current-model reference.
+
+The result is encouraging:
+
+- complete document/page coverage;
+- zero terminal provider failures;
+- sub-1% WER on the purposive human sample;
+- all 54 legal-critical fields retained;
+- a known complete-region omission from a local OCR candidate avoided by routing;
+- substantial 3.7 LOW latency and cost savings.
+
+The result is not yet a production-quality claim:
+
+- eight excerpts are purposive, not a random corpus-wide accuracy sample;
+- only one verified excerpt exercised the repair lane;
+- 92 repaired pages still lack direct human adjudication;
+- 80 native pages require broader sampling beyond the one verified native excerpt;
+- primary latency varied sharply by corpus.
+
+## Recommendation
+
+1. Keep V3 + 2.5 Pro as the quality-first candidate.
+2. Keep V3 + 3.7 LOW as the speed/cost candidate.
+3. Expand PDFEval's verified manifest with stratified samples from:
+   - at least 15 repair pages where 2.5 and 3.7 differ;
+   - at least 10 native pages across modern documents;
+   - at least 10 difficult primary pages across archival and transitional scans.
+4. Compare Textract, Google Document AI, Azure Document Intelligence, and GPU OCR on the same expanded human set.
+5. Do not integrate V3 into production until that adjudication is complete.
+
+## Evidence locations
+
+Isolated local workspace:
+
+- `/Users/aksingh/matter-workbench-experiments/18b5e8c-pdfeval/evidence`
+- `/Users/aksingh/matter-workbench-experiments/18b5e8c-pdfeval/data/work/candidates/routed-gemini-25/report.json`
+- `/Users/aksingh/matter-workbench-experiments/18b5e8c-pdfeval/data/work/candidates/routed-gemini-37-low/report.json`
+
+Exported candidate text and detailed evaluator artifacts remain outside both repositories. No production code, routes, schemas, builds, or deployments were changed.

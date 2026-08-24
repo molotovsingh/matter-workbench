@@ -90,14 +90,15 @@ export async function exportPdfevalCandidateText({
     const source = files.get(Number(document.sourceIndex));
     if (!source || source.sha256 !== document.sourceSha256) throw new Error(`source mismatch for ${document.documentId}`);
     const caseId = safeCaseId(path.basename(source.relativePath, path.extname(source.relativePath)));
-    const sourceText = path.join(path.resolve(candidateRoot), "candidates", candidate, "outputs", `${document.documentId}.txt`);
+    const documentId = safeId(document.documentId, "document id");
+    const sourceText = path.join(path.resolve(candidateRoot), "candidates", candidate, "outputs", `${documentId}.txt`);
     const text = await readFile(sourceText, "utf8");
     if (!text.trim()) throw new Error(`empty V3 output for ${caseId}`);
     const target = path.join(destination, `${caseId}.txt`);
     await atomicWriteFile(target, text);
     exported.push({
       caseId,
-      documentId: document.documentId,
+      documentId,
       pages: document.pageCount,
       outputBytes: Buffer.byteLength(text),
     });

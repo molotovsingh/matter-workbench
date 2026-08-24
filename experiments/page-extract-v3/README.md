@@ -14,6 +14,7 @@ An isolated experiment to remove the measured whole-document Gemini repair bottl
 
 - Frozen reference: `CURRENT-REFERENCE-2026-08-24.md`
 - Routed current-provider and Gemini 3.7 benchmark: `CURRENT-PROVIDER-BENCHMARK-2026-08-24.md`
+- PDFEval Gold30 and human-verified excerpt benchmark: `PDFEVAL-GOLD30-BENCHMARK-2026-08-24.md`
 
 ## Frozen reference
 
@@ -55,6 +56,21 @@ node experiments/page-extract-v3/cli.mjs plan \
 ```
 
 The plan opens each byte-unique PDF, classifies each page independently, fingerprints native text, and reports general-token and critical-legal-token agreement with the current reference. It never uses the reference to make the route decision.
+
+### PDFEval corpus adapter
+
+The isolated adapter can hash-copy a PDFEval case list into a V2-shaped fixture and export assembled V3 text under PDFEval case IDs. It never mutates PDFEval sources or outputs:
+
+```bash
+node experiments/page-extract-v3/cli.mjs pdfeval-import \
+  --pdf-root <pdfeval-pdf-root> --case-list <cases.txt> \
+  --v2-root <isolated-fixture-root> --session-id pdfeval-gold30
+
+node experiments/page-extract-v3/cli.mjs pdfeval-export \
+  --v2-root <isolated-fixture-root> --session-id pdfeval-gold30 \
+  --route-plan <route-plan.json> --root <v3-work-root> \
+  --candidate-id <candidate-id> --out <isolated-text-output>
+```
 
 ## Current-provider candidate
 
