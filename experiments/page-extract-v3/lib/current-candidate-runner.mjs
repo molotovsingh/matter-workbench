@@ -252,7 +252,7 @@ export async function runCurrentProviderCandidate({
     report.measurement.stageMs = { ...stageMs };
     report.measurement.reconstructedFreshCriticalPathMs += stageMs.assembly;
     report.measurement.totalWallMs = Math.round(performance.now() - totalStarted);
-    report.measurement.peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss);
+    report.measurement.peakRssBytes = Math.max(report.measurement.peakRssBytes, peakRssBytes, process.memoryUsage().rss);
     report.finishedAt = new Date().toISOString();
     await writeCandidateReport(candidateRoot, report);
     await atomicWriteJson(path.join(candidateRoot, "run.json"), {
@@ -543,7 +543,7 @@ async function assembleCandidate({
         + activeTaskWallMs(repairResults)
       ),
       preparationCheckpointWallMs: Number(preparationReport?.measurement?.totalWallMs) || null,
-      peakRssBytes,
+      peakRssBytes: Math.max(peakRssBytes, Number(preparationReport?.measurement?.peakRssBytes) || 0),
       stageMs: { ...stageMs },
     },
     documents,
