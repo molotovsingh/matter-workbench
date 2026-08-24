@@ -10,7 +10,12 @@ An isolated experiment to remove the measured whole-document Gemini repair bottl
 - No provider is called by the baseline command.
 - No production integration is part of this phase.
 
-## Current phase: freeze the reference
+## Evidence summaries
+
+- Frozen reference: `CURRENT-REFERENCE-2026-08-24.md`
+- Routed current-provider and Gemini 3.7 benchmark: `CURRENT-PROVIDER-BENCHMARK-2026-08-24.md`
+
+## Frozen reference
 
 The first reference is the existing whole-PDF pipeline:
 
