@@ -118,11 +118,19 @@ test("page extract v3 balances weighted page units without arbitrary fixed-size 
 
 test("page extract v3 does not escalate primary OCR solely because confidence is absent", () => {
   const accepted = evaluatePrimaryPage({
-    providerPage: { markdown: "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.", warnings: [] },
+    providerPage: { markdown: "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.", warnings: ["page contains 2 extracted image placeholder(s)"] },
     nativeText: "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.",
   });
   assert.equal(accepted.needsRepair, false);
   assert.equal(accepted.diagnostics.confidenceKnown, false);
+  assert.equal(accepted.diagnostics.imagePlaceholderWarningCount, 1);
+  assert.equal(accepted.diagnostics.materialWarningCount, 0);
+
+  const materialWarning = evaluatePrimaryPage({
+    providerPage: { markdown: "Order text", warnings: ["provider page normalization failed"] },
+  });
+  assert.equal(materialWarning.needsRepair, true);
+  assert.match(materialWarning.reasons.join(" "), /provider_warning/);
 
   const rejected = evaluatePrimaryPage({
     providerPage: { markdown: "Order records payment.", warnings: [] },

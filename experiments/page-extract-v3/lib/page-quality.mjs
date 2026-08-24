@@ -4,6 +4,8 @@ export function evaluatePrimaryPage({ providerPage, nativeText = "" } = {}) {
   const text = normalizeReferenceText(providerPage?.markdown ?? providerPage?.text ?? "");
   const native = normalizeReferenceText(nativeText);
   const warnings = Array.isArray(providerPage?.warnings) ? providerPage.warnings.filter(Boolean).map(String) : [];
+  const imagePlaceholderWarnings = warnings.filter(isImagePlaceholderWarning);
+  const materialWarnings = warnings.filter((warning) => !isImagePlaceholderWarning(warning));
   const confidenceValue = providerPage?.confidence ?? providerPage?.confidence_avg;
   const confidence = confidenceValue === undefined || confidenceValue === null || confidenceValue === ""
     ? null
@@ -11,7 +13,7 @@ export function evaluatePrimaryPage({ providerPage, nativeText = "" } = {}) {
   const reasons = [];
   if (!providerPage) reasons.push("primary_page_missing");
   if (!text) reasons.push("primary_text_empty");
-  if (warnings.length) reasons.push("primary_provider_warning");
+  if (materialWarnings.length) reasons.push("primary_provider_warning");
   if (Number.isFinite(confidence) && confidence < 0.75) reasons.push("primary_low_confidence");
   if (hasInvalidUnicode(text)) reasons.push("primary_invalid_unicode");
   if (hasSuspiciousOcrToken(text)) reasons.push("primary_suspicious_token");
@@ -31,6 +33,8 @@ export function evaluatePrimaryPage({ providerPage, nativeText = "" } = {}) {
       primaryCharacters,
       nativeCharacters,
       warningCount: warnings.length,
+      materialWarningCount: materialWarnings.length,
+      imagePlaceholderWarningCount: imagePlaceholderWarnings.length,
       confidenceKnown: Number.isFinite(confidence),
       confidence: Number.isFinite(confidence) ? confidence : null,
       nativeCriticalTokenCount: nativeCritical.length,
@@ -73,6 +77,10 @@ function hasInvalidUnicode(text) {
     if ((code >= 0xE000 && code <= 0xF8FF) || (code >= 0xF0000 && code <= 0xFFFFD) || (code >= 0x100000 && code <= 0x10FFFD)) return true;
   }
   return false;
+}
+
+function isImagePlaceholderWarning(warning) {
+  return /^page contains \d+ extracted image placeholder\(s\)$/i.test(String(warning || "").trim());
 }
 
 function hasSuspiciousOcrToken(text) {
