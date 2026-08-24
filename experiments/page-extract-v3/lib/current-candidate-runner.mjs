@@ -29,6 +29,7 @@ export async function runCurrentProviderCandidate({
   routePlanFile,
   root,
   candidateId,
+  codeRevision = "",
   preflightConcurrency = 2,
   primaryConcurrency = 4,
   repairConcurrency = 4,
@@ -60,6 +61,7 @@ export async function runCurrentProviderCandidate({
   await mkdir(candidateRoot, { recursive: true, mode: 0o700 });
 
   const configuration = {
+    codeRevision: String(codeRevision || ""),
     preflightConcurrency: bounded(preflightConcurrency, 2, 8),
     primaryConcurrency: bounded(primaryConcurrency, 4, 32),
     repairConcurrency: bounded(repairConcurrency, 4, 32),
