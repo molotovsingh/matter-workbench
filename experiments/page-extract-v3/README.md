@@ -82,6 +82,8 @@ node experiments/page-extract-v3/cli.mjs run-current \
   --route-plan <v3-evidence-dir>/native-route-plan.json \
   --root <v3-work-root> \
   --candidate-id routed-gemini-25 \
+  --primary-model mistral-ocr-4-1 \
+  --primary-batch-strategy document_ranges \
   --primary-concurrency 4 \
   --repair-concurrency 4 \
   --repair-model gemini-2.5-pro
@@ -93,13 +95,15 @@ The runner:
 
 - deduplicates before paid work;
 - losslessly separates pages with Poppler rather than rendering them;
-- forms size/complexity-balanced page batches across documents;
-- schedules largest batches first through a bounded work-stealing pool;
+- supports either balanced mixed-page batches or document-local OCR ranges;
+- schedules the largest predicted work first through a bounded work-stealing pool;
 - checkpoints every provider batch atomically;
 - accepts missing Mistral confidence as unknown rather than automatically bad;
 - sends only independently suspicious primary pages to Gemini;
 - assembles pages back into their original documents and order;
 - reports per-lane comparison with the frozen reference.
+
+The primary model is explicit and included in every checkpoint fingerprint; do not use a mutable `latest` alias for controlled evidence. PDFEval showed that document-local OCR ranges materially outperform heterogeneous cross-document PDFs for pinned Mistral OCR 4.1.
 
 The 2.5 Pro arm leaves thinking unset to match the current reference configuration. `gemini-3.7-flash` with `LOW` thinking is supported as a separate repair arm. Pass `--primary-cache-candidate <2.5-candidate-id>` so the A/B arm validates and reuses the identical checkpointed Mistral results without another paid primary-OCR run. It must not overwrite or masquerade as the 2.5 Pro reference arm.
 
