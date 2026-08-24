@@ -3,9 +3,10 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { captureCurrentV3Baseline } from "./lib/baseline.mjs";
+import { runCurrentProviderCandidate } from "./lib/current-candidate-runner.mjs";
 import { buildV3RoutePlan } from "./lib/route-plan.mjs";
 
-export async function runCli(argv = process.argv.slice(2)) {
+export async function runCli(argv = process.argv.slice(2), env = process.env) {
   const [command = "help", ...rest] = argv;
   const options = parseOptions(rest);
 
@@ -56,6 +57,36 @@ export async function runCli(argv = process.argv.slice(2)) {
       routing: report.routing,
       referenceComparison: report.referenceComparison,
       projectedPrimaryOcrCost: report.projectedPrimaryOcrCost,
+      measurement: report.measurement,
+    });
+    return 0;
+  }
+
+  if (command === "run-current") {
+    const report = await runCurrentProviderCandidate({
+      v2Root: required(options, "v2-root"),
+      routePlanFile: required(options, "route-plan"),
+      root: required(options, "root"),
+      candidateId: required(options, "candidate-id"),
+      preflightConcurrency: positiveInteger(options["preflight-concurrency"], 2, 8),
+      primaryConcurrency: positiveInteger(options["primary-concurrency"], 4, 32),
+      repairConcurrency: positiveInteger(options["repair-concurrency"], 4, 32),
+      primaryMaxPages: positiveInteger(options["primary-max-pages"], 16, 64),
+      repairMaxPages: positiveInteger(options["repair-max-pages"], 4, 16),
+      repairModel: String(options["repair-model"] || "gemini-2.5-pro"),
+      repairThinkingLevel: String(options["repair-thinking-level"] || ""),
+      env,
+      onProgress: progressPrinter("run"),
+    });
+    print({
+      command,
+      candidateId: report.candidateId,
+      verdict: report.verdict,
+      workload: report.workload,
+      routing: report.routing,
+      tasks: report.tasks,
+      provider: report.provider,
+      qualityAgainstCurrentReference: report.qualityAgainstCurrentReference,
       measurement: report.measurement,
     });
     return 0;
@@ -120,8 +151,13 @@ function usage() {
     "  plan --v2-root DIR --session-id ID --out FILE [--concurrency 2]",
     "       [--minimum-characters 120] [--minimum-words 8] [--minimum-short-page-characters 240]",
     "       [--minimum-large-image-pixels 200000] [--maximum-repeated-ngram-ratio 0.08]",
+    "  run-current --v2-root DIR --route-plan FILE --root DIR --candidate-id ID",
+    "       [--preflight-concurrency 2] [--primary-concurrency 4] [--repair-concurrency 4]",
+    "       [--primary-max-pages 16] [--repair-max-pages 4]",
+    "       [--repair-model gemini-2.5-pro] [--repair-thinking-level LEVEL]",
     "",
     "The baseline and plan commands are read-only and make no provider calls.",
+    "The run-current command makes real billed Mistral and Gemini calls.",
   ].join("\n");
 }
 

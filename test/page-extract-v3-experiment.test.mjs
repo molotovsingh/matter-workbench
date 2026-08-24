@@ -5,10 +5,15 @@ import path from "node:path";
 import test from "node:test";
 
 import { captureCurrentV3Baseline, V3_BASELINE_SCHEMA } from "../experiments/page-extract-v3/lib/baseline.mjs";
+import { buildBalancedPageBatches } from "../experiments/page-extract-v3/lib/batching.mjs";
+import { runCurrentProviderCandidate } from "../experiments/page-extract-v3/lib/current-candidate-runner.mjs";
 import { classifyPageImages, parsePdfImagesList } from "../experiments/page-extract-v3/lib/pdf-image-inspector.mjs";
 import { classifyNativePage } from "../experiments/page-extract-v3/lib/page-inspector.mjs";
+import { evaluatePrimaryPage } from "../experiments/page-extract-v3/lib/page-quality.mjs";
+import { runRepairProviderTask } from "../experiments/page-extract-v3/lib/provider-task-runner.mjs";
 import { comparePageText } from "../experiments/page-extract-v3/lib/reference-comparison.mjs";
 import { buildV3RoutePlan, V3_ROUTE_PLAN_SCHEMA } from "../experiments/page-extract-v3/lib/route-plan.mjs";
+import { sha256 } from "../experiments/page-extract-v3/lib/util.mjs";
 
 const SECRET_REFERENCE_TEXT = "Client paid Rs. 1,00,000 on 20/04/2026 under Section 42.";
 
@@ -101,6 +106,66 @@ test("page extract v3 uses cheap pdfimages metadata instead of rendering images 
   assert.equal(classifyPageImages(pages[2]).largeImageCount, 0);
 });
 
+test("page extract v3 balances weighted page units without arbitrary fixed-size document batches", () => {
+  const units = [900, 800, 700, 200, 100, 50].map((bytes, index) => ({ documentId: `d${index}`, page: 1, bytes }));
+  const batches = buildBalancedPageBatches(units, { maxPages: 2, maxBytes: 2_000, minimumBatches: 3 });
+  assert.equal(batches.length, 3);
+  assert.equal(batches.flatMap((batch) => batch.units).length, units.length);
+  assert.ok(batches.every((batch) => batch.units.length <= 2));
+  const weights = batches.map((batch) => batch.weight);
+  assert.ok(Math.max(...weights) / Math.min(...weights) < 1.25);
+});
+
+test("page extract v3 does not escalate primary OCR solely because confidence is absent", () => {
+  const accepted = evaluatePrimaryPage({
+    providerPage: { markdown: "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.", warnings: [] },
+    nativeText: "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.",
+  });
+  assert.equal(accepted.needsRepair, false);
+  assert.equal(accepted.diagnostics.confidenceKnown, false);
+
+  const rejected = evaluatePrimaryPage({
+    providerPage: { markdown: "Order records payment.", warnings: [] },
+    nativeText: "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.",
+  });
+  assert.equal(rejected.needsRepair, true);
+  assert.match(rejected.reasons.join(" "), /critical_token/);
+});
+
+test("page extract v3 checkpoints a Gemini 3.7 repair task and resumes without a second paid call", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-page-v3-provider-"));
+  const resultFile = path.join(root, "repair.json");
+  let calls = 0;
+  const task = {
+    id: "repair-1",
+    index: 0,
+    pdfPath: path.join(root, "input.pdf"),
+    units: [{ documentId: "doc", page: 4, sourceSha256: "a".repeat(64) }],
+  };
+  try {
+    const options = {
+      task,
+      resultFile,
+      model: "gemini-3.7-flash",
+      thinkingLevel: "LOW",
+      env: { GEMINI_API_KEY: "test" },
+      providerFactory: () => async () => {
+        calls += 1;
+        return { engine: "gemini-ocr:gemini-3.7-flash", pages: [{ page: 1, markdown: "Repaired page" }] };
+      },
+    };
+    const first = await runRepairProviderTask(options);
+    const resumed = await runRepairProviderTask(options);
+    assert.equal(first.status, "succeeded");
+    assert.equal(first.model, "gemini-3.7-flash");
+    assert.equal(first.pages[0].page, 4);
+    assert.equal(resumed.resumed, true);
+    assert.equal(calls, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("page extract v3 compares critical legal tokens separately from general text", () => {
   const comparison = comparePageText(
     "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.",
@@ -157,6 +222,85 @@ test("page extract v3 produces a sanitized no-provider routing replay", async ()
     const serialized = await readFile(outFile, "utf8");
     assert.doesNotMatch(serialized, /Client paid/);
     assert.doesNotMatch(serialized, /confidential-a/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("page extract v3 current-provider runner assembles checkpointed native and primary pages", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-page-v3-current-"));
+  const v2Root = path.join(root, "v2");
+  const candidateRoot = path.join(root, "v3");
+  const sessionId = "candidate-source";
+  const sessionRoot = path.join(v2Root, "sessions", sessionId);
+  const routePlanFile = path.join(root, "route-plan.json");
+  try {
+    await mkdir(path.join(sessionRoot, "extracted"), { recursive: true });
+    const session = syntheticSession(sessionId);
+    await writeJson(path.join(sessionRoot, "session.json"), session);
+    await writeJson(path.join(sessionRoot, "extracted", "000000.json"), pdfRecord({ repairStatus: "used" }));
+    const routePlan = {
+      schemaVersion: V3_ROUTE_PLAN_SCHEMA,
+      fingerprintSha256: "plan-fingerprint",
+      source: { sessionId },
+      policy: {},
+      workload: { duplicatePdfFiles: 1 },
+      routing: { nativePages: 1, primaryOcrPages: 1 },
+      documents: [{
+        documentId: "candidate-doc",
+        sourceIndex: 0,
+        sourceSha256: "a".repeat(64),
+        status: "inspected",
+        pageCount: 2,
+        pages: [
+          { page: 1, route: "native", nativeTextSha256: sha256(SECRET_REFERENCE_TEXT) },
+          { page: 2, route: "primary_ocr", nativeTextSha256: sha256("") },
+        ],
+      }],
+    };
+    await writeJson(routePlanFile, routePlan);
+    const report = await runCurrentProviderCandidate({
+      v2Root,
+      routePlanFile,
+      root: candidateRoot,
+      candidateId: "candidate",
+      env: { MISTRAL_API_KEY: "m", GEMINI_API_KEY: "g" },
+      inspectPdf: async () => ({
+        pageCount: 2,
+        pages: [
+          { page: 1, route: "native", reasons: [], diagnostics: {}, nativeText: SECRET_REFERENCE_TEXT, nativeBlocks: [{ text: SECRET_REFERENCE_TEXT }] },
+          { page: 2, route: "primary_ocr", reasons: ["no_embedded_text"], diagnostics: {}, nativeText: "", nativeBlocks: [] },
+        ],
+      }),
+      preparePages: async ({ outDir }) => {
+        await mkdir(outDir, { recursive: true });
+        const pages = [];
+        for (const page of [1, 2]) {
+          const filePath = path.join(outDir, `page-${page}.pdf`);
+          await writeFile(filePath, `page-${page}`);
+          pages.push({ page, filePath, bytes: 6 });
+        }
+        return { pageCount: 2, pages };
+      },
+      combinePages: async ({ outFile }) => {
+        await mkdir(path.dirname(outFile), { recursive: true });
+        await writeFile(outFile, "combined");
+        return { filePath: outFile, bytes: 8 };
+      },
+      primaryTaskRunner: async ({ task }) => ({
+        status: "succeeded", attempts: 1, durationMs: 10, resumed: false,
+        pages: task.units.map((unit) => ({ documentId: unit.documentId, page: unit.page, providerPage: { page: 1, markdown: "Order dated 2026-05-01.", warnings: [] } })),
+        provider: { totalCalls: 1, successfulCalls: 1, failedCalls: 0, byProvider: { mistral: { calls: 1, succeededCalls: 1, failedCalls: 0, pagesProcessed: 1, inputTokens: 0, outputTokens: 0, latencyMs: { count: 1, mean: 10 }, estimatedCostUsd: 0.004 } } },
+      }),
+      repairTaskRunner: async () => { throw new Error("repair should not run"); },
+    });
+    assert.equal(report.workload.outputPages, 2);
+    assert.equal(report.workload.missingPages, 0);
+    assert.deepEqual(report.routing.selectedPageSources, { native: 1, primary: 1 });
+    assert.equal(report.tasks.primary.tasks, 1);
+    assert.equal(report.tasks.repair.tasks, 0);
+    assert.equal(report.provider.totalCalls, 1);
+    assert.equal(report.verdict.everyExpectedPageProduced, true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -51,15 +51,44 @@ node experiments/page-extract-v3/cli.mjs plan \
 
 The plan opens each byte-unique PDF, classifies each page independently, fingerprints native text, and reports general-token and critical-legal-token agreement with the current reference. It never uses the reference to make the route decision.
 
-## Planned candidate arms
+## Current-provider candidate
+
+Run the routed candidate with real billed providers:
+
+```bash
+node experiments/page-extract-v3/cli.mjs run-current \
+  --v2-root <v2-experiment-root> \
+  --route-plan <v3-evidence-dir>/native-route-plan.json \
+  --root <v3-work-root> \
+  --candidate-id routed-gemini-25 \
+  --primary-concurrency 4 \
+  --repair-concurrency 4 \
+  --repair-model gemini-2.5-pro
+```
+
+The runner:
+
+- deduplicates before paid work;
+- losslessly separates pages with Poppler rather than rendering them;
+- forms size/complexity-balanced page batches across documents;
+- schedules largest batches first through a bounded work-stealing pool;
+- checkpoints every provider batch atomically;
+- accepts missing Mistral confidence as unknown rather than automatically bad;
+- sends only independently suspicious primary pages to Gemini;
+- assembles pages back into their original documents and order;
+- reports per-lane comparison with the frozen reference.
+
+The 2.5 Pro arm leaves thinking unset to match the current reference configuration. `gemini-3.7-flash` with `LOW` thinking is supported as a separate repair arm. It must not overwrite or masquerade as the 2.5 Pro reference arm.
+
+## Planned later arms
 
 Later arms remain deliberately separate so their effects can be attributed:
 
-1. page routing with current providers;
+1. routed Gemini 3.7 Flash repair;
 2. routed Textract Detect/Layout;
 3. best measured hybrid.
 
-The first candidate will keep trustworthy native pages, send only visual/risky pages to primary OCR, and send only suspicious page results to repair. Provider replacement and production integration are not part of that first comparison.
+Provider replacement and production integration are not part of the first comparison.
 
 ## Acceptance rule
 
