@@ -39,6 +39,18 @@ The output contains hashes and aggregate measurements, not document text or file
 - repair routing and failure categories;
 - the acceptance boundary for later V3 candidates.
 
+Replay the conservative native-page routing policy against the same sources and compare those pages to the reference without making provider calls:
+
+```bash
+node experiments/page-extract-v3/cli.mjs plan \
+  --v2-root <v2-experiment-root> \
+  --session-id <v2-session-id> \
+  --out <v3-evidence-dir>/native-route-plan.json \
+  --concurrency 2
+```
+
+The plan opens each byte-unique PDF, classifies each page independently, fingerprints native text, and reports general-token and critical-legal-token agreement with the current reference. It never uses the reference to make the route decision.
+
 ## Planned candidate arms
 
 Later arms remain deliberately separate so their effects can be attributed:

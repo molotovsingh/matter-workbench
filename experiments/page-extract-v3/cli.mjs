@@ -3,6 +3,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { captureCurrentV3Baseline } from "./lib/baseline.mjs";
+import { buildV3RoutePlan } from "./lib/route-plan.mjs";
 
 export async function runCli(argv = process.argv.slice(2)) {
   const [command = "help", ...rest] = argv;
@@ -29,6 +30,31 @@ export async function runCli(argv = process.argv.slice(2)) {
         solelyUnknownConfidence: baseline.pipeline.repairUsedSolelyForUnknownConfidenceFiles,
         failures: baseline.pipeline.repairFailures,
       },
+    });
+    return 0;
+  }
+
+  if (command === "plan") {
+    const report = await buildV3RoutePlan({
+      v2Root: required(options, "v2-root"),
+      sessionId: required(options, "session-id"),
+      outFile: required(options, "out"),
+      concurrency: positiveInteger(options.concurrency, 2, 8),
+      policy: {
+        minimumCharacters: optionalNumber(options["minimum-characters"]),
+        minimumWords: optionalNumber(options["minimum-words"]),
+        minimumCharactersForShortPage: optionalNumber(options["minimum-short-page-characters"]),
+      },
+      onProgress: progressPrinter("plan"),
+    });
+    print({
+      command,
+      schemaVersion: report.schemaVersion,
+      workload: report.workload,
+      routing: report.routing,
+      referenceComparison: report.referenceComparison,
+      projectedPrimaryOcrCost: report.projectedPrimaryOcrCost,
+      measurement: report.measurement,
     });
     return 0;
   }
@@ -62,14 +88,37 @@ function print(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+function progressPrinter(label) {
+  let lastPrinted = 0;
+  return ({ completedFiles, attemptedFiles }) => {
+    const completed = Number(completedFiles) || 0;
+    const total = Number(attemptedFiles) || 0;
+    if (completed !== total && completed - lastPrinted < 10) return;
+    lastPrinted = completed;
+    process.stderr.write(`[v3:${label}] ${completed}/${total}\n`);
+  };
+}
+
+function positiveInteger(value, fallback, maximum) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(maximum, Math.trunc(parsed)) : fallback;
+}
+
+function optionalNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function usage() {
   return [
     "Page Extract V3 isolated experiment",
     "",
     "Commands:",
     "  baseline --v2-root DIR --session-id ID --out FILE",
+    "  plan --v2-root DIR --session-id ID --out FILE [--concurrency 2]",
+    "       [--minimum-characters 120] [--minimum-words 8] [--minimum-short-page-characters 240]",
     "",
-    "The baseline command is read-only and makes no provider calls.",
+    "The baseline and plan commands are read-only and make no provider calls.",
   ].join("\n");
 }
 

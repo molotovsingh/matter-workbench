@@ -5,6 +5,9 @@ import path from "node:path";
 import test from "node:test";
 
 import { captureCurrentV3Baseline, V3_BASELINE_SCHEMA } from "../experiments/page-extract-v3/lib/baseline.mjs";
+import { classifyNativePage } from "../experiments/page-extract-v3/lib/page-inspector.mjs";
+import { comparePageText } from "../experiments/page-extract-v3/lib/reference-comparison.mjs";
+import { buildV3RoutePlan, V3_ROUTE_PLAN_SCHEMA } from "../experiments/page-extract-v3/lib/route-plan.mjs";
 
 const SECRET_REFERENCE_TEXT = "Client paid Rs. 1,00,000 on 20/04/2026 under Section 42.";
 
@@ -44,6 +47,84 @@ test("page extract v3 freezes a sanitized current baseline with measured critica
     assert.doesNotMatch(serialized, /Client paid/);
     assert.doesNotMatch(serialized, /folder\/confidential/i);
     assert.match(await readFile(outFile.replace(/\.json$/, ".md"), "utf8"), /Current Reference Baseline/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("page extract v3 routes only trustworthy native pages without treating unknown provider confidence as a routing signal", () => {
+  const safe = classifyNativePage({
+    text: "This agreement records the parties, consideration, obligations, representations, warranties, remedies, notices, governing law, jurisdiction, dates, amounts and signatures in ordinary reading order.",
+    lines: [
+      { text: "This agreement records the parties and consideration." },
+      { text: "The remaining provisions record obligations and remedies." },
+      { text: "Notices, governing law and jurisdiction follow." },
+    ],
+    multiColumn: false,
+  });
+  assert.equal(safe.route, "native");
+  assert.deepEqual(safe.reasons, []);
+
+  assert.deepEqual(classifyNativePage({ text: "", lines: [] }).reasons, ["no_embedded_text", "too_few_words"]);
+  assert.match(classifyNativePage({ text: "enough ".repeat(40), lines: [{ text: "enough" }], multiColumn: true }).reasons.join(" "), /layout/);
+});
+
+test("page extract v3 compares critical legal tokens separately from general text", () => {
+  const comparison = comparePageText(
+    "Order under Section 42 records Rs. 1,00,000 on 20/04/2026.",
+    "The order under Section 42 records payment of Rs. 1,00,000 on 20/04/2026.",
+  );
+  assert.equal(comparison.criticalTokenRecall, 1);
+  assert.ok(comparison.tokenRecall < 1);
+  assert.ok(comparison.tokenF1 > 0.7);
+});
+
+test("page extract v3 produces a sanitized no-provider routing replay", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-page-v3-route-"));
+  const sessionId = "route-reference";
+  const sessionRoot = path.join(root, "sessions", sessionId);
+  const outFile = path.join(root, "evidence", "route.json");
+  try {
+    const session = syntheticSession(sessionId);
+    await mkdir(path.join(sessionRoot, "extracted"), { recursive: true });
+    await writeJson(path.join(sessionRoot, "session.json"), session);
+    await writeJson(path.join(sessionRoot, "extracted", "000000.json"), pdfRecord({ repairStatus: "used" }));
+    const report = await buildV3RoutePlan({
+      v2Root: root,
+      sessionId,
+      outFile,
+      inspectPdf: async () => ({
+        pageCount: 2,
+        bytes: 10,
+        pages: [
+          {
+            page: 1,
+            nativeText: SECRET_REFERENCE_TEXT,
+            route: "native",
+            reasons: [],
+            diagnostics: { characters: 50, words: 10, lines: 2, multiColumn: false },
+          },
+          {
+            page: 2,
+            nativeText: "",
+            route: "primary_ocr",
+            reasons: ["no_embedded_text"],
+            diagnostics: { characters: 0, words: 0, lines: 0, multiColumn: false },
+          },
+        ],
+      }),
+    });
+    assert.equal(report.schemaVersion, V3_ROUTE_PLAN_SCHEMA);
+    assert.equal(report.workload.uniquePdfFiles, 1);
+    assert.equal(report.workload.duplicatePdfFiles, 1);
+    assert.equal(report.routing.nativePages, 1);
+    assert.equal(report.routing.primaryOcrPages, 1);
+    assert.equal(report.referenceComparison.fullCriticalTokenRecallPages, 1);
+    assert.equal(report.measurement.providerCalls, 0);
+    assert.equal(report.projectedPrimaryOcrCost.avoidedPages, 1);
+    const serialized = await readFile(outFile, "utf8");
+    assert.doesNotMatch(serialized, /Client paid/);
+    assert.doesNotMatch(serialized, /confidential-a/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -72,6 +72,21 @@ export function countBy(items, keyFor) {
   return counts;
 }
 
+export async function mapWithConcurrency(items, concurrency, mapper) {
+  const values = Array.from(items || []);
+  const results = new Array(values.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(values.length || 1, Math.max(1, Math.trunc(Number(concurrency) || 1))) }, async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(values[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export function elapsedMs(startedAt, finishedAt) {
   const start = Date.parse(String(startedAt || ""));
   const finish = Date.parse(String(finishedAt || ""));
