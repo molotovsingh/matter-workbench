@@ -66,6 +66,8 @@ node experiments/page-extract-v3/cli.mjs run-current \
   --repair-model gemini-2.5-pro
 ```
 
+Add `--prepare-only` first to validate page splitting and balanced batch construction with zero provider calls; rerunning the same candidate without that flag resumes the prepared files.
+
 The runner:
 
 - deduplicates before paid work;

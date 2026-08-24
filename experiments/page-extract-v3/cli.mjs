@@ -75,10 +75,18 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
       repairMaxPages: positiveInteger(options["repair-max-pages"], 4, 16),
       repairModel: String(options["repair-model"] || "gemini-2.5-pro"),
       repairThinkingLevel: String(options["repair-thinking-level"] || ""),
+      prepareOnly: Boolean(options["prepare-only"]),
       env,
       onProgress: progressPrinter("run"),
     });
-    print({
+    print(report.state === "prepared" ? {
+      command,
+      candidateId: report.candidateId,
+      state: report.state,
+      workload: report.workload,
+      primaryBatches: report.primaryBatches,
+      measurement: report.measurement,
+    } : {
       command,
       candidateId: report.candidateId,
       verdict: report.verdict,
@@ -153,7 +161,7 @@ function usage() {
     "       [--minimum-large-image-pixels 200000] [--maximum-repeated-ngram-ratio 0.08]",
     "  run-current --v2-root DIR --route-plan FILE --root DIR --candidate-id ID",
     "       [--preflight-concurrency 2] [--primary-concurrency 4] [--repair-concurrency 4]",
-    "       [--primary-max-pages 16] [--repair-max-pages 4]",
+    "       [--primary-max-pages 16] [--repair-max-pages 4] [--prepare-only]",
     "       [--repair-model gemini-2.5-pro] [--repair-thinking-level LEVEL]",
     "",
     "The baseline and plan commands are read-only and make no provider calls.",

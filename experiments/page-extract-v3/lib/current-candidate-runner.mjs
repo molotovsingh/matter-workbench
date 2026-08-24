@@ -38,6 +38,7 @@ export async function runCurrentProviderCandidate({
   repairMaxBytes = 10 * 1024 * 1024,
   repairModel = "gemini-2.5-pro",
   repairThinkingLevel = "",
+  prepareOnly = false,
   env = process.env,
   fetchImpl = fetch,
   inspectPdf = inspectPdfPages,
@@ -48,8 +49,8 @@ export async function runCurrentProviderCandidate({
   onProgress = () => {},
 } = {}) {
   if (!v2Root || !routePlanFile || !root) throw new Error("v2 root, route plan, and candidate root are required");
-  if (!env.MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY is required for the current-provider V3 candidate");
-  if (!(env.GEMINI_API_KEY || env.GOOGLE_API_KEY)) throw new Error("GEMINI_API_KEY or GOOGLE_API_KEY is required for the current-provider V3 candidate");
+  if (!prepareOnly && !env.MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY is required for the current-provider V3 candidate");
+  if (!prepareOnly && !(env.GEMINI_API_KEY || env.GOOGLE_API_KEY)) throw new Error("GEMINI_API_KEY or GOOGLE_API_KEY is required for the current-provider V3 candidate");
   const id = safeId(candidateId, "candidate id");
   const plan = await readJson(path.resolve(routePlanFile));
   const sessionId = safeId(plan.source?.sessionId, "source session id");
@@ -117,6 +118,50 @@ export async function runCurrentProviderCandidate({
       concurrency: configuration.preflightConcurrency,
     });
     stageMs.primaryBatchPreparation = Math.round(performance.now() - stageStarted);
+
+    if (prepareOnly) {
+      const preparedReport = {
+        schemaVersion: CANDIDATE_SCHEMA,
+        candidateId: id,
+        state: "prepared",
+        runFingerprint,
+        routePlanFingerprint: plan.fingerprintSha256,
+        configuration,
+        workload: {
+          uniquePdfFiles: preparedDocuments.length,
+          duplicatePdfFilesSkipped: plan.workload.duplicatePdfFiles,
+          expectedPages: preparedDocuments.reduce((sum, document) => sum + document.pageCount, 0),
+          nativePages: plan.routing.nativePages,
+          primaryPages: primaryUnits.length,
+        },
+        primaryBatches: {
+          tasks: primaryTasks.length,
+          pages: primaryTasks.reduce((sum, task) => sum + task.units.length, 0),
+          bytes: summarizeNumbers(primaryTasks.map((task) => task.bytes)),
+          weights: summarizeNumbers(primaryTasks.map((task) => task.weight)),
+        },
+        measurement: {
+          totalWallMs: Math.round(performance.now() - totalStarted),
+          peakRssBytes: Math.max(peakRssBytes, process.memoryUsage().rss),
+          stageMs: { ...stageMs },
+          providerCalls: 0,
+        },
+      };
+      await atomicWriteJson(path.join(candidateRoot, "preparation-report.json"), preparedReport);
+      await atomicWriteJson(path.join(candidateRoot, "run.json"), {
+        schemaVersion: CANDIDATE_SCHEMA,
+        candidateId: id,
+        sourceSessionId: sessionId,
+        routePlanFingerprint: plan.fingerprintSha256,
+        runFingerprint,
+        state: "prepared",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        configuration,
+        report: "preparation-report.json",
+      });
+      return preparedReport;
+    }
 
     stageStarted = performance.now();
     const primaryResults = await runTasks({
