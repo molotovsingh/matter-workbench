@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { captureCurrentV3Baseline, V3_BASELINE_SCHEMA } from "../experiments/page-extract-v3/lib/baseline.mjs";
 import { buildBalancedPageBatches } from "../experiments/page-extract-v3/lib/batching.mjs";
-import { prepareCachedPrimaryTasks, runCurrentProviderCandidate } from "../experiments/page-extract-v3/lib/current-candidate-runner.mjs";
+import { prepareCachedPrimaryTasks, prepareDocumentRangePrimaryTasks, runCurrentProviderCandidate } from "../experiments/page-extract-v3/lib/current-candidate-runner.mjs";
 import { classifyPageImages, parsePdfImagesList } from "../experiments/page-extract-v3/lib/pdf-image-inspector.mjs";
 import { classifyNativePage } from "../experiments/page-extract-v3/lib/page-inspector.mjs";
 import { createPdfevalSession, exportPdfevalCandidateText, parsePdfevalCaseList } from "../experiments/page-extract-v3/lib/pdfeval-adapter.mjs";
@@ -300,6 +300,30 @@ test("page extract v3 produces a sanitized no-provider routing replay", async ()
     const serialized = await readFile(outFile, "utf8");
     assert.doesNotMatch(serialized, /Client paid/);
     assert.doesNotMatch(serialized, /confidential-a/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("page extract v3 keeps primary ranges document-local and uses whole originals when possible", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-page-v3-ranges-"));
+  try {
+    const units = [
+      { documentId: "a", page: 1, documentPageCount: 2, originalPdfPath: "/original/a.pdf" },
+      { documentId: "a", page: 2, documentPageCount: 2, originalPdfPath: "/original/a.pdf" },
+      { documentId: "b", page: 1, documentPageCount: 3, originalPdfPath: "/original/b.pdf" },
+      { documentId: "b", page: 3, documentPageCount: 3, originalPdfPath: "/original/b.pdf" },
+    ].map((unit) => ({ ...unit, sourceSha256: "a".repeat(64), filePath: path.join(root, `${unit.documentId}-${unit.page}.pdf`), bytes: 10, complexity: 1 }));
+    let combined = 0;
+    const tasks = await prepareDocumentRangePrimaryTasks({
+      units, candidateRoot: root, concurrency: 1,
+      combinePages: async ({ outFile }) => { combined += 1; await writeFile(outFile, "pdf"); },
+    });
+    assert.equal(tasks.length, 3);
+    assert.equal(combined, 2);
+    const whole = tasks.find((task) => task.units[0].documentId === "a");
+    assert.equal(whole.pdfPath, "/original/a.pdf");
+    assert.deepEqual(tasks.filter((task) => task.units[0].documentId === "b").map((task) => task.units.length), [1, 1]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

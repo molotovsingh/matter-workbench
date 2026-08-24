@@ -32,6 +32,7 @@ export async function runCurrentProviderCandidate({
   codeRevision = "",
   primaryCacheCandidateId = "",
   primaryModel = "",
+  primaryBatchStrategy = "balanced",
   preflightConcurrency = 2,
   primaryConcurrency = 4,
   repairConcurrency = 4,
@@ -66,6 +67,7 @@ export async function runCurrentProviderCandidate({
     codeRevision: String(codeRevision || ""),
     primaryCacheCandidateId: primaryCacheCandidateId ? safeId(primaryCacheCandidateId, "primary cache candidate id") : "",
     primaryModel: String(primaryModel || env.MISTRAL_OCR_MODEL || "mistral-ocr-latest"),
+    primaryBatchStrategy: normalizePrimaryBatchStrategy(primaryBatchStrategy),
     preflightConcurrency: bounded(preflightConcurrency, 2, 8),
     primaryConcurrency: bounded(primaryConcurrency, 4, 32),
     repairConcurrency: bounded(repairConcurrency, 4, 32),
@@ -112,7 +114,7 @@ export async function runCurrentProviderCandidate({
     stageMs.prepare = Math.round(performance.now() - stageStarted);
 
     stageStarted = performance.now();
-    const primaryUnits = buildPrimaryUnits(preparedDocuments);
+    const primaryUnits = buildPrimaryUnits(preparedDocuments, sourceRoot);
     const primaryCacheResultDir = configuration.primaryCacheCandidateId
       ? path.join(path.resolve(root), "candidates", configuration.primaryCacheCandidateId, "tasks", "primary-results")
       : "";
@@ -125,16 +127,25 @@ export async function runCurrentProviderCandidate({
           combinePages,
           concurrency: configuration.preflightConcurrency,
         })
-      : await prepareProviderTasks({
-          kind: "primary",
-          units: primaryUnits,
-          candidateRoot,
-          maxPages: configuration.primaryMaxPages,
-          maxBytes: configuration.primaryMaxBytes,
-          minimumBatches: configuration.primaryConcurrency * 2,
-          combinePages,
-          concurrency: configuration.preflightConcurrency,
-        });
+      : configuration.primaryBatchStrategy === "document_ranges"
+        ? await prepareDocumentRangePrimaryTasks({
+            units: primaryUnits,
+            candidateRoot,
+            maxPages: configuration.primaryMaxPages,
+            maxBytes: configuration.primaryMaxBytes,
+            combinePages,
+            concurrency: configuration.preflightConcurrency,
+          })
+        : await prepareProviderTasks({
+            kind: "primary",
+            units: primaryUnits,
+            candidateRoot,
+            maxPages: configuration.primaryMaxPages,
+            maxBytes: configuration.primaryMaxBytes,
+            minimumBatches: configuration.primaryConcurrency * 2,
+            combinePages,
+            concurrency: configuration.preflightConcurrency,
+          });
     stageMs.primaryBatchPreparation = Math.round(performance.now() - stageStarted);
 
     if (prepareOnly) {
@@ -380,18 +391,80 @@ function hydratePreparedDocument(document, documentRoot) {
   };
 }
 
-function buildPrimaryUnits(documents) {
+function buildPrimaryUnits(documents, sourceRoot) {
   return documents.flatMap((document) => document.pages
     .filter((page) => page.route === "primary_ocr")
     .map((page) => ({
       documentId: document.documentId,
       page: page.page,
+      sourceIndex: document.sourceIndex,
+      documentPageCount: document.pageCount,
+      originalPdfPath: path.join(sourceRoot, "objects", `${padIndex(document.sourceIndex)}.blob`),
       sourceSha256: document.sourceSha256,
       filePath: page.filePath,
       bytes: page.bytes,
       nativeText: page.nativeText,
       complexity: pageComplexity(page.reasons),
     })));
+}
+
+export async function prepareDocumentRangePrimaryTasks({
+  units,
+  candidateRoot,
+  maxPages = 64,
+  maxBytes = 20 * 1024 * 1024,
+  combinePages,
+  concurrency = 2,
+}) {
+  const byDocument = new Map();
+  for (const unit of units) {
+    const values = byDocument.get(unit.documentId) || [];
+    values.push(unit);
+    byDocument.set(unit.documentId, values);
+  }
+  const chunks = [];
+  for (const values of byDocument.values()) {
+    const ordered = values.slice().sort((left, right) => left.page - right.page);
+    let current = [];
+    let bytes = 0;
+    for (const unit of ordered) {
+      const unitBytes = Math.max(1, Number(unit.bytes) || 0);
+      const contiguous = !current.length || unit.page === current.at(-1).page + 1;
+      if (current.length && (!contiguous || current.length >= maxPages || bytes + unitBytes > maxBytes)) {
+        chunks.push(current);
+        current = [];
+        bytes = 0;
+      }
+      current.push(unit);
+      bytes += unitBytes;
+    }
+    if (current.length) chunks.push(current);
+  }
+  const definitions = chunks.map((chunk) => {
+    const key = chunk.map(unitKey).join("\n");
+    const bytes = chunk.reduce((sum, unit) => sum + (Number(unit.bytes) || 0), 0);
+    const weight = chunk.reduce((sum, unit) => sum + unit.complexity * Math.max(256 * 1024, unit.bytes), 0);
+    return {
+      id: `primary-range-${sha256(key).slice(0, 16)}`,
+      units: chunk,
+      bytes,
+      weight,
+      canUseOriginal: chunk.length === chunk[0].documentPageCount
+        && chunk[0].page === 1
+        && chunk.at(-1).page === chunk[0].documentPageCount,
+    };
+  }).sort((left, right) => right.weight - left.weight || left.id.localeCompare(right.id));
+
+  const pdfDir = path.join(candidateRoot, "tasks", "primary-pdfs");
+  await mkdir(pdfDir, { recursive: true, mode: 0o700 });
+  return mapWithConcurrency(definitions, concurrency, async (definition, index) => {
+    if (definition.canUseOriginal) {
+      return { ...definition, index, pdfPath: definition.units[0].originalPdfPath };
+    }
+    const pdfPath = path.join(pdfDir, `${definition.id}.pdf`);
+    await combinePages({ units: definition.units, outFile: pdfPath });
+    return { ...definition, index, pdfPath };
+  });
 }
 
 async function prepareProviderTasks({ kind, units, candidateRoot, maxPages, maxBytes, minimumBatches, combinePages, concurrency }) {
@@ -751,6 +824,14 @@ function normalizePageNumber(value, index) {
 
 function padIndex(value) {
   return String(Number(value)).padStart(6, "0");
+}
+
+function normalizePrimaryBatchStrategy(value) {
+  const strategy = String(value || "balanced").trim().toLowerCase();
+  if (!new Set(["balanced", "document_ranges"]).has(strategy)) {
+    throw new Error(`unsupported primary batch strategy: ${value}`);
+  }
+  return strategy;
 }
 
 function bounded(value, fallback, maximum) {
