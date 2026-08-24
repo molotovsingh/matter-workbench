@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { classifyPageImages, listPdfImages } from "./pdf-image-inspector.mjs";
+
 const require = createRequire(import.meta.url);
 const PDFJS_ROOT = path.dirname(require.resolve("pdfjs-dist/package.json"));
 const STANDARD_FONT_DATA_URL = pathToFileURL(path.join(PDFJS_ROOT, "standard_fonts") + path.sep).href;
@@ -15,10 +17,13 @@ const COLUMN_CLUSTER_MIN_LINES = 3;
 
 let pdfjsModule;
 
-export async function inspectPdfPages({ pdfPath, policy = {} } = {}) {
+export async function inspectPdfPages({ pdfPath, policy = {}, inspectImages = listPdfImages } = {}) {
   if (!pdfPath) throw new Error("pdf path is required");
   const bytes = await readFile(pdfPath);
-  const pdfjs = await loadPdfjs();
+  const [pdfjs, imageInspection] = await Promise.all([
+    loadPdfjs(),
+    inspectImages({ pdfPath }),
+  ]);
   let document;
   try {
     document = await pdfjs.getDocument({
@@ -33,18 +38,25 @@ export async function inspectPdfPages({ pdfPath, policy = {} } = {}) {
     throw new Error(`pdfjs open failed: ${error?.name || "Error"}: ${error?.message || error}`);
   }
 
+  const pageCount = document.numPages;
   const pages = [];
   try {
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-      pages.push(await inspectPage(document, pageNumber, policy, pdfjs.OPS));
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      pages.push(await inspectPage(document, pageNumber, policy, imageInspection));
     }
   } finally {
     await document.destroy().catch(() => {});
   }
-  return { pageCount: document.numPages, bytes: bytes.length, pages };
+  return {
+    pageCount,
+    bytes: bytes.length,
+    pages,
+    imageInspectionAvailable: Boolean(imageInspection.available),
+    imageInspectionErrorCategory: String(imageInspection.errorCategory || ""),
+  };
 }
 
-export function classifyNativePage({ text = "", lines = [], multiColumn = false, images = {}, extractionError = "" } = {}, policy = {}) {
+export function classifyNativePage({ text = "", lines = [], multiColumn = false, images = {}, visualInspectionUnavailable = false, extractionError = "" } = {}, policy = {}) {
   const minimumCharacters = positiveNumber(policy.minimumCharacters, 120);
   const minimumWords = positiveNumber(policy.minimumWords, 8);
   const minimumCharactersForShortPage = positiveNumber(policy.minimumCharactersForShortPage, 240);
@@ -67,6 +79,7 @@ export function classifyNativePage({ text = "", lines = [], multiColumn = false,
   if (visibleCharacters > 0 && visibleCharacters < minimumCharacters) reasons.push("thin_embedded_text");
   if (visibleCharacters < minimumCharactersForShortPage && words < minimumWords) reasons.push("too_few_words");
   if (multiColumn) reasons.push("layout_or_reading_order_risk");
+  if (visualInspectionUnavailable) reasons.push("visual_inspection_unavailable");
   if (Number(images.largeImageCount) > 0) reasons.push("large_raster_image_risk");
   if (replacementRatio > maximumReplacementRatio || suspiciousControls > 0) reasons.push("invalid_unicode_risk");
   if (duplicateLineRatio > maximumDuplicateLineRatio) reasons.push("duplicate_text_layer_risk");
@@ -90,7 +103,7 @@ export function classifyNativePage({ text = "", lines = [], multiColumn = false,
   };
 }
 
-async function inspectPage(document, pageNumber, policy, OPS) {
+async function inspectPage(document, pageNumber, policy, imageInspection) {
   let page;
   try {
     page = await document.getPage(pageNumber);
@@ -113,8 +126,14 @@ async function inspectPage(document, pageNumber, policy, OPS) {
   const multiColumn = detectMultiColumn(lines);
   const blocks = groupIntoBlocks(lines, pageNumber);
   const text = blocks.map((block) => block.text).join("\n\n");
-  const images = await inspectImages(page, OPS, policy);
-  const classification = classifyNativePage({ text, lines, multiColumn, images }, policy);
+  const images = classifyPageImages(imageInspection.pages?.[pageNumber], policy);
+  const classification = classifyNativePage({
+    text,
+    lines,
+    multiColumn,
+    images,
+    visualInspectionUnavailable: !imageInspection.available,
+  }, policy);
   return pageResult({ pageNumber, text, lines, blocks, classification });
 }
 
@@ -203,32 +222,6 @@ function detectMultiColumn(lines) {
   }
   const substantial = clusters.filter((cluster) => cluster.values.length >= COLUMN_CLUSTER_MIN_LINES).sort((left, right) => left.mean - right.mean);
   return substantial.some((cluster, index) => index > 0 && cluster.mean - substantial[index - 1].mean >= COLUMN_CLUSTER_MIN_GAP);
-}
-
-async function inspectImages(page, OPS, policy) {
-  const minimumLargeImagePixels = positiveNumber(policy.minimumLargeImagePixels, 250_000);
-  let operatorList;
-  try {
-    operatorList = await page.getOperatorList();
-  } catch {
-    return { imageCount: 0, largeImageCount: 0, maximumImagePixels: 0 };
-  }
-  let imageCount = 0;
-  let largeImageCount = 0;
-  let maximumImagePixels = 0;
-  for (let index = 0; index < operatorList.fnArray.length; index += 1) {
-    const fn = operatorList.fnArray[index];
-    if (![OPS?.paintImageXObject, OPS?.paintInlineImageXObject, OPS?.paintJpegXObject].includes(fn)) continue;
-    imageCount += 1;
-    const args = operatorList.argsArray[index] || [];
-    const inline = args[0] && typeof args[0] === "object" ? args[0] : null;
-    const width = Number(inline?.width ?? args[1]) || 0;
-    const height = Number(inline?.height ?? args[2]) || 0;
-    const pixels = Math.max(0, width * height);
-    maximumImagePixels = Math.max(maximumImagePixels, pixels);
-    if (pixels >= minimumLargeImagePixels) largeImageCount += 1;
-  }
-  return { imageCount, largeImageCount, maximumImagePixels };
 }
 
 function calculateDuplicateLineRatio(lines) {

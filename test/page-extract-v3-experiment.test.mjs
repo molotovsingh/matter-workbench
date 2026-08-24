@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { captureCurrentV3Baseline, V3_BASELINE_SCHEMA } from "../experiments/page-extract-v3/lib/baseline.mjs";
+import { classifyPageImages, parsePdfImagesList } from "../experiments/page-extract-v3/lib/pdf-image-inspector.mjs";
 import { classifyNativePage } from "../experiments/page-extract-v3/lib/page-inspector.mjs";
 import { comparePageText } from "../experiments/page-extract-v3/lib/reference-comparison.mjs";
 import { buildV3RoutePlan, V3_ROUTE_PLAN_SCHEMA } from "../experiments/page-extract-v3/lib/route-plan.mjs";
@@ -72,6 +73,19 @@ test("page extract v3 routes only trustworthy native pages without treating unkn
     lines: [{ text: "enough" }],
     images: { imageCount: 1, largeImageCount: 1, maximumImagePixels: 1_000_000 },
   }).reasons.join(" "), /large_raster_image/);
+});
+
+test("page extract v3 uses cheap pdfimages metadata instead of rendering images during preflight", () => {
+  const pages = parsePdfImagesList([
+    "page num type width height color comp bpc enc interp object ID x-ppi y-ppi size ratio",
+    "1 0 image 2032 3264 rgb 3 8 jpeg yes 5 0 327 326 665K 3.4%",
+    "1 1 smask 100 100 gray 1 8 image no 6 0 72 72 1K 1%",
+    "2 2 image 120 80 rgb 3 8 jpeg no 7 0 72 72 2K 2%",
+  ].join("\n"));
+  assert.equal(pages[1].imageCount, 1);
+  assert.equal(pages[1].maximumImagePixels, 2032 * 3264);
+  assert.equal(classifyPageImages(pages[1]).largeImageCount, 1);
+  assert.equal(classifyPageImages(pages[2]).largeImageCount, 0);
 });
 
 test("page extract v3 compares critical legal tokens separately from general text", () => {
