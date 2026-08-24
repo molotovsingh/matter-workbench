@@ -30,6 +30,7 @@ export async function runCurrentProviderCandidate({
   root,
   candidateId,
   codeRevision = "",
+  primaryCacheCandidateId = "",
   preflightConcurrency = 2,
   primaryConcurrency = 4,
   repairConcurrency = 4,
@@ -62,6 +63,7 @@ export async function runCurrentProviderCandidate({
 
   const configuration = {
     codeRevision: String(codeRevision || ""),
+    primaryCacheCandidateId: primaryCacheCandidateId ? safeId(primaryCacheCandidateId, "primary cache candidate id") : "",
     preflightConcurrency: bounded(preflightConcurrency, 2, 8),
     primaryConcurrency: bounded(primaryConcurrency, 4, 32),
     repairConcurrency: bounded(repairConcurrency, 4, 32),
@@ -169,7 +171,9 @@ export async function runCurrentProviderCandidate({
     const primaryResults = await runTasks({
       tasks: primaryTasks,
       concurrency: configuration.primaryConcurrency,
-      resultDir: path.join(candidateRoot, "tasks", "primary-results"),
+      resultDir: configuration.primaryCacheCandidateId
+        ? path.join(path.resolve(root), "candidates", configuration.primaryCacheCandidateId, "tasks", "primary-results")
+        : path.join(candidateRoot, "tasks", "primary-results"),
       onProgress,
       label: "primary",
       run: (task, resultFile) => primaryTaskRunner({ task, resultFile, env, fetchImpl }),
@@ -246,6 +250,7 @@ export async function runCurrentProviderCandidate({
     });
     stageMs.assembly = Math.round(performance.now() - stageStarted);
     report.measurement.stageMs = { ...stageMs };
+    report.measurement.reconstructedFreshCriticalPathMs += stageMs.assembly;
     report.measurement.totalWallMs = Math.round(performance.now() - totalStarted);
     report.measurement.peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss);
     report.finishedAt = new Date().toISOString();
@@ -484,6 +489,7 @@ async function assembleCandidate({
   }
 
   const provider = mergeProviderTaskResults([...primaryResults, ...repairResults]);
+  const preparationReport = await readJsonIfExists(path.join(candidateRoot, "preparation-report.json"));
   const totalComparison = summarizePageComparisons(comparisons);
   const expectedPages = preparedDocuments.reduce((sum, document) => sum + document.pageCount, 0);
   const primaryReasonCounts = {};
@@ -530,6 +536,13 @@ async function assembleCandidate({
     },
     measurement: {
       totalWallMs: Math.round(performance.now() - totalStarted),
+      reconstructedFreshCriticalPathMs: Math.round(
+        (Number(preparationReport?.measurement?.totalWallMs) || stageMs.prepare + stageMs.primaryBatchPreparation)
+        + activeTaskWallMs(primaryResults)
+        + stageMs.repairBatchPreparation
+        + activeTaskWallMs(repairResults)
+      ),
+      preparationCheckpointWallMs: Number(preparationReport?.measurement?.totalWallMs) || null,
       peakRssBytes,
       stageMs: { ...stageMs },
     },
@@ -564,7 +577,8 @@ function mergeProviderTaskResults(taskResults) {
         calls: 0, succeededCalls: 0, failedCalls: 0, pagesProcessed: 0, inputTokens: 0, outputTokens: 0,
         latencyMs: {}, estimatedCostUsd: 0, costCoverageComplete: true,
       };
-      for (const key of ["calls", "succeededCalls", "failedCalls", "pagesProcessed", "inputTokens", "outputTokens"]) target[key] += Number(value[key]) || 0;
+      for (const key of ["calls", "succeededCalls", "failedCalls", "inputTokens", "outputTokens"]) target[key] += Number(value[key]) || 0;
+      target.pagesProcessed += (Number(value.pagesProcessed) || (taskResult.status === "succeeded" ? taskResult.units?.length : 0) || 0);
       if (value.estimatedCostUsd === null || value.estimatedCostUsd === undefined) target.costCoverageComplete = false;
       else target.estimatedCostUsd += Number(value.estimatedCostUsd) || 0;
       result.byProvider[name] = target;
@@ -588,6 +602,7 @@ function mergeProviderTaskResults(taskResults) {
 function taskSummary(results) {
   return {
     tasks: results.length,
+    activeWallMs: activeTaskWallMs(results),
     succeeded: results.filter((result) => result.status === "succeeded").length,
     failed: results.filter((result) => result.status === "failed").length,
     resumed: results.filter((result) => result.resumed).length,
@@ -640,6 +655,25 @@ function renderReport(report) {
     ...report.caveats.map((caveat) => `- ${caveat}`),
     "",
   ].join("\n");
+}
+
+function activeTaskWallMs(results) {
+  const intervals = results
+    .map((result) => [Date.parse(result.startedAt), Date.parse(result.finishedAt)])
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end >= start)
+    .sort((left, right) => left[0] - right[0]);
+  if (!intervals.length) return 0;
+  let total = 0;
+  let [start, end] = intervals[0];
+  for (const [nextStart, nextEnd] of intervals.slice(1)) {
+    if (nextStart <= end) end = Math.max(end, nextEnd);
+    else {
+      total += end - start;
+      start = nextStart;
+      end = nextEnd;
+    }
+  }
+  return total + end - start;
 }
 
 function pageComplexity(reasons = []) {

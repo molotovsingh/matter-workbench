@@ -80,7 +80,7 @@ The runner:
 - assembles pages back into their original documents and order;
 - reports per-lane comparison with the frozen reference.
 
-The 2.5 Pro arm leaves thinking unset to match the current reference configuration. `gemini-3.7-flash` with `LOW` thinking is supported as a separate repair arm. It must not overwrite or masquerade as the 2.5 Pro reference arm.
+The 2.5 Pro arm leaves thinking unset to match the current reference configuration. `gemini-3.7-flash` with `LOW` thinking is supported as a separate repair arm. Pass `--primary-cache-candidate <2.5-candidate-id>` so the A/B arm validates and reuses the identical checkpointed Mistral results without another paid primary-OCR run. It must not overwrite or masquerade as the 2.5 Pro reference arm.
 
 ## Planned later arms
 
