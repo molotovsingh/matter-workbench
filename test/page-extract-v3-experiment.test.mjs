@@ -9,6 +9,7 @@ import { buildBalancedPageBatches } from "../experiments/page-extract-v3/lib/bat
 import { prepareCachedPrimaryTasks, runCurrentProviderCandidate } from "../experiments/page-extract-v3/lib/current-candidate-runner.mjs";
 import { classifyPageImages, parsePdfImagesList } from "../experiments/page-extract-v3/lib/pdf-image-inspector.mjs";
 import { classifyNativePage } from "../experiments/page-extract-v3/lib/page-inspector.mjs";
+import { createPdfevalSession, exportPdfevalCandidateText, parsePdfevalCaseList } from "../experiments/page-extract-v3/lib/pdfeval-adapter.mjs";
 import { evaluatePrimaryPage } from "../experiments/page-extract-v3/lib/page-quality.mjs";
 import { runRepairProviderTask } from "../experiments/page-extract-v3/lib/provider-task-runner.mjs";
 import { comparePageText } from "../experiments/page-extract-v3/lib/reference-comparison.mjs";
@@ -104,6 +105,47 @@ test("page extract v3 uses cheap pdfimages metadata instead of rendering images 
   assert.equal(pages[1].maximumImagePixels, 2032 * 3264);
   assert.equal(classifyPageImages(pages[1]).largeImageCount, 1);
   assert.equal(classifyPageImages(pages[2]).largeImageCount, 0);
+});
+
+test("page extract v3 imports and exports a PDFEval corpus without mutating its sources", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-page-v3-pdfeval-"));
+  const pdfRoot = path.join(root, "source-pdfs");
+  const v2Root = path.join(root, "fixture");
+  const candidateRoot = path.join(root, "candidate-work");
+  const caseList = path.join(root, "cases.txt");
+  const routePlanFile = path.join(root, "route-plan.json");
+  const outDir = path.join(root, "exported");
+  try {
+    await mkdir(path.join(pdfRoot, "archival"), { recursive: true });
+    await writeFile(path.join(pdfRoot, "archival", "case_one.pdf"), "immutable-pdf-source");
+    await writeFile(caseList, "# cases\narchival/case_one\n");
+    assert.deepEqual(parsePdfevalCaseList("archival/a\nmodern,b\nc"), [
+      { era: "archival", caseId: "a" },
+      { era: "modern", caseId: "b" },
+      { era: "archival", caseId: "c" },
+    ]);
+    const imported = await createPdfevalSession({ pdfRoot, caseListFile: caseList, v2Root, sessionId: "gold" });
+    assert.equal(imported.files, 1);
+    const session = JSON.parse(await readFile(path.join(v2Root, "sessions", "gold", "session.json"), "utf8"));
+    assert.equal(session.files[0].relativePath, "archival/case_one.pdf");
+    const documentId = "document-id";
+    await writeJson(routePlanFile, {
+      source: { sessionId: "gold" }, fingerprintSha256: "plan", documents: [{
+        documentId, sourceIndex: 0, sourceSha256: session.files[0].sha256, status: "inspected", pageCount: 1,
+      }],
+    });
+    const outputRoot = path.join(candidateRoot, "candidates", "arm", "outputs");
+    await mkdir(outputRoot, { recursive: true });
+    await writeFile(path.join(outputRoot, `${documentId}.txt`), "Candidate legal text\n");
+    const exported = await exportPdfevalCandidateText({
+      v2Root, sessionId: "gold", routePlanFile, candidateRoot, candidateId: "arm", outDir,
+    });
+    assert.equal(exported.files.length, 1);
+    assert.equal(await readFile(path.join(outDir, "case_one.txt"), "utf8"), "Candidate legal text\n");
+    assert.equal(await readFile(path.join(pdfRoot, "archival", "case_one.pdf"), "utf8"), "immutable-pdf-source");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("page extract v3 balances weighted page units without arbitrary fixed-size document batches", () => {

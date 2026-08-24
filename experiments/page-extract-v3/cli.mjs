@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 
 import { captureCurrentV3Baseline } from "./lib/baseline.mjs";
 import { runCurrentProviderCandidate } from "./lib/current-candidate-runner.mjs";
+import { createPdfevalSession, exportPdfevalCandidateText } from "./lib/pdfeval-adapter.mjs";
 import { buildV3RoutePlan } from "./lib/route-plan.mjs";
 
 export async function runCli(argv = process.argv.slice(2), env = process.env) {
@@ -12,6 +13,31 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
 
   if (command === "help") {
     process.stdout.write(`${usage()}\n`);
+    return 0;
+  }
+
+  if (command === "pdfeval-import") {
+    const report = await createPdfevalSession({
+      pdfRoot: required(options, "pdf-root"),
+      caseListFile: required(options, "case-list"),
+      v2Root: required(options, "v2-root"),
+      sessionId: String(options["session-id"] || "pdfeval-gold30"),
+      onProgress: progressPrinter("pdfeval-import"),
+    });
+    print({ command, ...report });
+    return 0;
+  }
+
+  if (command === "pdfeval-export") {
+    const manifest = await exportPdfevalCandidateText({
+      v2Root: required(options, "v2-root"),
+      sessionId: String(options["session-id"] || "pdfeval-gold30"),
+      routePlanFile: required(options, "route-plan"),
+      candidateRoot: required(options, "root"),
+      candidateId: required(options, "candidate-id"),
+      outDir: required(options, "out"),
+    });
+    print({ command, candidateId: manifest.candidateId, files: manifest.files.length, out: options.out });
     return 0;
   }
 
@@ -157,6 +183,9 @@ function usage() {
     "Page Extract V3 isolated experiment",
     "",
     "Commands:",
+    "  pdfeval-import --pdf-root DIR --case-list FILE --v2-root DIR [--session-id ID]",
+    "  pdfeval-export --v2-root DIR --route-plan FILE --root DIR --candidate-id ID --out DIR",
+    "       [--session-id ID]",
     "  baseline --v2-root DIR --session-id ID --out FILE",
     "  plan --v2-root DIR --session-id ID --out FILE [--concurrency 2]",
     "       [--minimum-characters 120] [--minimum-words 8] [--minimum-short-page-characters 240]",
@@ -167,7 +196,7 @@ function usage() {
     "       [--primary-max-pages 16] [--repair-max-pages 4] [--prepare-only]",
     "       [--repair-model gemini-2.5-pro] [--repair-thinking-level LEVEL]",
     "",
-    "The baseline and plan commands are read-only and make no provider calls.",
+    "PDFEval import/export and the baseline/plan commands make no provider calls.",
     "The run-current command makes real billed Mistral and Gemini calls.",
   ].join("\n");
 }
