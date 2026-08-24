@@ -67,6 +67,11 @@ test("page extract v3 routes only trustworthy native pages without treating unkn
 
   assert.deepEqual(classifyNativePage({ text: "", lines: [] }).reasons, ["no_embedded_text", "too_few_words"]);
   assert.match(classifyNativePage({ text: "enough ".repeat(40), lines: [{ text: "enough" }], multiColumn: true }).reasons.join(" "), /layout/);
+  assert.match(classifyNativePage({
+    text: "enough ".repeat(40),
+    lines: [{ text: "enough" }],
+    images: { imageCount: 1, largeImageCount: 1, maximumImagePixels: 1_000_000 },
+  }).reasons.join(" "), /large_raster_image/);
 });
 
 test("page extract v3 compares critical legal tokens separately from general text", () => {
