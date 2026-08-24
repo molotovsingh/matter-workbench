@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
@@ -111,16 +111,27 @@ export async function runCurrentProviderCandidate({
 
     stageStarted = performance.now();
     const primaryUnits = buildPrimaryUnits(preparedDocuments);
-    const primaryTasks = await prepareProviderTasks({
-      kind: "primary",
-      units: primaryUnits,
-      candidateRoot,
-      maxPages: configuration.primaryMaxPages,
-      maxBytes: configuration.primaryMaxBytes,
-      minimumBatches: configuration.primaryConcurrency * 2,
-      combinePages,
-      concurrency: configuration.preflightConcurrency,
-    });
+    const primaryCacheResultDir = configuration.primaryCacheCandidateId
+      ? path.join(path.resolve(root), "candidates", configuration.primaryCacheCandidateId, "tasks", "primary-results")
+      : "";
+    const primaryTasks = primaryCacheResultDir
+      ? await prepareCachedPrimaryTasks({
+          units: primaryUnits,
+          candidateRoot,
+          cacheResultDir: primaryCacheResultDir,
+          combinePages,
+          concurrency: configuration.preflightConcurrency,
+        })
+      : await prepareProviderTasks({
+          kind: "primary",
+          units: primaryUnits,
+          candidateRoot,
+          maxPages: configuration.primaryMaxPages,
+          maxBytes: configuration.primaryMaxBytes,
+          minimumBatches: configuration.primaryConcurrency * 2,
+          combinePages,
+          concurrency: configuration.preflightConcurrency,
+        });
     stageMs.primaryBatchPreparation = Math.round(performance.now() - stageStarted);
 
     if (prepareOnly) {
@@ -171,9 +182,7 @@ export async function runCurrentProviderCandidate({
     const primaryResults = await runTasks({
       tasks: primaryTasks,
       concurrency: configuration.primaryConcurrency,
-      resultDir: configuration.primaryCacheCandidateId
-        ? path.join(path.resolve(root), "candidates", configuration.primaryCacheCandidateId, "tasks", "primary-results")
-        : path.join(candidateRoot, "tasks", "primary-results"),
+      resultDir: primaryCacheResultDir || path.join(candidateRoot, "tasks", "primary-results"),
       onProgress,
       label: "primary",
       run: (task, resultFile) => primaryTaskRunner({ task, resultFile, env, fetchImpl }),
@@ -386,6 +395,40 @@ async function prepareProviderTasks({ kind, units, candidateRoot, maxPages, maxB
     const pdfPath = path.join(pdfDir, `${id}.pdf`);
     await combinePages({ units: batch.units, outFile: pdfPath });
     return { id, index, pdfPath, units: batch.units, bytes: batch.bytes, weight: batch.weight };
+  });
+}
+
+export async function prepareCachedPrimaryTasks({ units, candidateRoot, cacheResultDir, combinePages, concurrency }) {
+  const files = (await readdir(cacheResultDir)).filter((file) => file.endsWith(".json")).sort();
+  const records = await Promise.all(files.map((file) => readJson(path.join(cacheResultDir, file))));
+  const unitMap = new Map(units.map((unit) => [unitKey(unit), unit]));
+  const assigned = new Set();
+  const definitions = records.map((record, index) => {
+    if (record.status !== "succeeded" || record.providerName !== "mistral") {
+      throw new Error(`primary cache task is not a successful Mistral result: ${record.taskId || files[index]}`);
+    }
+    const cachedUnits = record.units.map((cached) => {
+      const key = unitKey(cached);
+      const unit = unitMap.get(key);
+      if (!unit || assigned.has(key)) throw new Error(`primary cache coverage mismatch at ${key}`);
+      assigned.add(key);
+      return unit;
+    });
+    return { id: record.taskId, index, units: cachedUnits };
+  });
+  if (assigned.size !== units.length) throw new Error(`primary cache covers ${assigned.size} of ${units.length} planned pages`);
+
+  const pdfDir = path.join(candidateRoot, "tasks", "primary-pdfs");
+  await mkdir(pdfDir, { recursive: true, mode: 0o700 });
+  return mapWithConcurrency(definitions, concurrency, async (definition) => {
+    const pdfPath = path.join(pdfDir, `${definition.id}.pdf`);
+    await combinePages({ units: definition.units, outFile: pdfPath });
+    return {
+      ...definition,
+      pdfPath,
+      bytes: definition.units.reduce((sum, unit) => sum + unit.bytes, 0),
+      weight: definition.units.reduce((sum, unit) => sum + unit.complexity * Math.max(256 * 1024, unit.bytes), 0),
+    };
   });
 }
 

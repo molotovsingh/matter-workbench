@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { captureCurrentV3Baseline, V3_BASELINE_SCHEMA } from "../experiments/page-extract-v3/lib/baseline.mjs";
 import { buildBalancedPageBatches } from "../experiments/page-extract-v3/lib/batching.mjs";
-import { runCurrentProviderCandidate } from "../experiments/page-extract-v3/lib/current-candidate-runner.mjs";
+import { prepareCachedPrimaryTasks, runCurrentProviderCandidate } from "../experiments/page-extract-v3/lib/current-candidate-runner.mjs";
 import { classifyPageImages, parsePdfImagesList } from "../experiments/page-extract-v3/lib/pdf-image-inspector.mjs";
 import { classifyNativePage } from "../experiments/page-extract-v3/lib/page-inspector.mjs";
 import { evaluatePrimaryPage } from "../experiments/page-extract-v3/lib/page-quality.mjs";
@@ -230,6 +230,49 @@ test("page extract v3 produces a sanitized no-provider routing replay", async ()
     const serialized = await readFile(outFile, "utf8");
     assert.doesNotMatch(serialized, /Client paid/);
     assert.doesNotMatch(serialized, /confidential-a/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("page extract v3 reconstructs cached primary task boundaries exactly", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-page-v3-cache-"));
+  const cacheResultDir = path.join(root, "cache");
+  try {
+    await mkdir(cacheResultDir, { recursive: true });
+    const units = [1, 2, 3].map((page) => ({
+      documentId: "doc",
+      page,
+      sourceSha256: "a".repeat(64),
+      filePath: path.join(root, `${page}.pdf`),
+      bytes: page * 10,
+      complexity: 1,
+    }));
+    await writeJson(path.join(cacheResultDir, "primary-1.json"), {
+      taskId: "primary-0001-a",
+      providerName: "mistral",
+      status: "succeeded",
+      units: [{ documentId: "doc", page: 2 }, { documentId: "doc", page: 1 }],
+    });
+    await writeJson(path.join(cacheResultDir, "primary-2.json"), {
+      taskId: "primary-0002-b",
+      providerName: "mistral",
+      status: "succeeded",
+      units: [{ documentId: "doc", page: 3 }],
+    });
+    const tasks = await prepareCachedPrimaryTasks({
+      units,
+      candidateRoot: path.join(root, "candidate"),
+      cacheResultDir,
+      concurrency: 1,
+      combinePages: async ({ units: taskUnits, outFile }) => {
+        await writeFile(outFile, "pdf");
+        assert.ok(taskUnits.length > 0);
+      },
+    });
+    assert.deepEqual(tasks.map((task) => task.id), ["primary-0001-a", "primary-0002-b"]);
+    assert.deepEqual(tasks[0].units.map((unit) => unit.page), [2, 1]);
+    assert.deepEqual(tasks[1].units.map((unit) => unit.page), [3]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
