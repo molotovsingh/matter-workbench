@@ -45,6 +45,7 @@ export async function runCli(argv = process.argv.slice(2)) {
         minimumWords: optionalNumber(options["minimum-words"]),
         minimumCharactersForShortPage: optionalNumber(options["minimum-short-page-characters"]),
         minimumLargeImagePixels: optionalNumber(options["minimum-large-image-pixels"]),
+        maximumRepeatedNgramRatio: optionalNumber(options["maximum-repeated-ngram-ratio"]),
       },
       onProgress: progressPrinter("plan"),
     });
@@ -118,7 +119,7 @@ function usage() {
     "  baseline --v2-root DIR --session-id ID --out FILE",
     "  plan --v2-root DIR --session-id ID --out FILE [--concurrency 2]",
     "       [--minimum-characters 120] [--minimum-words 8] [--minimum-short-page-characters 240]",
-    "       [--minimum-large-image-pixels 250000]",
+    "       [--minimum-large-image-pixels 200000] [--maximum-repeated-ngram-ratio 0.08]",
     "",
     "The baseline and plan commands are read-only and make no provider calls.",
   ].join("\n");

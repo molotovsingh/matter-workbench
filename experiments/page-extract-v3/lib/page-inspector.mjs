@@ -56,12 +56,13 @@ export async function inspectPdfPages({ pdfPath, policy = {}, inspectImages = li
   };
 }
 
-export function classifyNativePage({ text = "", lines = [], multiColumn = false, images = {}, visualInspectionUnavailable = false, extractionError = "" } = {}, policy = {}) {
+export function classifyNativePage({ text = "", lines = [], multiColumn = false, images = {}, annotations = {}, visualInspectionUnavailable = false, extractionError = "" } = {}, policy = {}) {
   const minimumCharacters = positiveNumber(policy.minimumCharacters, 120);
   const minimumWords = positiveNumber(policy.minimumWords, 8);
   const minimumCharactersForShortPage = positiveNumber(policy.minimumCharactersForShortPage, 240);
   const maximumReplacementRatio = nonNegativeNumber(policy.maximumReplacementRatio, 0.005);
   const maximumDuplicateLineRatio = nonNegativeNumber(policy.maximumDuplicateLineRatio, 0.35);
+  const maximumRepeatedNgramRatio = nonNegativeNumber(policy.maximumRepeatedNgramRatio, 0.08);
   const normalized = normalizeText(text);
   const visibleCharacters = normalized.replace(/\s/g, "").length;
   const words = normalized ? normalized.split(/\s+/).filter(Boolean).length : 0;
@@ -70,8 +71,10 @@ export function classifyNativePage({ text = "", lines = [], multiColumn = false,
     const code = character.codePointAt(0);
     return code < 32 && character !== "\n" && character !== "\t";
   }).length;
+  const privateUseCharacters = [...normalized].filter((character) => isPrivateUseCodePoint(character.codePointAt(0))).length;
   const replacementRatio = visibleCharacters ? replacementCharacters / visibleCharacters : 0;
   const duplicateLineRatio = calculateDuplicateLineRatio(lines);
+  const repeatedNgrams = calculateRepeatedNgramRisk(normalized);
   const reasons = [];
 
   if (extractionError) reasons.push("native_text_extraction_failed");
@@ -81,8 +84,9 @@ export function classifyNativePage({ text = "", lines = [], multiColumn = false,
   if (multiColumn) reasons.push("layout_or_reading_order_risk");
   if (visualInspectionUnavailable) reasons.push("visual_inspection_unavailable");
   if (Number(images.largeImageCount) > 0) reasons.push("large_raster_image_risk");
-  if (replacementRatio > maximumReplacementRatio || suspiciousControls > 0) reasons.push("invalid_unicode_risk");
-  if (duplicateLineRatio > maximumDuplicateLineRatio) reasons.push("duplicate_text_layer_risk");
+  if (Number(annotations.contentBearingCount) > 0) reasons.push("form_or_annotation_content_risk");
+  if (replacementRatio > maximumReplacementRatio || suspiciousControls > 0 || privateUseCharacters > 0) reasons.push("invalid_unicode_risk");
+  if (duplicateLineRatio > maximumDuplicateLineRatio || repeatedNgrams.ratio > maximumRepeatedNgramRatio) reasons.push("duplicate_text_layer_risk");
 
   return {
     route: reasons.length ? "primary_ocr" : "native",
@@ -93,9 +97,14 @@ export function classifyNativePage({ text = "", lines = [], multiColumn = false,
       lines: lines.length,
       multiColumn: Boolean(multiColumn),
       replacementCharacters,
+      privateUseCharacters,
       suspiciousControls,
       replacementRatio,
       duplicateLineRatio,
+      repeatedNgramRatio: repeatedNgrams.ratio,
+      maximumNgramFrequency: repeatedNgrams.maximumFrequency,
+      annotationCount: Number(annotations.count) || 0,
+      contentBearingAnnotationCount: Number(annotations.contentBearingCount) || 0,
       imageCount: Number(images.imageCount) || 0,
       largeImageCount: Number(images.largeImageCount) || 0,
       maximumImagePixels: Number(images.maximumImagePixels) || 0,
@@ -126,12 +135,16 @@ async function inspectPage(document, pageNumber, policy, imageInspection) {
   const multiColumn = detectMultiColumn(lines);
   const blocks = groupIntoBlocks(lines, pageNumber);
   const text = blocks.map((block) => block.text).join("\n\n");
-  const images = classifyPageImages(imageInspection.pages?.[pageNumber], policy);
+  const [images, annotations] = await Promise.all([
+    Promise.resolve(classifyPageImages(imageInspection.pages?.[pageNumber], policy)),
+    inspectAnnotations(page),
+  ]);
   const classification = classifyNativePage({
     text,
     lines,
     multiColumn,
     images,
+    annotations,
     visualInspectionUnavailable: !imageInspection.available,
   }, policy);
   return pageResult({ pageNumber, text, lines, blocks, classification });
@@ -224,10 +237,49 @@ function detectMultiColumn(lines) {
   return substantial.some((cluster, index) => index > 0 && cluster.mean - substantial[index - 1].mean >= COLUMN_CLUSTER_MIN_GAP);
 }
 
+async function inspectAnnotations(page) {
+  let values;
+  try {
+    values = await page.getAnnotations({ intent: "display" });
+  } catch {
+    return { count: 0, contentBearingCount: 0 };
+  }
+  const contentBearing = values.filter((annotation) => (
+    annotation?.subtype === "Widget"
+    || ["Stamp", "Ink", "FreeText", "FileAttachment"].includes(annotation?.subtype)
+    || annotation?.fieldValue !== undefined
+  ));
+  return { count: values.length, contentBearingCount: contentBearing.length };
+}
+
 function calculateDuplicateLineRatio(lines) {
   const values = lines.map((line) => normalizeText(line.text).toLowerCase()).filter(Boolean);
   if (values.length < 3) return 0;
   return (values.length - new Set(values).size) / values.length;
+}
+
+function calculateRepeatedNgramRisk(text) {
+  const tokens = String(text || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  if (tokens.length < 12) return { ratio: 0, maximumFrequency: 0 };
+  const width = 4;
+  const counts = new Map();
+  for (let index = 0; index <= tokens.length - width; index += 1) {
+    const key = tokens.slice(index, index + width).join(" ");
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  let repeatedTokens = 0;
+  let maximumFrequency = 0;
+  for (const count of counts.values()) {
+    maximumFrequency = Math.max(maximumFrequency, count);
+    if (count >= 3) repeatedTokens += (count - 1) * width;
+  }
+  return { ratio: Math.min(1, repeatedTokens / tokens.length), maximumFrequency };
+}
+
+function isPrivateUseCodePoint(code) {
+  return (code >= 0xE000 && code <= 0xF8FF)
+    || (code >= 0xF0000 && code <= 0xFFFFD)
+    || (code >= 0x100000 && code <= 0x10FFFD);
 }
 
 function normalizeText(value) {

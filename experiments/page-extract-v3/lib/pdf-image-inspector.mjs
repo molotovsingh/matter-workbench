@@ -47,7 +47,7 @@ export function parsePdfImagesList(value) {
   return pages;
 }
 
-export function classifyPageImages(pageImages, { minimumLargeImagePixels = 250_000 } = {}) {
+export function classifyPageImages(pageImages, { minimumLargeImagePixels = 200_000 } = {}) {
   const images = Array.isArray(pageImages?.images) ? pageImages.images : [];
   return {
     imageCount: Number(pageImages?.imageCount) || 0,

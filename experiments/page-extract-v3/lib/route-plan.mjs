@@ -187,7 +187,8 @@ function normalizedPolicy(policy) {
     minimumCharactersForShortPage: positive(policy.minimumCharactersForShortPage, 240),
     maximumReplacementRatio: nonNegative(policy.maximumReplacementRatio, 0.005),
     maximumDuplicateLineRatio: nonNegative(policy.maximumDuplicateLineRatio, 0.35),
-    minimumLargeImagePixels: positive(policy.minimumLargeImagePixels, 250_000),
+    maximumRepeatedNgramRatio: nonNegative(policy.maximumRepeatedNgramRatio, 0.08),
+    minimumLargeImagePixels: positive(policy.minimumLargeImagePixels, 200_000),
   };
 }
 

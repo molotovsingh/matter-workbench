@@ -73,6 +73,19 @@ test("page extract v3 routes only trustworthy native pages without treating unkn
     lines: [{ text: "enough" }],
     images: { imageCount: 1, largeImageCount: 1, maximumImagePixels: 1_000_000 },
   }).reasons.join(" "), /large_raster_image/);
+  assert.match(classifyNativePage({
+    text: `Ordinary text ${String.fromCodePoint(0xF020)} followed by a custom-font private glyph `.repeat(8),
+    lines: [{ text: "Ordinary text" }],
+  }).reasons.join(" "), /invalid_unicode/);
+  assert.match(classifyNativePage({
+    text: "Subject date sender recipient Subject date sender recipient Subject date sender recipient additional ordinary document wording follows here",
+    lines: [{ text: "Subject date sender recipient" }],
+  }).reasons.join(" "), /duplicate_text_layer/);
+  assert.match(classifyNativePage({
+    text: "ordinary complete document text ".repeat(12),
+    lines: [{ text: "ordinary complete document text" }],
+    annotations: { count: 1, contentBearingCount: 1 },
+  }).reasons.join(" "), /form_or_annotation/);
 });
 
 test("page extract v3 uses cheap pdfimages metadata instead of rendering images during preflight", () => {
