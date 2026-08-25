@@ -5,6 +5,7 @@ import test from "node:test";
 import pg from "pg";
 
 import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
+import { PostgresIntakeRepository } from "../services/document-intake-extraction/postgres/postgres-intake-repository.mjs";
 import { PostgresOutboxStore } from "../services/document-intake-extraction/postgres/postgres-outbox-store.mjs";
 import { PostgresUploadAuthorizationStore } from "../services/document-intake-extraction/postgres/postgres-upload-authorization-store.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../services/document-intake-extraction/postgres/runtime-role-sql.mjs";
@@ -42,6 +43,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       await verifyTenantIsolation(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
+      await verifyIntakeRepository(runtimeUrl);
       await verifyOutboxDelivery(runtimeUrl);
     } finally {
       await adminPool.end();
@@ -85,6 +87,117 @@ async function verifyTenantIsolation(runtimeUrl) {
     });
   } finally {
     await client.end();
+  }
+}
+
+async function verifyIntakeRepository(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 4 });
+  const repository = new PostgresIntakeRepository({ pool });
+  const authorizationStore = new PostgresUploadAuthorizationStore({ pool });
+  const command = {
+    schemaVersion: "document-intake-extraction.create-intake-command/v1",
+    tenantId,
+    matterId: "matter-repository",
+    idempotencyKey: "repository-intake-1",
+    files: [
+      { originalName: "agreement.pdf", relativePath: "agreement.pdf", expectedBytes: 100 },
+      { originalName: "agreement-copy.pdf", relativePath: "copy/agreement.pdf", expectedBytes: 100 },
+    ],
+  };
+  try {
+    const created = await repository.createIntake(command);
+    assert.equal(created.idempotent, false);
+    assert.equal(created.files.length, 2);
+    const replay = await repository.createIntake(command);
+    assert.equal(replay.intakeId, created.intakeId);
+    assert.equal(replay.idempotent, true);
+    await assert.rejects(() => repository.createIntake({
+      ...command,
+      files: [{ originalName: "changed.pdf", expectedBytes: 100 }],
+    }), { code: "v4_postgres.idempotency_conflict" });
+
+    const sourceSha = "9".repeat(64);
+    for (let index = 0; index < created.files.length; index += 1) {
+      const file = created.files[index];
+      const tokenDigest = index === 0 ? "7".repeat(64) : "8".repeat(64);
+      await authorizationStore.create({
+        schemaVersion: "document-intake-extraction.s3-upload-authorization-record/v1",
+        tokenDigest,
+        tenantId,
+        intakeId: created.intakeId,
+        fileId: file.fileId,
+        expectedBytes: 100,
+        stagedObjectKey: `staging/${created.intakeId}/${file.fileId}`,
+        status: "authorized",
+        dataRegion: "ap-southeast-2",
+        expiresAt: "2026-08-24T12:15:00.000Z",
+        createdAt: "2026-08-24T12:00:00.000Z",
+        updatedAt: "2026-08-24T12:00:00.000Z",
+      });
+      await authorizationStore.updateByTokenDigest(tokenDigest, {
+        tenantId,
+        expectedStatuses: ["authorized"],
+        patch: {
+          status: "committed",
+          sha256: sourceSha,
+          bytes: 100,
+          blobObjectKey: `blobs/sha256/99/${sourceSha}`,
+          objectReused: index > 0,
+          committedAt: "2026-08-24T12:05:00.000Z",
+        },
+      });
+    }
+    const routedPages = [1, 2].map((pageNumber) => ({
+      pageNumber,
+      fingerprint: (pageNumber === 1 ? "1" : "2").repeat(64),
+      capability: { provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "adapter/v1" },
+      routingPolicy: "route/v1",
+      validatorVersion: "validator/v1",
+      priority: 0,
+      weight: 1,
+      virtualFinish: pageNumber,
+    }));
+    const firstDocument = await repository.recordInspectedDocument({
+      tenantId,
+      intakeId: created.intakeId,
+      fileId: created.files[0].fileId,
+      sourceSha256: sourceSha,
+      pageCount: 2,
+      inspectorVersion: "inspector/v1",
+      pages: routedPages,
+    });
+    const duplicateDocument = await repository.recordInspectedDocument({
+      tenantId,
+      intakeId: created.intakeId,
+      fileId: created.files[1].fileId,
+      sourceSha256: sourceSha,
+      pageCount: 2,
+      inspectorVersion: "inspector/v1",
+      pages: routedPages,
+    });
+    assert.equal(duplicateDocument.duplicateOfDocumentId, firstDocument.documentId);
+    assert.deepEqual(duplicateDocument.pages.map((page) => page.computationId), firstDocument.pages.map((page) => page.computationId));
+    const committed = await repository.commitBatchCustody({ tenantId, intakeId: created.intakeId });
+    assert.equal(committed.status, "processing");
+    assert.equal(committed.committedFileCount, 2);
+    assert.equal(committed.observedPageCount, 4);
+
+    const check = await pool.connect();
+    try {
+      await check.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      const counts = await check.query([
+        "select",
+        "  (select count(*)::int from document_intake_extraction.documents where tenant_id = $1) as documents,",
+        "  (select count(*)::int from document_intake_extraction.page_computations where tenant_id = $1) as computations,",
+        "  (select count(*)::int from document_intake_extraction.computation_demands where tenant_id = $1) as demands",
+      ].join("\n"), [tenantId]);
+      assert.deepEqual(counts.rows[0], { documents: 2, computations: 2, demands: 2 });
+    } finally {
+      check.release();
+    }
+  } finally {
+    await pool.end();
   }
 }
 
@@ -293,8 +406,8 @@ async function withTenant(client, tenantId, operation) {
 async function insertIntake(client, { tenantId, intakeId, idempotencyKey }) {
   await client.query([
     "insert into document_intake_extraction.intakes",
-    "  (intake_id, tenant_id, matter_id, idempotency_key, status, expected_file_count, expected_bytes)",
-    "values ($1, $2, 'matter-1', $3, 'awaiting_upload', 1, 100)",
+    "  (intake_id, tenant_id, matter_id, idempotency_key, request_fingerprint, status, expected_file_count, expected_bytes)",
+    "values ($1, $2, 'matter-1', $3, repeat('a', 64), 'awaiting_upload', 1, 100)",
   ].join("\n"), [intakeId, tenantId, idempotencyKey]);
 }
 

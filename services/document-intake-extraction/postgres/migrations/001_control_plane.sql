@@ -36,6 +36,7 @@ create table document_intake_extraction.intakes (
   tenant_id text not null,
   matter_id text not null,
   idempotency_key text not null,
+  request_fingerprint char(64) not null check (request_fingerprint ~ '^[a-f0-9]{64}$'),
   client_request_id text,
   status text not null check (status in (
     'awaiting_upload', 'uploading_with_speculative_processing', 'processing',
