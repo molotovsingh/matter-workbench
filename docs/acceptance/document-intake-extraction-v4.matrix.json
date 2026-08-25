@@ -36,7 +36,7 @@
       "category": "integration",
       "status": "automated",
       "requirement": "An authenticated versioned HTTP boundary creates and reads intakes/results, rejects document-byte proxy uploads, and fails closed across tenants.",
-      "evidence": ["test/document-intake-extraction-v4-http.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4-http.test.mjs", "test/document-intake-extraction-v4-postgres-service.test.mjs"]
     },
     {
       "id": "V4-OBJECT-001",

@@ -42,6 +42,7 @@ export function createDocumentIntakeExtractionHttpHandler({
         const intake = await requireAuthorizedIntake(service, fileCommit.intakeId, principal, authorizeMatter, "intake.file.commit");
         const body = await readJsonBody(request, maximumBodyBytes);
         const receipt = await service.commitFileCustody({
+          tenantId: principal.tenantId,
           intakeId: intake.intakeId,
           fileId: fileCommit.fileId,
           uploadToken: cleanId(body.uploadToken, "uploadToken"),
@@ -52,7 +53,7 @@ export function createDocumentIntakeExtractionHttpHandler({
       const batchCommit = matchSegments(segments, ["v1", "intakes", ":intakeId", "custody-commit"]);
       if (request.method === "POST" && batchCommit) {
         await requireAuthorizedIntake(service, batchCommit.intakeId, principal, authorizeMatter, "intake.custody.commit");
-        const intake = await service.commitBatchCustody({ intakeId: batchCommit.intakeId });
+        const intake = await service.commitBatchCustody({ tenantId: principal.tenantId, intakeId: batchCommit.intakeId });
         return sendJson(response, 200, "intake.custody_committed", { intake });
       }
 
@@ -64,7 +65,7 @@ export function createDocumentIntakeExtractionHttpHandler({
 
       const resultRead = matchSegments(segments, ["v1", "results", ":resultId"]);
       if (request.method === "GET" && resultRead) {
-        const result = await service.getResult(resultRead.resultId);
+        const result = await service.getResult({ tenantId: principal.tenantId, resultId: resultRead.resultId });
         await requireMatterAccess({
           authorizeMatter,
           principal,
@@ -86,7 +87,7 @@ export function createDocumentIntakeExtractionHttpHandler({
 }
 
 async function requireAuthorizedIntake(service, intakeId, principal, authorizeMatter, action) {
-  const intake = await service.getIntake(intakeId);
+  const intake = await service.getIntake({ tenantId: principal.tenantId, intakeId });
   await requireMatterAccess({ authorizeMatter, principal, tenantId: intake.tenantId, matterId: intake.matterId, action });
   return intake;
 }

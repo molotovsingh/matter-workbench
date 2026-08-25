@@ -59,7 +59,9 @@ The independent PostgreSQL migration chain now defines the durable ownership mod
 
 PostgreSQL worker/result repositories now exercise the durable path through claim, active-attempt fencing, heartbeat, success/failure cost evidence, lease-expiry reconciliation, demand fulfillment, complete ordered assembly, intake/result publication, and outbox creation. The worker streams full sources to bounded scratch, splits only the claimed page, calls a pinned adapter, cleans scratch, then checkpoints; publication errors cannot cause a completed provider call to be repeated.
 
-The current filesystem HTTP service and in-memory calibration model remain deliberately isolated vertical-slice references. They prove state transitions, restart semantics, and capacity decisions but are not multi-process production substitutes for the new PostgreSQL repositories, S3-compatible storage, and durable telemetry. Switching the HTTP service to the PostgreSQL path remains disabled until an integrated service composition and broader evidence exist.
+An isolated PostgreSQL service composition now presents the same API methods while joining durable intake/result repositories, S3 custody, streaming `pdfinfo` preflight, pinned routing, work-graph creation, batch commit, and idempotent publication. It is deliberately not instantiated or mounted by Matter Workbench.
+
+The filesystem HTTP service and in-memory calibration model remain useful reference paths for fast deterministic tests. Neither composition is a production claim: real S3 credentials/region, provider quota, multi-worker load, security review, expanded human quality, and shadow/soak evidence remain required before integration or cutover.
 
 ## Publication and integration
 

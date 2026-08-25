@@ -92,8 +92,9 @@ export class DocumentIntakeExtractionService {
     });
   }
 
-  async commitFileCustody({ intakeId, fileId, uploadToken } = {}) {
+  async commitFileCustody({ tenantId = "", intakeId, fileId, uploadToken } = {}) {
     const before = await this.requireIntake(intakeId);
+    assertTenant(before, tenantId);
     const beforeFile = requireFile(before, fileId);
     if (beforeFile.status === "committed") return structuredClone(beforeFile.custodyReceipt);
     if (beforeFile.uploadAuthorization.token !== uploadToken) throw serviceError("upload token does not match this file", "intake.upload_token_mismatch");
@@ -226,10 +227,11 @@ export class DocumentIntakeExtractionService {
     });
   }
 
-  async commitBatchCustody({ intakeId } = {}) {
+  async commitBatchCustody({ tenantId = "", intakeId } = {}) {
     const now = this.clock().toISOString();
     return this.controlPlane.transact((state) => {
       const intake = requireIntakeInState(state, intakeId);
+      assertTenant(intake, tenantId);
       const incomplete = intake.files.filter((file) => file.status !== "committed");
       if (incomplete.length) throw serviceError(`${incomplete.length} intake file(s) have not reached custody`, "intake.files_incomplete");
       if (!intake.custodyCommittedAt) {
@@ -242,14 +244,18 @@ export class DocumentIntakeExtractionService {
     });
   }
 
-  async getIntake(intakeId) {
-    return presentIntake(await this.requireIntake(intakeId), true);
+  async getIntake(input) {
+    const { tenantId, resourceId: intakeId } = normalizeResourceInput(input, "intakeId");
+    const intake = await this.requireIntake(intakeId);
+    assertTenant(intake, tenantId);
+    return presentIntake(intake, true);
   }
 
-  async getResult(resultId) {
+  async getResult(input) {
+    const { tenantId, resourceId: resultId } = normalizeResourceInput(input, "resultId");
     const state = await this.controlPlane.read();
     const result = state.results[resultId];
-    if (!result) throw serviceError("extraction result not found", "intake.result_not_found");
+    if (!result || (tenantId && result.tenantId !== tenantId)) throw serviceError("extraction result not found", "intake.result_not_found");
     return structuredClone(result);
   }
 
@@ -301,6 +307,17 @@ function requireFile(intake, fileId) {
 
 function indexKey(tenantId, idempotencyKey) {
   return `${tenantId}\u0000${idempotencyKey}`;
+}
+
+function normalizeResourceInput(input, field) {
+  if (input && typeof input === "object") {
+    return { tenantId: String(input.tenantId || ""), resourceId: String(input[field] || "") };
+  }
+  return { tenantId: "", resourceId: String(input || "") };
+}
+
+function assertTenant(resource, tenantId) {
+  if (tenantId && resource.tenantId !== tenantId) throw serviceError("resource not found", "intake.not_found");
 }
 
 function serviceError(message, code) {

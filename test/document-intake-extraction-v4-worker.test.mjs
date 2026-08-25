@@ -7,6 +7,7 @@ import test from "node:test";
 
 import { createPageValidator } from "../services/document-intake-extraction/page-validator.mjs";
 import { PdfPageMaterializer } from "../workers/document-processing/pdf-page-materializer.mjs";
+import { PdfInfoDocumentInspector } from "../workers/document-processing/pdfinfo-document-inspector.mjs";
 import { PostgresDocumentProcessingWorker } from "../workers/document-processing/postgres-document-processing-worker.mjs";
 import { WorkerScratchSpace } from "../workers/document-processing/worker-scratch-space.mjs";
 
@@ -105,6 +106,29 @@ test("PostgreSQL worker records pre-provider materialization failures as measure
     assert.equal(error.billingKnown, true);
     assert.equal(error.billedCostUsd, 0);
     assert.equal(error.retryable, false);
+    assert.deepEqual(await readdir(root), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("streaming PDF info preflight counts pages without retaining source bytes", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-pdfinfo-"));
+  const payload = Buffer.from("%PDF source");
+  const sha256 = createHash("sha256").update(payload).digest("hex");
+  const scratch = new WorkerScratchSpace({
+    root, maximumTaskBytes: 1024, minimumFreeBytes: 0,
+    statfsImpl: async () => ({ bavail: 1_000_000, bsize: 1 }),
+  });
+  const inspector = new PdfInfoDocumentInspector({
+    objectStore: { openBlobStream: async () => ({ contentLength: payload.length, body: payload }) },
+    scratchSpace: scratch,
+    execFileImpl: async () => ({ stdout: "Title: Legal bundle\nPages:          3\n", stderr: "" }),
+  });
+  try {
+    const inspection = await inspector.inspect({ blobReference: { sha256 }, sourceBytes: payload.length });
+    assert.equal(inspection.pageCount, 3);
+    assert.deepEqual(inspection.pages.map((page) => page.pageNumber), [1, 2, 3]);
     assert.deepEqual(await readdir(root), []);
   } finally {
     await rm(root, { recursive: true, force: true });

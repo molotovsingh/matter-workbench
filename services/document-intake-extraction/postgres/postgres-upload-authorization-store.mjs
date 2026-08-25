@@ -24,7 +24,6 @@ export class PostgresUploadAuthorizationStore {
         "  and file_id = $3::uuid",
         "  and expected_bytes = $8::bigint",
         "  and status = 'awaiting_upload'",
-        "  and (upload_token_digest is null or upload_token_digest = $4)",
         "returning tenant_id, intake_id::text, file_id::text, expected_bytes::text, status, upload_token_digest, staged_object_key, upload_authorization_expires_at, upload_authorization_json, source_sha256, custody_receipt_json, committed_at",
       ].join("\n"), [
         record.tenantId,
