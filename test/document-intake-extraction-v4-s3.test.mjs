@@ -50,6 +50,8 @@ test("V4-OBJECT-001 authorizes direct regional uploads, streams server hashing, 
   assert.equal(committed.dataRegion, "ap-southeast-2");
   assert.equal(objects.has(first.stagedObjectKey), false);
   assert.equal(objects.get(committed.blobReference.objectKey).metadata.sha256, digest);
+  assert.ok(calls.some((call) => call.method === "getObject" && call.key === first.stagedObjectKey && call.versionId === "staged-v1"));
+  assert.ok(calls.some((call) => call.method === "copyObject" && call.sourceVersionId === "staged-v1" && call.destinationIfNoneMatch === "*"));
   assert.equal((await store.readBlob(committed.blobReference)).toString(), payload.toString());
 
   const second = await store.createUploadAuthorization({
@@ -65,6 +67,41 @@ test("V4-OBJECT-001 authorizes direct regional uploads, streams server hashing, 
   assert.equal(duplicate.objectReused, true);
   assert.equal(calls.filter((call) => call.method === "copyObject").length, 1, "the duplicate must not be copied again");
   const replay = await store.commitAuthorizedUpload({ token: second.token, tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-2" });
+  assert.equal(replay.idempotent, true);
+});
+
+test("custody checkpoint remains durable when staging cleanup fails after immutable promotion", async () => {
+  const objects = new Map();
+  const calls = [];
+  const client = fakeS3Client(objects, calls);
+  client.deleteObject = async ({ key }) => {
+    calls.push({ method: "deleteObject", key });
+    throw new Error("transient staging lifecycle failure");
+  };
+  const store = new S3CompatibleObjectStore({
+    bucket: "private",
+    keyPrefix: "v4",
+    region: "ap-southeast-2",
+    client,
+    presigner: { presignPut: async ({ key }) => ({ url: `https://upload.invalid/${key}`, requiredHeaders: {} }) },
+    authorizationStore: new MemoryUploadAuthorizationStore(),
+    clock: () => new Date("2026-08-24T12:00:00.000Z"),
+    tokenFactory: () => "token-with-at-least-thirty-two-characters-123456",
+  });
+  const payload = Buffer.from("durably promoted PDF");
+  const authorization = await store.createUploadAuthorization({
+    tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-1", expectedBytes: payload.length,
+    expiresAt: new Date("2026-08-24T12:05:00.000Z"),
+  });
+  objects.set(authorization.stagedObjectKey, { body: payload, metadata: {}, versionId: "staged-cleanup-v1" });
+  const committed = await store.commitAuthorizedUpload({
+    token: authorization.token, tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-1",
+  });
+  assert.equal(committed.sha256, sha256(payload));
+  assert.equal(objects.has(authorization.stagedObjectKey), true, "failed cleanup may leave a lifecycle-managed staged object");
+  const replay = await store.commitAuthorizedUpload({
+    token: authorization.token, tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-1",
+  });
   assert.equal(replay.idempotent, true);
 });
 
@@ -90,7 +127,7 @@ test("S3 custody fails closed on wrong scope, size drift, corrupt existing blob 
     expectedBytes: payload.length,
     expiresAt: new Date("2026-08-24T12:05:00.000Z"),
   });
-  objects.set(authorization.stagedObjectKey, { body: payload.subarray(0, 4), metadata: {} });
+  objects.set(authorization.stagedObjectKey, { body: payload.subarray(0, 4), metadata: {}, versionId: "staged-size-v1" });
   await assert.rejects(() => store.commitAuthorizedUpload({
     token: authorization.token, tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-1",
   }), { code: "object.size_mismatch" });
@@ -98,7 +135,7 @@ test("S3 custody fails closed on wrong scope, size drift, corrupt existing blob 
     token: authorization.token, tenantId: "tenant-1", intakeId: "other-intake", fileId: "file-1",
   }), { code: "object.authorization_scope_mismatch" });
 
-  objects.set(authorization.stagedObjectKey, { body: payload, metadata: {} });
+  objects.set(authorization.stagedObjectKey, { body: payload, metadata: {}, versionId: "staged-size-v2" });
   const digest = sha256(payload);
   const blobKey = `v4/blobs/sha256/${digest.slice(0, 2)}/${digest}`;
   objects.set(blobKey, { body: payload, metadata: { sha256: "f".repeat(64) } });
@@ -110,6 +147,15 @@ test("S3 custody fails closed on wrong scope, size drift, corrupt existing blob 
   await assert.rejects(() => store.readBlob(committed.blobReference), { code: "object.buffer_limit_exceeded" });
   const opened = await store.openBlobStream(committed.blobReference);
   assert.equal(opened.contentLength, payload.length);
+
+  const unversioned = await store.createUploadAuthorization({
+    tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-2", expectedBytes: payload.length,
+    expiresAt: new Date("2026-08-24T12:05:00.000Z"),
+  });
+  objects.set(unversioned.stagedObjectKey, { body: payload, metadata: {} });
+  await assert.rejects(() => store.commitAuthorizedUpload({
+    token: unversioned.token, tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-2",
+  }), { code: "object.staging_version_missing" });
 });
 
 function fakeS3Client(objects, calls) {
@@ -125,16 +171,18 @@ function fakeS3Client(objects, calls) {
       }
       return { contentLength: object.body.length, metadata: { ...object.metadata }, versionId: object.versionId || "" };
     },
-    async getObject({ key }) {
-      calls.push({ method: "getObject", key });
+    async getObject({ key, versionId }) {
+      calls.push({ method: "getObject", key, versionId });
       const object = objects.get(key);
       if (!object) throw Object.assign(new Error("not found"), { code: "NoSuchKey", statusCode: 404 });
+      if (versionId && object.versionId !== versionId) throw Object.assign(new Error("version not found"), { code: "NoSuchVersion", statusCode: 404 });
       return { body: chunked(object.body) };
     },
     async copyObject(input) {
       calls.push({ method: "copyObject", ...input });
       const source = objects.get(input.sourceKey);
       if (!source) throw Object.assign(new Error("not found"), { code: "NoSuchKey", statusCode: 404 });
+      if (input.sourceVersionId && source.versionId !== input.sourceVersionId) throw Object.assign(new Error("version not found"), { code: "NoSuchVersion", statusCode: 404 });
       objects.set(input.destinationKey, { body: Buffer.from(source.body), metadata: { ...input.metadata }, versionId: "committed-v1" });
     },
     async deleteObject({ key }) {

@@ -15,6 +15,7 @@ export class S3CompatibleObjectStore {
     clock = () => new Date(),
     tokenFactory = () => randomBytes(32).toString("base64url"),
     serverSideEncryption = "AES256",
+    requireVersionedStaging = true,
     maximumBufferedBlobBytes = 64 * 1024 * 1024,
   } = {}) {
     if (!bucket) throw new Error("S3-compatible object store requires a bucket");
@@ -35,6 +36,7 @@ export class S3CompatibleObjectStore {
     this.clock = clock;
     this.tokenFactory = tokenFactory;
     this.serverSideEncryption = String(serverSideEncryption || "AES256");
+    this.requireVersionedStaging = requireVersionedStaging !== false;
     this.maximumBufferedBlobBytes = positiveInteger(maximumBufferedBlobBytes, "maximumBufferedBlobBytes");
   }
 
@@ -105,10 +107,14 @@ export class S3CompatibleObjectStore {
 
     const head = await this.headRequired(record.stagedObjectKey, "object.upload_incomplete");
     const headBytes = normalizeContentLength(head.contentLength);
+    const sourceVersionId = String(head.versionId || "").trim();
+    if (this.requireVersionedStaging && !sourceVersionId) {
+      throw objectError("versioned staging custody is required", "object.staging_version_missing");
+    }
     if (headBytes !== record.expectedBytes) {
       throw objectError(`uploaded ${headBytes} bytes; expected ${record.expectedBytes}`, "object.size_mismatch");
     }
-    const streamed = await this.streamAndHash(record.stagedObjectKey, record.expectedBytes);
+    const streamed = await this.streamAndHash(record.stagedObjectKey, record.expectedBytes, sourceVersionId);
     const blobObjectKey = this.key(`blobs/sha256/${streamed.sha256.slice(0, 2)}/${streamed.sha256}`);
     const existing = await this.headOptional(blobObjectKey);
     let objectReused = false;
@@ -119,6 +125,7 @@ export class S3CompatibleObjectStore {
       await this.client.copyObject({
         sourceBucket: this.bucket,
         sourceKey: record.stagedObjectKey,
+        sourceVersionId,
         destinationBucket: this.bucket,
         destinationKey: blobObjectKey,
         metadata: {
@@ -128,11 +135,11 @@ export class S3CompatibleObjectStore {
         },
         metadataDirective: "REPLACE",
         serverSideEncryption: this.serverSideEncryption,
+        destinationIfNoneMatch: "*",
       });
       const committed = await this.headRequired(blobObjectKey, "object.blob_promotion_failed");
       await verifyCommittedBlob(committed, { expectedBytes: streamed.bytes, expectedSha256: streamed.sha256 });
     }
-    await this.client.deleteObject({ bucket: this.bucket, key: record.stagedObjectKey });
     const committedAt = this.clock().toISOString();
     const committed = await this.authorizationStore.updateByTokenDigest(tokenDigest, {
       tenantId: normalizedTenantId,
@@ -143,16 +150,20 @@ export class S3CompatibleObjectStore {
         bytes: streamed.bytes,
         blobObjectKey,
         objectReused,
-        sourceVersionId: head.versionId || "",
+        sourceVersionId,
         committedAt,
         updatedAt: committedAt,
       },
     });
     if (!committed) {
       const concurrent = await this.authorizationStore.readByTokenDigest(tokenDigest, { tenantId: normalizedTenantId });
-      if (concurrent?.status === "committed") return receipt(concurrent, true);
+      if (concurrent?.status === "committed") {
+        await this.deleteStagingBestEffort(record.stagedObjectKey);
+        return receipt(concurrent, true);
+      }
       throw objectError("upload authorization changed during custody commit", "object.authorization_conflict");
     }
+    await this.deleteStagingBestEffort(record.stagedObjectKey);
     return receipt(committed, false);
   }
 
@@ -188,8 +199,8 @@ export class S3CompatibleObjectStore {
     return { body: response.body, contentLength: normalizeContentLength(head.contentLength), sha256, objectKey: expectedKey };
   }
 
-  async streamAndHash(key, expectedBytes) {
-    const response = await this.client.getObject({ bucket: this.bucket, key });
+  async streamAndHash(key, expectedBytes, versionId = "") {
+    const response = await this.client.getObject({ bucket: this.bucket, key, versionId: versionId || undefined });
     const hash = createHash("sha256");
     let bytes = 0;
     for await (const chunk of asAsyncIterable(response?.body)) {
@@ -200,6 +211,15 @@ export class S3CompatibleObjectStore {
     }
     if (bytes !== expectedBytes) throw objectError(`verified ${bytes} bytes; expected ${expectedBytes}`, "object.size_mismatch");
     return { bytes, sha256: hash.digest("hex") };
+  }
+
+  async deleteStagingBestEffort(key) {
+    try {
+      await this.client.deleteObject({ bucket: this.bucket, key });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async headOptional(key) {
