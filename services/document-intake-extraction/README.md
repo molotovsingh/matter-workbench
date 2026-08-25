@@ -18,3 +18,11 @@ Run isolated evidence:
 ```bash
 node --test test/document-intake-extraction-v4*.test.mjs
 ```
+
+Evaluate cutover readiness (exit `2` is expected while certification is pending):
+
+```bash
+node services/document-intake-extraction/readiness/cli.mjs
+```
+
+The evaluator currently fails closed on load/SLO, expanded human quality, provider quota, security, and finite shadow/soak gates.
