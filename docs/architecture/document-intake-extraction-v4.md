@@ -28,7 +28,7 @@ Matter Workbench must not call providers or read processing tables. V4 must not 
 
 ## Data ownership
 
-- **Object storage:** immutable staged uploads, content-addressed source blobs, page artifacts, and versioned result artifacts.
+- **Object storage:** immutable staged uploads, content-addressed source blobs, page artifacts, and versioned result artifacts. The S3-compatible boundary uses short-lived direct PUT authorization, explicit region/encryption headers, streamed server-side size/SHA-256 verification, verified promotion, and staged-object deletion. Large reads must stream to bounded worker scratch rather than enter process memory.
 - **Control plane:** logical upload provenance, intake/batch state, document-to-blob references, computation fingerprints, durable page work, leases, attempts, cost events, validation outcomes, result versions, and outbox events.
 - **Workers:** bounded encrypted scratch only. A worker can disappear without losing authoritative state or requiring completed paid work to be repeated.
 - **Matter Workbench:** tenant/matter identity, permissions, user-facing state, and references to published normalized results.

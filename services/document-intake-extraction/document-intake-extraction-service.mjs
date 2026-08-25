@@ -51,6 +51,7 @@ export class DocumentIntakeExtractionService {
       const fileId = this.idFactory("file");
       const documentId = this.idFactory("document");
       const uploadAuthorization = await this.objectStore.createUploadAuthorization({
+        tenantId: command.tenantId,
         intakeId,
         fileId,
         expectedBytes: manifest.expectedBytes,
@@ -97,7 +98,12 @@ export class DocumentIntakeExtractionService {
     if (beforeFile.status === "committed") return structuredClone(beforeFile.custodyReceipt);
     if (beforeFile.uploadAuthorization.token !== uploadToken) throw serviceError("upload token does not match this file", "intake.upload_token_mismatch");
 
-    const objectReceipt = await this.objectStore.commitAuthorizedUpload({ token: uploadToken, intakeId, fileId });
+    const objectReceipt = await this.objectStore.commitAuthorizedUpload({
+      token: uploadToken,
+      tenantId: before.tenantId,
+      intakeId,
+      fileId,
+    });
     const snapshot = await this.controlPlane.read();
     const knownBlob = snapshot.blobs[objectReceipt.sha256];
     const inspection = knownBlob

@@ -39,6 +39,13 @@
       "evidence": ["test/document-intake-extraction-v4-http.test.mjs"]
     },
     {
+      "id": "V4-OBJECT-001",
+      "category": "custody",
+      "status": "automated",
+      "requirement": "The S3-compatible boundary issues short-lived regional direct-upload authorization, streams server-side size/hash verification, promotes content-addressed encrypted blobs, suppresses duplicate storage, and bounds in-memory reads.",
+      "evidence": ["test/document-intake-extraction-v4-s3.test.mjs"]
+    },
+    {
       "id": "V4-CUSTODY-001",
       "category": "custody",
       "status": "automated",
