@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 export const CONTRACT_VERSIONS = Object.freeze({
   createIntakeCommand: "document-intake-extraction.create-intake-command/v1",
+  apiResponse: "document-intake-extraction.api-response/v1",
   intake: "document-intake-extraction.intake/v1",
   uploadAuthorization: "document-intake-extraction.upload-authorization/v1",
   custodyReceipt: "document-intake-extraction.custody-receipt/v1",
