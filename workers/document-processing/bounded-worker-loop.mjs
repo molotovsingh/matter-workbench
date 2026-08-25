@@ -5,6 +5,7 @@ export class BoundedDocumentWorkerLoop {
     workerIdPrefix = "document-worker",
     concurrency = 1,
     idlePollMs = 250,
+    maximumIdlePollMs = 5_000,
     baseErrorBackoffMs = 1_000,
     maximumErrorBackoffMs = 30_000,
     onOutcome = async () => {},
@@ -18,6 +19,7 @@ export class BoundedDocumentWorkerLoop {
     this.workerIdPrefix = String(workerIdPrefix || "document-worker").slice(0, 160);
     this.concurrency = boundedInteger(concurrency, "concurrency", 1, 1_000);
     this.idlePollMs = boundedInteger(idlePollMs, "idlePollMs", 10, 60_000);
+    this.maximumIdlePollMs = boundedInteger(maximumIdlePollMs, "maximumIdlePollMs", this.idlePollMs, 5 * 60_000);
     this.baseErrorBackoffMs = boundedInteger(baseErrorBackoffMs, "baseErrorBackoffMs", 10, 60_000);
     this.maximumErrorBackoffMs = boundedInteger(maximumErrorBackoffMs, "maximumErrorBackoffMs", this.baseErrorBackoffMs, 15 * 60_000);
     this.onOutcome = onOutcome;
@@ -43,6 +45,7 @@ export class BoundedDocumentWorkerLoop {
   async runLane({ lane, signal, maximumIterations }) {
     const stats = { iterations: 0, completed: 0, deferred: 0, idle: 0, errors: 0 };
     let consecutiveErrors = 0;
+    let consecutiveQuiet = 0;
     while (!signal?.aborted && stats.iterations < maximumIterations) {
       stats.iterations += 1;
       const workerId = `${this.workerIdPrefix}-${lane}`;
@@ -51,15 +54,21 @@ export class BoundedDocumentWorkerLoop {
         consecutiveErrors = 0;
         if (!outcome) {
           stats.idle += 1;
-          await this.sleep(this.idlePollMs, signal);
+          consecutiveQuiet += 1;
+          // Idle and admission-gated lanes back off their queue polling so a
+          // large parked lane pool costs the database almost nothing.
+          await this.sleep(Math.min(this.maximumIdlePollMs, this.idlePollMs * (2 ** Math.min(10, consecutiveQuiet - 1))), signal);
           continue;
         }
         if (outcome.status === "deferred") {
           stats.deferred += 1;
+          consecutiveQuiet += 1;
           await this.notify({ type: "deferred", workerId, outcome });
-          await this.sleep(clampDelay(outcome.retryAfterMs, this.idlePollMs, this.maximumErrorBackoffMs), signal);
+          const gatedDelay = Math.min(this.maximumIdlePollMs, this.idlePollMs * (2 ** Math.min(10, consecutiveQuiet - 1)));
+          await this.sleep(clampDelay(outcome.retryAfterMs, gatedDelay, this.maximumErrorBackoffMs), signal);
           continue;
         }
+        consecutiveQuiet = 0;
         stats.completed += 1;
         await this.notify({ type: "completed", workerId, outcome: sanitizeOutcome(outcome) });
       } catch (error) {

@@ -49,6 +49,7 @@ import {
 } from "../providers/gemini37-repair-adapter.mjs";
 import { createGemini37RangeAdapter } from "../providers/gemini37-range-adapter.mjs";
 import { AdaptiveProviderAdmissionController } from "../capacity/adaptive-provider-admission.mjs";
+import { startWatchDashboard } from "./watch-dashboard.mjs";
 import { CONTRACT_VERSIONS } from "../../../packages/extraction-contracts/index.mjs";
 
 const TERMINAL_INTAKE_STATUSES = new Set(["ready", "ready_with_review"]);
@@ -158,16 +159,23 @@ async function main() {
     // Backpressure instead of futile calls: AIMD admission per capability, so
     // provider throttling halves in-flight work and honors cooldowns rather
     // than burning page attempt budgets on 429 storms.
+    // Lanes are dynamic: the pool is provisioned at the maximum, but slow
+    // start admits only --min-lanes at first and doubles on sustained health,
+    // so each provider's real ceiling is discovered, not configured.
     const admissionController = new AdaptiveProviderAdmissionController({
       capabilities: [
         {
           capability: primaryProvider.capability,
+          minimumConcurrent: options.minLanes,
+          startConcurrent: options.minLanes,
           maximumConcurrent: options.lanes,
           pageOperationsPerSecond: options.admissionRate,
           burstPageOperations: Math.max(options.rangePages, options.lanes * options.rangePages),
         },
         {
           capability: repairProvider.capability,
+          minimumConcurrent: 1,
+          startConcurrent: 1,
           maximumConcurrent: Math.max(2, options.repairLanes),
           pageOperationsPerSecond: Math.max(2, Math.round(options.admissionRate / 4)),
           burstPageOperations: Math.max(4, options.repairLanes * 2),
@@ -202,7 +210,20 @@ async function main() {
     const service = composition.service;
     await service.initialize();
 
-    const workerRuns = startWorkers({ composition, options, homeRoot, signal: abort.signal });
+    let currentIntakeId = "";
+    const dashboard = options.watch
+      ? startWatchDashboard({
+        port: options.watchPort,
+        service,
+        tenantId: options.tenantId,
+        getIntakeId: () => currentIntakeId,
+        admissionController,
+        pool: runtimePool,
+      })
+      : null;
+    if (dashboard) log(`watch dashboard live at ${dashboard.url}`);
+
+    const workerRuns = startWorkers({ composition, options, homeRoot, signal: abort.signal, dashboard });
 
     const tenantId = options.tenantId;
     timings.uploadStartedAt = Date.now();
@@ -218,6 +239,7 @@ async function main() {
         expectedBytes: file.expectedBytes,
       })),
     });
+    currentIntakeId = intake.intakeId;
     log(`intake ${intake.intakeId} created (${intake.files.length} files); workers are live — upload/OCR overlap is on`);
 
     const uploaded = await mapWithConcurrency(intake.files, options.uploadConcurrency, async (intakeFile) => {
@@ -250,6 +272,11 @@ async function main() {
     const evidence = await collectEvidence(databaseUrl, tenantId, intake.intakeId);
     await writeOutputs({ options, timings, files, finalIntake, result, evidence, totalPages });
     printSummary({ timings, files, finalIntake, result, evidence, totalPages, options });
+    if (dashboard) {
+      log("watch dashboard stays live for 3 more minutes (Ctrl-C to end sooner)");
+      await sleep(180_000);
+      await dashboard.close();
+    }
   } finally {
     abort.abort();
     await runtimePool?.end().catch(() => {});
@@ -274,6 +301,9 @@ function parseArguments(argv) {
     primary: "mistral",
     rangePages: 8,
     admissionRate: 40,
+    minLanes: 2,
+    watch: false,
+    watchPort: 4499,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -287,7 +317,7 @@ function parseArguments(argv) {
     else if (flag === "--env-file") options.envFile = path.resolve(next());
     else if (flag === "--db-admin") options.dbAdminUrl = next();
     else if (flag === "--db-name") options.dbName = requireIdentifier(next(), "--db-name");
-    else if (flag === "--lanes") options.lanes = requireInteger(next(), "--lanes", 1, 32);
+    else if (flag === "--lanes") options.lanes = requireInteger(next(), "--lanes", 1, 128);
     else if (flag === "--repair-lanes") options.repairLanes = requireInteger(next(), "--repair-lanes", 1, 8);
     else if (flag === "--timeout-minutes") options.timeoutMinutes = requireInteger(next(), "--timeout-minutes", 1, 240);
     else if (flag === "--out") options.out = path.resolve(next());
@@ -297,8 +327,16 @@ function parseArguments(argv) {
       if (!["mistral", "gemini"].includes(options.primary)) fail("--primary must be mistral or gemini");
     } else if (flag === "--range-pages") options.rangePages = requireInteger(next(), "--range-pages", 1, 32);
     else if (flag === "--admission-rate") options.admissionRate = requireInteger(next(), "--admission-rate", 1, 1000);
+    else if (flag === "--min-lanes") options.minLanes = requireInteger(next(), "--min-lanes", 1, 128);
+    else if (flag === "--watch") options.watch = true;
+    else if (flag === "--watch-port") options.watchPort = requireInteger(next(), "--watch-port", 1024, 65535);
     else fail(`unknown option ${flag}`);
   }
+  if (options.minLanes > options.lanes) fail("--min-lanes must not exceed --lanes (the maximum lane pool)");
+  return finishOptions(options);
+}
+
+function finishOptions(options) {
   if (!options.dir) fail("--dir <pdf folder> is required");
   if (!options.out) {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -419,14 +457,18 @@ async function ensureRuntimeRole(adminPool, databaseAdminPool, databaseUrl, home
   return url.toString();
 }
 
-function startWorkers({ composition, options, homeRoot, signal }) {
+function startWorkers({ composition, options, homeRoot, signal, dashboard = null }) {
   const pageMaterializer = new PdfPageMaterializer();
   const onOutcome = (label) => async (event) => {
     if (event.type === "completed") {
       const outcome = event.outcome;
       log(`  [${label}] pages ${outcome.firstPage ?? "?"}–${outcome.lastPage ?? "?"} → ${outcome.status}${outcome.errorCode ? ` (${outcome.errorCode})` : ""}`);
+      if (label === "repair") dashboard?.pushEvent("failover", "🔧 hard page recovered by the second engine");
+      else if (outcome.status === "repair_queued" || outcome.errorCode) dashboard?.pushEvent("failover", `page range hit ${outcome.errorCode || "a hard page"} — rerouting`);
+      else dashboard?.pushEvent("range", `pages ${outcome.firstPage ?? "?"}–${outcome.lastPage ?? "?"} read`);
     } else if (event.type === "error") {
       log(`  [${label}] worker error ${event.errorCode}; backing off ${event.delayMs}ms`);
+      dashboard?.pushEvent("throttle", `worker error ${event.errorCode}`);
     } else if (event.type === "deferred") {
       log(`  [${label}] deferred (${event.outcome.admissionReason || "capacity"})`);
     }

@@ -83,3 +83,37 @@ test("429 feedback halves concurrency, enforces cooldown, then recovers additive
     code: "provider_admission.capability_unknown",
   });
 });
+
+// Dynamic lanes: discovered concurrency instead of configured concurrency.
+test("slow start begins at the floor, doubles on sustained health, and yields to AIMD after the first throttle", () => {
+  const controller = new AdaptiveProviderAdmissionController({
+    capabilities: [{
+      capability: CAPABILITY,
+      minimumConcurrent: 2,
+      startConcurrent: 2,
+      maximumConcurrent: 16,
+      pageOperationsPerSecond: 1000,
+      burstPageOperations: 10000,
+    }],
+    slowStartEvery: 2,
+    additiveIncreaseEvery: 3,
+  });
+  const succeed = () => {
+    const admission = controller.acquire(CAPABILITY, { weight: 1 });
+    assert.equal(admission.admitted, true);
+    controller.complete(admission.permit, { outcome: "success" });
+  };
+  assert.equal(controller.snapshot(CAPABILITY).concurrencyLimit, 2);
+  assert.equal(controller.snapshot(CAPABILITY).slowStart, true);
+  succeed(); succeed();
+  assert.equal(controller.snapshot(CAPABILITY).concurrencyLimit, 4);
+  succeed(); succeed();
+  assert.equal(controller.snapshot(CAPABILITY).concurrencyLimit, 8);
+  succeed(); succeed();
+  assert.equal(controller.snapshot(CAPABILITY).concurrencyLimit, 16, "slow start must reach but never exceed the ceiling");
+  const throttledAdmission = controller.acquire(CAPABILITY, { weight: 1 });
+  controller.complete(throttledAdmission.permit, { outcome: "throttled", retryAfterMs: 1 });
+  const afterThrottle = controller.snapshot(CAPABILITY);
+  assert.equal(afterThrottle.concurrencyLimit, 8, "throttle must halve the discovered limit");
+  assert.equal(afterThrottle.slowStart, false, "first throttle ends slow start permanently");
+});

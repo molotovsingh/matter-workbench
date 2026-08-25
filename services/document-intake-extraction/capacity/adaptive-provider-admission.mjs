@@ -26,10 +26,11 @@ export function createCertifiedProviderAdmissionController({ certification, conc
 }
 
 export class AdaptiveProviderAdmissionController {
-  constructor({ capabilities = [], clock = () => new Date(), permitFactory = () => randomUUID(), additiveIncreaseEvery = 20 } = {}) {
+  constructor({ capabilities = [], clock = () => new Date(), permitFactory = () => randomUUID(), additiveIncreaseEvery = 20, slowStartEvery = 8 } = {}) {
     this.clock = clock;
     this.permitFactory = permitFactory;
     this.additiveIncreaseEvery = boundedInteger(additiveIncreaseEvery, "additiveIncreaseEvery", 1, 10_000);
+    this.slowStartEvery = boundedInteger(slowStartEvery, "slowStartEvery", 1, 10_000);
     this.states = new Map();
     this.permits = new Map();
     for (const entry of capabilities) {
@@ -38,13 +39,20 @@ export class AdaptiveProviderAdmissionController {
       if (this.states.has(key)) throw new Error(`duplicate admission capability ${capability.provider}/${capability.model}`);
       const maximumConcurrent = boundedInteger(entry.maximumConcurrent, "maximumConcurrent", 1, 100_000);
       const minimumConcurrent = boundedInteger(entry.minimumConcurrent ?? 1, "minimumConcurrent", 1, maximumConcurrent);
+      // Slow start: begin at startConcurrent (typically the floor), grow
+      // multiplicatively while the provider stays healthy, and hand over to
+      // additive increase after the first throttle. Providers' real ceilings
+      // get discovered instead of configured. Defaults to the ceiling for
+      // backward-compatible fixed-concurrency behavior.
+      const startConcurrent = boundedInteger(entry.startConcurrent ?? maximumConcurrent, "startConcurrent", minimumConcurrent, maximumConcurrent);
       const pageOperationsPerSecond = positiveNumber(entry.pageOperationsPerSecond, "pageOperationsPerSecond");
       const burstPageOperations = positiveNumber(entry.burstPageOperations ?? pageOperationsPerSecond, "burstPageOperations");
       this.states.set(key, {
         capability,
         maximumConcurrent,
         minimumConcurrent,
-        concurrencyLimit: maximumConcurrent,
+        concurrencyLimit: startConcurrent,
+        slowStart: startConcurrent < maximumConcurrent,
         pageOperationsPerSecond,
         burstPageOperations,
         tokens: burstPageOperations,
@@ -97,11 +105,15 @@ export class AdaptiveProviderAdmissionController {
     if (outcome === "throttled") {
       state.throttles += 1;
       state.consecutiveSuccesses = 0;
+      state.slowStart = false;
       state.concurrencyLimit = Math.max(state.minimumConcurrent, Math.floor(state.concurrencyLimit / 2));
       state.cooldownUntilMs = Math.max(state.cooldownUntilMs, nowMs + Math.max(1_000, nonNegativeNumber(retryAfterMs, "retryAfterMs", 0)));
     } else if (outcome === "success") {
       state.consecutiveSuccesses += 1;
-      if (state.consecutiveSuccesses >= this.additiveIncreaseEvery && state.concurrencyLimit < state.maximumConcurrent) {
+      if (state.slowStart && state.consecutiveSuccesses >= this.slowStartEvery && state.concurrencyLimit < state.maximumConcurrent) {
+        state.concurrencyLimit = Math.min(state.maximumConcurrent, state.concurrencyLimit * 2);
+        state.consecutiveSuccesses = 0;
+      } else if (!state.slowStart && state.consecutiveSuccesses >= this.additiveIncreaseEvery && state.concurrencyLimit < state.maximumConcurrent) {
         state.concurrencyLimit += 1;
         state.consecutiveSuccesses = 0;
       }
@@ -151,6 +163,8 @@ function stateSnapshot(state, nowMs) {
   return {
     capability: { ...state.capability },
     maximumConcurrent: state.maximumConcurrent,
+    minimumConcurrent: state.minimumConcurrent,
+    slowStart: state.slowStart === true,
     concurrencyLimit: state.concurrencyLimit,
     inflight: state.inflight,
     availablePageOperations: state.tokens,
