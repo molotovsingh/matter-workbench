@@ -91,7 +91,7 @@
       "id": "V4-EVIDENCE-001",
       "category": "observability",
       "status": "automated",
-      "requirement": "Every provider attempt, including failure, records model, fingerprint, latency, usage, billed cost, and outcome.",
+      "requirement": "Every provider attempt records model, fingerprint, latency, usage, billed cost, and outcome; unknown lease/failure billing remains explicit and can only be reconciled once against a referenced billing record.",
       "evidence": ["test/document-intake-extraction-v4.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {

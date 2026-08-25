@@ -7,6 +7,7 @@ import pg from "pg";
 import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
 import { PostgresAuditStore } from "../services/document-intake-extraction/postgres/postgres-audit-store.mjs";
 import { PostgresCapacityCalibrationRepository } from "../services/document-intake-extraction/postgres/postgres-capacity-calibration-repository.mjs";
+import { PostgresCostReconciliationRepository } from "../services/document-intake-extraction/postgres/postgres-cost-reconciliation-repository.mjs";
 import { PostgresIntakeRepository } from "../services/document-intake-extraction/postgres/postgres-intake-repository.mjs";
 import { PostgresOutboxStore } from "../services/document-intake-extraction/postgres/postgres-outbox-store.mjs";
 import { PostgresResultRepository } from "../services/document-intake-extraction/postgres/postgres-result-repository.mjs";
@@ -516,6 +517,23 @@ async function verifyLeaseExpirationEvidence(runtimeUrl) {
     } finally {
       evidence.release();
     }
+    const reconciliation = new PostgresCostReconciliationRepository({ pool });
+    const pending = await reconciliation.listPending({ tenantId });
+    assert.equal(pending.length, 1);
+    const reconciled = await reconciliation.reconcile({
+      tenantId, attemptId: pending[0].attemptId, inputUnits: 1, outputUnits: 0,
+      billedCostUsd: 0.004, reconciliationReference: "billing-export-2026-08-24-row-1",
+    });
+    assert.equal(reconciled.measurementStatus, "measured");
+    assert.equal((await reconciliation.listPending({ tenantId })).length, 0);
+    assert.equal((await reconciliation.reconcile({
+      tenantId, attemptId: pending[0].attemptId, inputUnits: 1, outputUnits: 0,
+      billedCostUsd: 0.004, reconciliationReference: "billing-export-2026-08-24-row-1",
+    })).measurementStatus, "measured");
+    await assert.rejects(() => reconciliation.reconcile({
+      tenantId, attemptId: pending[0].attemptId, inputUnits: 1, outputUnits: 0,
+      billedCostUsd: 0.005, reconciliationReference: "billing-export-2026-08-24-row-2",
+    }), { code: "cost.reconciliation_conflict" });
   } finally {
     await pool.end();
   }

@@ -6,6 +6,7 @@ export const REQUIRED_V4_MIGRATIONS = Object.freeze([
   "005_worker_capacity_requests.sql",
   "006_intake_workload_class.sql",
   "007_append_only_audit.sql",
+  "008_cost_reconciliation.sql",
 ]);
 
 export function createDocumentIntakeExtractionReadinessCheck({

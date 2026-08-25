@@ -17,6 +17,7 @@ const CAPACITY_OUTCOME_MIGRATION = new URL("../services/document-intake-extracti
 const WORKER_CAPACITY_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/005_worker_capacity_requests.sql", import.meta.url);
 const WORKLOAD_CLASS_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/006_intake_workload_class.sql", import.meta.url);
 const AUDIT_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/007_append_only_audit.sql", import.meta.url);
+const COST_RECONCILIATION_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/008_cost_reconciliation.sql", import.meta.url);
 
 // V4-DB-001
 test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS, fenced work, cost evidence, and an outbox", async () => {
@@ -67,6 +68,11 @@ test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS
   assert.match(auditSql, /force row level security/i);
   assert.match(auditSql, /octet_length\(details_json::text\) <= 16384/i);
   assert.doesNotMatch(auditSql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
+  const reconciliationSql = await readFile(COST_RECONCILIATION_MIGRATION, "utf8");
+  assert.match(reconciliationSql, /security definer/i);
+  assert.match(reconciliationSql, /cost_measurement_status = 'unknown_requires_reconciliation'/i);
+  assert.match(reconciliationSql, /is not distinct from confirmed_billed_cost_usd/i);
+  assert.doesNotMatch(reconciliationSql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
 
   const runtimeGrants = buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "v4_runtime" });
   assert.match(runtimeGrants, /claim_page_work\(text, integer\)/);
@@ -75,6 +81,7 @@ test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS
   assert.match(runtimeGrants, /worker_capacity_requests/);
   assert.match(runtimeGrants, /grant select, insert on document_intake_extraction\.audit_events/);
   assert.doesNotMatch(runtimeGrants, /grant select, insert, update on document_intake_extraction\.audit_events/);
+  assert.match(runtimeGrants, /reconcile_attempt_cost\(uuid, numeric, numeric, numeric, text\)/);
   const readGrants = buildDocumentIntakeExtractionReadRoleSql({ roleName: "v4_reader" });
   assert.doesNotMatch(readGrants, /source_blobs|provider_attempts|cost_events/);
   assert.throws(() => buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "v4_runtime; drop schema public" }), {
