@@ -64,7 +64,7 @@
       "category": "resilience",
       "status": "automated",
       "requirement": "Page work is durable, leased, ownership-fenced, restartable, and does not repeat completed provider work.",
-      "evidence": ["test/document-intake-extraction-v4.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4.test.mjs", "test/document-intake-extraction-v4-worker.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-PROVIDER-001",
@@ -85,21 +85,21 @@
       "category": "completeness",
       "status": "automated",
       "requirement": "Published versioned extraction results preserve document order and contain one explicit outcome for every source page.",
-      "evidence": ["test/document-intake-extraction-v4.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-EVIDENCE-001",
       "category": "observability",
       "status": "automated",
       "requirement": "Every provider attempt, including failure, records model, fingerprint, latency, usage, billed cost, and outcome.",
-      "evidence": ["test/document-intake-extraction-v4.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-EVENT-001",
       "category": "integration",
       "status": "automated",
       "requirement": "Publication emits one versioned extraction.result.ready event only after batch custody commit.",
-      "evidence": ["test/document-intake-extraction-v4.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-DB-001",

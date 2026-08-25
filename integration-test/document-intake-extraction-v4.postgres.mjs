@@ -7,12 +7,14 @@ import pg from "pg";
 import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
 import { PostgresIntakeRepository } from "../services/document-intake-extraction/postgres/postgres-intake-repository.mjs";
 import { PostgresOutboxStore } from "../services/document-intake-extraction/postgres/postgres-outbox-store.mjs";
+import { PostgresResultRepository } from "../services/document-intake-extraction/postgres/postgres-result-repository.mjs";
 import { PostgresUploadAuthorizationStore } from "../services/document-intake-extraction/postgres/postgres-upload-authorization-store.mjs";
+import { PostgresWorkRepository } from "../services/document-intake-extraction/postgres/postgres-work-repository.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../services/document-intake-extraction/postgres/runtime-role-sql.mjs";
 
 const adminUrl = String(process.env.MWB_POSTGRES_TEST_ADMIN_URL || "").trim();
 
-// V4-DB-001 and V4-OUTBOX-001 real-database evidence
+// V4-DB-001, V4-WORK-001, V4-ASSEMBLY-001, V4-EVIDENCE-001, V4-EVENT-001, and V4-OUTBOX-001 real-database evidence
 test("V4 PostgreSQL control plane enforces migration immutability, tenant isolation, and concurrent fenced claims", {
   timeout: 120_000,
 }, async () => {
@@ -42,6 +44,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifyTenantIsolation(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
+      await verifyLeaseExpirationEvidence(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
       await verifyIntakeRepository(runtimeUrl);
       await verifyOutboxDelivery(runtimeUrl);
@@ -196,6 +199,62 @@ async function verifyIntakeRepository(runtimeUrl) {
     } finally {
       check.release();
     }
+
+    const workRepository = new PostgresWorkRepository({ pool });
+    const firstClaim = await workRepository.claim({ tenantId, workerId: "repository-worker-a", leaseMs: 60_000 });
+    await assert.rejects(() => workRepository.renew({
+      tenantId, workUnitId: firstClaim.workUnitId, leaseToken: randomUUID(), leaseMs: 60_000,
+    }), { code: "worker.lease_lost" });
+    assert.equal((await workRepository.renew({
+      tenantId, workUnitId: firstClaim.workUnitId, leaseToken: firstClaim.leaseToken, leaseMs: 60_000,
+    })).renewed, true);
+    const accepted = await workRepository.finishSuccess({
+      tenantId,
+      claim: firstClaim,
+      providerResult: {
+        text: "Accepted legal page.", finishReason: "complete", requestId: "provider-1",
+        usage: { inputUnits: 1, outputUnits: 2 }, billedCostUsd: 0.004,
+      },
+      validation: { outcome: "accepted", reasons: [], validatorVersion: "validator/v1" },
+    });
+    assert.equal(accepted.status, "accepted");
+    const secondClaim = await workRepository.claim({ tenantId, workerId: "repository-worker-b", leaseMs: 60_000 });
+    const review = await workRepository.finishFailure({
+      tenantId,
+      claim: secondClaim,
+      error: Object.assign(new Error("provider schema invalid"), {
+        code: "provider.invalid_response", retryable: false, billingKnown: true, billedCostUsd: 0.002,
+        usage: { inputUnits: 1, outputUnits: 0 },
+      }),
+    });
+    assert.equal(review.status, "review_required");
+    assert.equal(await workRepository.claim({ tenantId, workerId: "repository-worker-c" }), null);
+    const resultRepository = new PostgresResultRepository({ pool });
+    const publication = await resultRepository.publishReadyIntake({ tenantId, intakeId: created.intakeId });
+    assert.equal(publication.published, true);
+    assert.equal(publication.result.status, "ready_with_review");
+    assert.equal(publication.result.documentCount, 2);
+    assert.equal(publication.result.pageCount, 4);
+    assert.equal(publication.result.reviewPageCount, 2, "one shared review page must remain explicit in both logical documents");
+    assert.deepEqual(publication.result.documents.map((document) => document.pages.length), [2, 2]);
+    assert.equal(publication.event.type, "extraction.result.ready");
+    const replayPublication = await resultRepository.publishReadyIntake({ tenantId, intakeId: created.intakeId });
+    assert.equal(replayPublication.published, false);
+    assert.equal(replayPublication.result.resultId, publication.result.resultId);
+    assert.equal((await resultRepository.readResult({ tenantId, resultId: publication.result.resultId })).resultId, publication.result.resultId);
+    const evidence = await pool.connect();
+    try {
+      await evidence.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      const counts = await evidence.query([
+        "select",
+        "  (select count(*)::int from document_intake_extraction.provider_attempts where tenant_id = $1) as attempts,",
+        "  (select count(*)::int from document_intake_extraction.cost_events where tenant_id = $1) as costs,",
+        "  (select count(*)::int from document_intake_extraction.computation_demands where tenant_id = $1 and fulfilled_at is not null) as fulfilled",
+      ].join("\n"), [tenantId]);
+      assert.deepEqual(counts.rows[0], { attempts: 2, costs: 2, fulfilled: 2 });
+    } finally {
+      evidence.release();
+    }
   } finally {
     await pool.end();
   }
@@ -254,6 +313,66 @@ async function verifyOutboxDelivery(runtimeUrl) {
     assert.equal(second[0].attemptCount, 2);
     assert.equal((await store.markDelivered({ tenantId, eventId, leaseToken: second[0].leaseToken })).status, "delivered");
     assert.deepEqual(await store.claim({ tenantId, workerId: "dispatcher-c" }), []);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function verifyLeaseExpirationEvidence(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const sourceSha = "6".repeat(64);
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 2 });
+  const seed = await pool.connect();
+  try {
+    await seed.query([
+      "insert into document_intake_extraction.source_blobs (sha256, object_key, bytes, page_count, inspector_version, verified_at)",
+      "values ($1, $2, 100, 1, 'integration-inspector/v1', now())",
+    ].join("\n"), [sourceSha, `blobs/sha256/66/${sourceSha}`]);
+    await seed.query("begin");
+    await seed.query("select set_config('document_intake_extraction.tenant_id', $1, true)", [tenantId]);
+    await seed.query([
+      "insert into document_intake_extraction.page_computations",
+      "  (computation_id, tenant_id, fingerprint, source_sha256, page_number, provider, model, adapter_version, routing_policy, validator_version, status, maximum_attempts)",
+      "values ($1, $2, $3, $4, 1, 'mistral', 'mistral-ocr-4-1', 'adapter/v1', 'route/v1', 'validator/v1', 'queued', 1)",
+    ].join("\n"), [randomUUID(), tenantId, "5".repeat(64), sourceSha]);
+    await seed.query("commit");
+  } finally {
+    seed.release();
+  }
+  try {
+    const repository = new PostgresWorkRepository({ pool });
+    const claim = await repository.claim({ tenantId, workerId: "crashing-worker", leaseMs: 60_000 });
+    const expire = await pool.connect();
+    try {
+      await expire.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      await expire.query([
+        "update document_intake_extraction.page_computations",
+        "set lease_expires_at = now() - interval '1 second'",
+        "where tenant_id = $1 and computation_id = $2",
+      ].join("\n"), [tenantId, claim.workUnitId]);
+    } finally {
+      expire.release();
+    }
+    assert.equal(await repository.claim({ tenantId, workerId: "recovery-worker" }), null);
+    const evidence = await pool.connect();
+    try {
+      await evidence.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      const state = await evidence.query([
+        "select pc.status, pa.status as attempt_status, pa.cost_measurement_status, ce.measurement_status",
+        "from document_intake_extraction.page_computations pc",
+        "join document_intake_extraction.provider_attempts pa on pa.tenant_id = pc.tenant_id and pa.computation_id = pc.computation_id",
+        "join document_intake_extraction.cost_events ce on ce.tenant_id = pa.tenant_id and ce.attempt_id = pa.attempt_id",
+        "where pc.tenant_id = $1",
+      ].join("\n"), [tenantId]);
+      assert.deepEqual(state.rows[0], {
+        status: "review_required",
+        attempt_status: "lease_expired",
+        cost_measurement_status: "unknown_requires_reconciliation",
+        measurement_status: "unknown_requires_reconciliation",
+      });
+    } finally {
+      evidence.release();
+    }
   } finally {
     await pool.end();
   }

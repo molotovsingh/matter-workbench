@@ -128,6 +128,7 @@ create table document_intake_extraction.page_computations (
   attempt_count integer not null default 0 check (attempt_count >= 0),
   maximum_attempts integer not null default 3 check (maximum_attempts between 1 and 20),
   lease_token uuid,
+  active_attempt_id uuid,
   locked_by text,
   locked_at timestamptz,
   lease_expires_at timestamptz,
@@ -190,6 +191,12 @@ create table document_intake_extraction.provider_attempts (
   unique (tenant_id, attempt_id)
 );
 
+alter table document_intake_extraction.page_computations
+  add constraint page_computations_active_attempt_fk
+  foreign key (tenant_id, active_attempt_id)
+  references document_intake_extraction.provider_attempts (tenant_id, attempt_id)
+  deferrable initially deferred;
+
 create table document_intake_extraction.cost_events (
   cost_event_id uuid primary key,
   tenant_id text not null,
@@ -206,7 +213,8 @@ create table document_intake_extraction.cost_events (
   measurement_status text not null check (measurement_status in ('measured', 'unknown_requires_reconciliation')),
   occurred_at timestamptz not null,
   foreign key (tenant_id, attempt_id) references document_intake_extraction.provider_attempts (tenant_id, attempt_id) on delete restrict,
-  foreign key (tenant_id, computation_id) references document_intake_extraction.page_computations (tenant_id, computation_id) on delete restrict
+  foreign key (tenant_id, computation_id) references document_intake_extraction.page_computations (tenant_id, computation_id) on delete restrict,
+  unique (tenant_id, attempt_id)
 );
 
 create table document_intake_extraction.extraction_results (
@@ -318,19 +326,68 @@ returns integer
 language plpgsql
 as $$
 declare
-  changed integer;
+  expired record;
+  changed integer := 0;
+  terminal boolean;
 begin
-  update document_intake_extraction.page_computations
-  set status = case when attempt_count >= maximum_attempts then 'review_required' else 'queued' end,
-      lease_token = null,
-      locked_by = null,
-      locked_at = null,
-      lease_expires_at = null,
-      run_after = now()
-  where tenant_id = document_intake_extraction.current_tenant_id()
-    and status = 'running'
-    and lease_expires_at < now();
-  get diagnostics changed = row_count;
+  for expired in
+    select *
+    from document_intake_extraction.page_computations
+    where tenant_id = document_intake_extraction.current_tenant_id()
+      and status = 'running'
+      and lease_expires_at < now()
+    for update skip locked
+  loop
+    terminal := expired.attempt_count >= expired.maximum_attempts;
+    if expired.active_attempt_id is not null then
+      update document_intake_extraction.provider_attempts
+      set status = 'lease_expired',
+          finished_at = now(),
+          latency_ms = greatest(0, floor(extract(epoch from (now() - started_at)) * 1000))::bigint,
+          billed_cost_usd = null,
+          cost_measurement_status = 'unknown_requires_reconciliation',
+          error_code = 'worker.lease_expired',
+          error_message = 'Worker lease expired before the provider attempt checkpoint was committed.',
+          retryable = not terminal
+      where tenant_id = expired.tenant_id
+        and attempt_id = expired.active_attempt_id
+        and status = 'running';
+
+      insert into document_intake_extraction.cost_events
+        (cost_event_id, tenant_id, attempt_id, computation_id, fingerprint, provider, model, adapter_version,
+         attempt_status, input_units, output_units, billed_cost_usd, measurement_status, occurred_at)
+      select gen_random_uuid(), pa.tenant_id, pa.attempt_id, pa.computation_id, pa.fingerprint, pa.provider, pa.model,
+             pa.adapter_version, pa.status, pa.input_units, pa.output_units, pa.billed_cost_usd,
+             pa.cost_measurement_status, now()
+      from document_intake_extraction.provider_attempts pa
+      where pa.tenant_id = expired.tenant_id and pa.attempt_id = expired.active_attempt_id
+      on conflict (tenant_id, attempt_id) do nothing;
+    end if;
+
+    update document_intake_extraction.page_computations
+    set status = case when terminal then 'review_required' else 'queued' end,
+        output_json = case when terminal then jsonb_build_object(
+          'text', '',
+          'finishReason', 'failed',
+          'reviewReasons', jsonb_build_array('worker_leases_exhausted'),
+          'validatorVersion', validator_version,
+          'attemptId', coalesce(active_attempt_id::text, '')
+        ) else output_json end,
+        lease_token = null,
+        active_attempt_id = null,
+        locked_by = null,
+        locked_at = null,
+        lease_expires_at = null,
+        run_after = now()
+    where tenant_id = expired.tenant_id and computation_id = expired.computation_id;
+
+    if terminal then
+      update document_intake_extraction.computation_demands
+      set fulfilled_at = coalesce(fulfilled_at, now())
+      where tenant_id = expired.tenant_id and computation_id = expired.computation_id;
+    end if;
+    changed := changed + 1;
+  end loop;
   return changed;
 end
 $$;
