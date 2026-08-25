@@ -108,7 +108,9 @@
     "case-timeline:dry-run": "node create-listofdates-engine.mjs",
     "case-timeline": "node create-listofdates-engine.mjs --apply",
     "create-listofdates:dry-run": "node create-listofdates-engine.mjs",
-    "create-listofdates": "node create-listofdates-engine.mjs --apply"
+    "create-listofdates": "node create-listofdates-engine.mjs --apply",
+    "v4:isolated-run": "node services/document-intake-extraction/dev/isolated-run.mjs",
+    "v4:readiness": "node services/document-intake-extraction/readiness/cli.mjs"
   },
   "private": true,
   "type": "module",
