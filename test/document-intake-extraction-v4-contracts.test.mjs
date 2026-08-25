@@ -28,7 +28,11 @@ test("V4-CONTRACT-001 validates the versioned intake, result, and ready-event co
     files: [{ originalName: "agreement.pdf", relativePath: "Bundle/agreement.pdf", expectedBytes: 12 }],
   });
   assert.equal(command.expectedBytes, 12);
+  assert.equal(command.workloadClass, "mixed_legal");
   assert.equal(command.files[0].mimeType, "application/pdf");
+  assert.throws(() => validateCreateIntakeCommand({ ...command, workloadClass: "unbounded-custom-class" }), {
+    code: "contract.workload_class_invalid",
+  });
   assert.throws(() => validateCreateIntakeCommand({
     ...command,
     files: Array.from({ length: SERVICE_LIMITS.maximumFiles + 1 }, (_, index) => ({ originalName: `${index}.pdf`, expectedBytes: 1 })),

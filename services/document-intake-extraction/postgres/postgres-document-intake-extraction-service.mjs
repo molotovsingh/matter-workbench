@@ -115,7 +115,7 @@ export class PostgresDocumentIntakeExtractionService {
     if (this.capacityCalibration && !inspectedDocument.duplicateOfDocumentId) {
       await this.capacityCalibration.recordCorpus({
         tenantId,
-        workloadClass: "default",
+        workloadClass: intake.workloadClass,
         bytes: receipt.bytes,
         pages: inspection.pageCount,
         ocrPages: inspection.pageCount,

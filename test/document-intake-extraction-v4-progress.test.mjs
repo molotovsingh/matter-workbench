@@ -58,7 +58,9 @@ test("ready progress freezes ETA at zero and clears stale capacity exceptions", 
     workerCapacity: { activeWorkers: 1, warmWorkers: 1, maximumWorkers: 1, pageOperationsPerSecondPerWorker: 1 },
     clock: () => new Date("2026-08-24T12:00:00.000Z"),
   });
-  const progress = await service.getProgress({ tenantId: "tenant-1", intakeId: "intake-1", workloadClass: "mixed-legal" });
+  snapshot.intake.workloadClass = "archival_legal";
+  const progress = await service.getProgress({ tenantId: "tenant-1", intakeId: "intake-1" });
+  assert.equal(progress.workloadClass, "archival_legal");
   assert.equal(progress.processing.eta.lowerSeconds, 0);
   assert.equal(progress.processing.eta.upperSeconds, 0);
   assert.equal(progress.processing.eta.sloState, "complete");

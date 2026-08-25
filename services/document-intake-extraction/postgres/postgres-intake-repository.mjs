@@ -25,8 +25,8 @@ export class PostgresIntakeRepository {
       const intakeId = this.idFactory();
       const inserted = await client.query([
         "insert into document_intake_extraction.intakes",
-        "  (intake_id, tenant_id, matter_id, idempotency_key, request_fingerprint, client_request_id, status, expected_file_count, expected_bytes)",
-        "values ($1::uuid, $2, $3, $4, $5, nullif($6, ''), 'awaiting_upload', $7::int, $8::bigint)",
+        "  (intake_id, tenant_id, matter_id, idempotency_key, request_fingerprint, client_request_id, workload_class, status, expected_file_count, expected_bytes)",
+        "values ($1::uuid, $2, $3, $4, $5, nullif($6, ''), $7, 'awaiting_upload', $8::int, $9::bigint)",
         "on conflict (tenant_id, idempotency_key) do nothing",
         "returning intake_id::text",
       ].join("\n"), [
@@ -36,6 +36,7 @@ export class PostgresIntakeRepository {
         command.idempotencyKey,
         requestFingerprint,
         command.clientRequestId,
+        command.workloadClass,
         command.files.length,
         command.expectedBytes,
       ]);
@@ -256,7 +257,7 @@ export class PostgresIntakeRepository {
 
 async function readIntakeWithClient(client, tenantId, intakeId) {
   const result = await client.query([
-    "select intake_id::text, tenant_id, matter_id, idempotency_key, request_fingerprint, client_request_id, status, expected_file_count, expected_bytes::text, committed_file_count, committed_bytes::text, observed_page_count, custody_committed_at, ready_at, result_id::text, created_at, updated_at",
+    "select intake_id::text, tenant_id, matter_id, idempotency_key, request_fingerprint, client_request_id, workload_class, status, expected_file_count, expected_bytes::text, committed_file_count, committed_bytes::text, observed_page_count, custody_committed_at, ready_at, result_id::text, created_at, updated_at",
     "from document_intake_extraction.intakes",
     "where tenant_id = $1 and intake_id = $2::uuid",
   ].join("\n"), [tenantId, intakeId]);
@@ -276,6 +277,7 @@ async function readIntakeWithClient(client, tenantId, intakeId) {
     idempotencyKey: row.idempotency_key,
     requestFingerprint: row.request_fingerprint,
     clientRequestId: row.client_request_id || "",
+    workloadClass: row.workload_class,
     status: row.status,
     expectedFileCount: Number(row.expected_file_count),
     expectedBytes: Number(row.expected_bytes),

@@ -16,11 +16,12 @@ export class IntakeProgressService {
     this.clock = clock;
   }
 
-  async getProgress({ tenantId, intakeId, workloadClass = "default", uploadBytesPerSecond = 0 } = {}) {
+  async getProgress({ tenantId, intakeId, workloadClass = "", uploadBytesPerSecond = 0 } = {}) {
     const snapshot = await this.intakeRepository.readProgressSnapshot({ tenantId, intakeId });
     const intake = snapshot.intake;
+    const effectiveWorkloadClass = workloadClass || intake.workloadClass || "mixed_legal";
     const calibration = this.calibration.forTenant ? await this.calibration.forTenant(tenantId) : this.calibration;
-    const corpus = calibration.estimateCorpus(workloadClass);
+    const corpus = calibration.estimateCorpus(effectiveWorkloadClass);
     const currentWeight = snapshot.work.reduce((sum, row) => sum + row.weight, 0);
     const completedWeight = snapshot.work.filter((row) => TERMINAL.has(row.status)).reduce((sum, row) => sum + row.weight, 0);
     const runningWeight = snapshot.work.filter((row) => row.status === "running").reduce((sum, row) => sum + row.weight, 0);
@@ -74,6 +75,7 @@ export class IntakeProgressService {
       intakeId,
       tenantId,
       status: intake.status,
+      workloadClass: effectiveWorkloadClass,
       updatedAt: now.toISOString(),
       upload: {
         committedFiles: intake.committedFileCount,

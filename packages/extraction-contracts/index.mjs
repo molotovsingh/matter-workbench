@@ -15,6 +15,13 @@ export const CONTRACT_VERSIONS = Object.freeze({
   costEvent: "document-intake-extraction.cost-event/v1",
 });
 
+export const WORKLOAD_CLASSES = Object.freeze([
+  "mixed_legal",
+  "born_digital_legal",
+  "archival_legal",
+  "evaluation",
+]);
+
 export const SERVICE_LIMITS = Object.freeze({
   maximumFiles: 500,
   maximumPages: 10_000,
@@ -46,12 +53,17 @@ export function validateCreateIntakeCommand(input = {}) {
     throw contractError(`intake exceeds the ${SERVICE_LIMITS.maximumBytes}-byte service envelope`, "contract.byte_limit_exceeded");
   }
   const clientRequestId = optionalText(input.clientRequestId, 200);
+  const workloadClass = String(input.workloadClass || "mixed_legal");
+  if (!WORKLOAD_CLASSES.includes(workloadClass)) {
+    throw contractError(`unsupported workloadClass: ${workloadClass}`, "contract.workload_class_invalid");
+  }
   return {
     schemaVersion: CONTRACT_VERSIONS.createIntakeCommand,
     tenantId,
     matterId,
     idempotencyKey,
     clientRequestId,
+    workloadClass,
     files,
     expectedBytes,
   };

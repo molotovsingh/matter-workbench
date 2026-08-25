@@ -73,6 +73,7 @@ export class DocumentIntakeExtractionService {
       matterId: command.matterId,
       idempotencyKey: command.idempotencyKey,
       clientRequestId: command.clientRequestId,
+      workloadClass: command.workloadClass,
       status: "awaiting_upload",
       expectedFileCount: files.length,
       expectedBytes: command.expectedBytes,

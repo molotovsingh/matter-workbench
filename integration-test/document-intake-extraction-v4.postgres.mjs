@@ -184,6 +184,7 @@ async function verifyIntakeRepository(runtimeUrl) {
     tenantId,
     matterId: "matter-repository",
     idempotencyKey: "repository-intake-1",
+    workloadClass: "archival_legal",
     files: [
       { originalName: "agreement.pdf", relativePath: "agreement.pdf", expectedBytes: 100 },
       { originalName: "agreement-copy.pdf", relativePath: "copy/agreement.pdf", expectedBytes: 100 },
@@ -193,6 +194,7 @@ async function verifyIntakeRepository(runtimeUrl) {
     const created = await repository.createIntake(command);
     assert.equal(created.idempotent, false);
     assert.equal(created.files.length, 2);
+    assert.equal(created.workloadClass, "archival_legal");
     const replay = await repository.createIntake(command);
     assert.equal(replay.intakeId, created.intakeId);
     assert.equal(replay.idempotent, true);

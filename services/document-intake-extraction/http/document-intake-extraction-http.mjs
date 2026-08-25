@@ -32,6 +32,7 @@ export function createDocumentIntakeExtractionHttpHandler({
           matterId,
           idempotencyKey,
           clientRequestId: cleanHeader(request.headers["x-client-request-id"]),
+          workloadClass: body.workloadClass,
           files: body.files,
         });
         return sendJson(response, intake.idempotent ? 200 : 201, "intake.created", { intake });
