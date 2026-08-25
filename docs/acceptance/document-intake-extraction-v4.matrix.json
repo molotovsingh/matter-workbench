@@ -15,7 +15,7 @@
       "category": "isolation",
       "status": "automated",
       "requirement": "V4 source has no dependency on production routes, legacy extraction, React, or runtime processing services, and production has no V4 caller.",
-      "evidence": ["test/document-intake-extraction-v4-isolation.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4-isolation.test.mjs", "test/document-intake-extraction-v4-composition.test.mjs"]
     },
     {
       "id": "V4-DEPLOY-001",
@@ -36,13 +36,13 @@
       "category": "integration",
       "status": "automated",
       "requirement": "An authenticated versioned HTTP boundary creates and reads intakes/results, rejects document-byte proxy uploads, and fails closed across tenants.",
-      "evidence": ["test/document-intake-extraction-v4-http.test.mjs", "test/document-intake-extraction-v4-postgres-service.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4-http.test.mjs", "test/document-intake-extraction-v4-postgres-service.test.mjs", "test/document-intake-extraction-v4-composition.test.mjs"]
     },
     {
       "id": "V4-OBJECT-001",
       "category": "custody",
       "status": "automated",
-      "requirement": "The S3-compatible boundary issues short-lived regional direct-upload authorization, streams server-side size/hash verification, promotes content-addressed encrypted blobs, suppresses duplicate storage, and bounds in-memory reads.",
+      "requirement": "The S3-compatible boundary issues short-lived regional direct-upload authorization, hashes an exact staging version, promotes it with create-only intent, checkpoints before cleanup, suppresses duplicate storage, and bounds in-memory reads.",
       "evidence": ["test/document-intake-extraction-v4-s3.test.mjs"]
     },
     {
