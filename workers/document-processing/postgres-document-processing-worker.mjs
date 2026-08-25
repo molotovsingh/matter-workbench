@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { providerCapabilityKey } from "../../services/document-intake-extraction/providers/pinned-provider-adapter.mjs";
 
 export class PostgresDocumentProcessingWorker {
-  constructor({ workRepository, resultRepository = null, objectStore, scratchSpace, pageMaterializer, providers = [], validator, leaseMs = 60_000 } = {}) {
+  constructor({ workRepository, resultRepository = null, objectStore, scratchSpace, pageMaterializer, providers = [], validator, repairRouter = null, leaseMs = 60_000 } = {}) {
     if (!workRepository?.claim || !workRepository?.renew || !workRepository?.finishSuccess || !workRepository?.finishFailure) {
       throw new Error("PostgreSQL worker requires a work repository");
     }
@@ -12,6 +12,7 @@ export class PostgresDocumentProcessingWorker {
     if (!pageMaterializer?.materializePage) throw new Error("PostgreSQL worker requires a page materializer");
     if (!validator?.validate || !validator?.version) throw new Error("PostgreSQL worker requires a versioned validator");
     if (resultRepository && !resultRepository.publishReadyIntake) throw new Error("resultRepository.publishReadyIntake is required");
+    if (repairRouter && !repairRouter.select) throw new Error("repairRouter.select is required");
     this.workRepository = workRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
@@ -19,6 +20,7 @@ export class PostgresDocumentProcessingWorker {
     this.pageMaterializer = pageMaterializer;
     this.providers = new Map(providers.map((provider) => [providerCapabilityKey(provider.capability), provider]));
     this.validator = validator;
+    this.repairRouter = repairRouter;
     this.leaseMs = Math.max(1_000, Number(leaseMs) || 60_000);
   }
 
@@ -90,8 +92,9 @@ export class PostgresDocumentProcessingWorker {
       const publications = failed.status === "review_required" ? await this.publishAffected(tenantId, failed) : [];
       return { workUnitId: claim.workUnitId, status: failed.status, errorCode: error.code, publications };
     }
-    const completed = await this.workRepository.finishSuccess({ tenantId, claim, providerResult, validation });
-    const publications = await this.publishAffected(tenantId, completed);
+    const repair = this.repairRouter?.select({ claim, providerResult, validation }) || null;
+    const completed = await this.workRepository.finishSuccess({ tenantId, claim, providerResult, validation, repair });
+    const publications = completed.status === "repair_queued" ? [] : await this.publishAffected(tenantId, completed);
     return { workUnitId: claim.workUnitId, status: completed.status, publications };
   }
 

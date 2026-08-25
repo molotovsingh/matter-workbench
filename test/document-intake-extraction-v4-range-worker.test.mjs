@@ -6,7 +6,9 @@ import path from "node:path";
 import test from "node:test";
 
 import { createPageValidator } from "../services/document-intake-extraction/page-validator.mjs";
+import { GEMINI37_REPAIR_CAPABILITY } from "../services/document-intake-extraction/providers/gemini37-repair-adapter.mjs";
 import { MISTRAL_OCR41_RANGE_CAPABILITY } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
+import { createSelectiveRepairRouter } from "../services/document-intake-extraction/routing/selective-repair-router.mjs";
 import { PostgresDocumentRangeWorker } from "../workers/document-processing/postgres-document-range-worker.mjs";
 import { WorkerScratchSpace } from "../workers/document-processing/worker-scratch-space.mjs";
 
@@ -38,6 +40,31 @@ test("range worker turns contiguous same-document claims into one provider call 
     assert.equal(fixture.repository.failures.length, 0);
     assert.deepEqual(publications, [{ tenantId: "tenant-1", intakeId: "intake-1" }]);
     assert.deepEqual(await readdir(fixture.root), []);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("range worker atomically requests selective page repair without repairing accepted neighbors", async () => {
+  const fixture = await rangeFixture();
+  const worker = new PostgresDocumentRangeWorker({
+    ...fixture.dependencies,
+    repairRouter: createSelectiveRepairRouter({ repairProvider: GEMINI37_REPAIR_CAPABILITY }),
+    providers: [{
+      capability: MISTRAL_OCR41_RANGE_CAPABILITY,
+      async extractPages({ pageNumbers }) {
+        return pageNumbers.map((pageNumber) => pageNumber === 5 ? { ...providerResult(pageNumber), text: "" } : providerResult(pageNumber));
+      },
+    }],
+  });
+  try {
+    const outcome = await worker.runOnce({ tenantId: "tenant-1" });
+    assert.deepEqual(outcome.statuses, ["accepted", "repair_queued", "accepted"]);
+    const repaired = fixture.repository.successes.filter((checkpoint) => checkpoint.repair);
+    assert.equal(repaired.length, 1);
+    assert.equal(repaired[0].claim.pageNumber, 5);
+    assert.deepEqual(repaired[0].repair.capability, GEMINI37_REPAIR_CAPABILITY);
+    assert.match(repaired[0].repair.fingerprint, /^[a-f0-9]{64}$/);
   } finally {
     await fixture.cleanup();
   }
@@ -81,18 +108,20 @@ async function rangeFixture() {
     attemptId: randomUUID(),
     leaseToken: randomUUID(),
     fingerprint: createHash("sha256").update(`page-${pageNumber}`).digest("hex"),
+    tenantId: "tenant-1",
     sourceSha256: sha256,
     sourceBytes: payload.length,
     blobReference: { sha256, objectKey: `blobs/${sha256}` },
     pageNumber,
     capability: MISTRAL_OCR41_RANGE_CAPABILITY,
+    validatorVersion: "page-validator/v1",
   }));
   const repository = {
     claims,
     successes: [], failures: [], renewals: [],
     async claimDocumentLocalBatch() { const result = this.claims; this.claims = []; return result; },
     async renew(input) { this.renewals.push(input); return { renewed: true }; },
-    async finishSuccess(input) { this.successes.push(input); return { status: input.validation.outcome, intakeIds: ["intake-1"] }; },
+    async finishSuccess(input) { this.successes.push(input); return { status: input.repair ? "repair_queued" : input.validation.outcome, intakeIds: ["intake-1"] }; },
     async finishFailure(input) { this.failures.push(input); return { status: "review_required", intakeIds: ["intake-1"] }; },
   };
   const scratchSpace = new WorkerScratchSpace({

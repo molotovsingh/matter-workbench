@@ -125,7 +125,7 @@ export class PostgresWorkRepository {
     });
   }
 
-  async finishSuccess({ tenantId, claim, providerResult, validation } = {}) {
+  async finishSuccess({ tenantId, claim, providerResult, validation, repair = null } = {}) {
     if (!claim?.workUnitId || !claim?.attemptId) throw new Error("work claim is required");
     if (!["accepted", "review_required"].includes(validation?.outcome)) throw new Error("validation outcome is invalid");
     const finishedAt = this.clock().toISOString();
@@ -154,11 +154,14 @@ export class PostgresWorkRepository {
         "set status = $4, output_json = $5::jsonb, active_attempt_id = null, lease_token = null, locked_by = null, locked_at = null, lease_expires_at = null",
         "where tenant_id = $1 and computation_id = $2::uuid and lease_token = $3::uuid and active_attempt_id = $6::uuid",
       ].join("\n"), [tenantId, claim.workUnitId, claim.leaseToken, validation.outcome, JSON.stringify(output), claim.attemptId]);
+      const repairCheckpoint = validation.outcome === "review_required" && repair
+        ? await enqueueRepairWithClient(client, { idFactory: this.idFactory, tenantId, claim, repair, occurredAt: finishedAt })
+        : null;
       await client.query([
         "update document_intake_extraction.computation_demands set fulfilled_at = coalesce(fulfilled_at, $3::timestamptz)",
         "where tenant_id = $1 and computation_id = $2::uuid",
       ].join("\n"), [tenantId, claim.workUnitId, finishedAt]);
-      return { ...locked, status: validation.outcome, output };
+      return { ...locked, status: repairCheckpoint?.pending ? "repair_queued" : validation.outcome, primaryStatus: validation.outcome, output, repair: repairCheckpoint };
     });
   }
 
@@ -212,6 +215,50 @@ export class PostgresWorkRepository {
       return { ...locked, status: terminal ? "review_required" : "queued", output, retryAfterMs: terminal ? null : retryMs };
     });
   }
+}
+
+async function enqueueRepairWithClient(client, { idFactory, tenantId, claim, repair, occurredAt }) {
+  if (!/^[a-f0-9]{64}$/.test(String(repair.fingerprint || ""))) throw new Error("repair fingerprint is invalid");
+  const capability = repair.capability || {};
+  const repairId = idFactory();
+  const inserted = await client.query([
+    "insert into document_intake_extraction.page_computations",
+    "  (computation_id, tenant_id, fingerprint, source_sha256, page_number, provider, model, adapter_version, routing_policy, validator_version,",
+    "   status, priority, weight, maximum_attempts)",
+    "values ($1::uuid, $2, $3, $4, $5::int, $6, $7, $8, $9, $10, 'queued', $11::int, $12::numeric, $13::int)",
+    "on conflict (tenant_id, fingerprint) do update set fingerprint = excluded.fingerprint",
+    "returning computation_id::text, status",
+  ].join("\n"), [
+    repairId, tenantId, repair.fingerprint, claim.sourceSha256, claim.pageNumber,
+    clean(capability.provider, 100), clean(capability.model, 160), clean(capability.adapterVersion, 160),
+    clean(repair.routingPolicy, 160), clean(repair.validatorVersion, 160),
+    boundedInteger(repair.priorityBoost ?? 0, "repair.priorityBoost", 0, 100),
+    nonNegativeNumber(repair.weight, "repair.weight", 1) || 1,
+    boundedInteger(repair.maximumAttempts ?? 2, "repair.maximumAttempts", 1, 10),
+  ]);
+  const row = inserted.rows[0];
+  if (!row) throw repositoryError("repair computation was not created", "v4_postgres.repair_create_failed");
+  const computationId = row.computation_id;
+  await client.query([
+    "insert into document_intake_extraction.computation_supersessions",
+    "  (tenant_id, prior_computation_id, replacement_computation_id, reason)",
+    "values ($1, $2::uuid, $3::uuid, 'selective_repair')",
+    "on conflict (tenant_id, prior_computation_id, replacement_computation_id) do nothing",
+  ].join("\n"), [tenantId, claim.workUnitId, computationId]);
+  await client.query([
+    "insert into document_intake_extraction.computation_demands (tenant_id, intake_id, computation_id, priority, virtual_finish, fulfilled_at)",
+    "select cd.tenant_id, cd.intake_id, $3::uuid, least(100, cd.priority + $4::int), cd.virtual_finish,",
+    "       case when pc.status in ('accepted', 'review_required') then $5::timestamptz else null end",
+    "from document_intake_extraction.computation_demands cd",
+    "join document_intake_extraction.page_computations pc on pc.tenant_id = cd.tenant_id and pc.computation_id = $3::uuid",
+    "where cd.tenant_id = $1 and cd.computation_id = $2::uuid",
+    "on conflict (tenant_id, intake_id, computation_id) do nothing",
+  ].join("\n"), [tenantId, claim.workUnitId, computationId, boundedInteger(repair.priorityBoost ?? 0, "repair.priorityBoost", 0, 100), occurredAt]);
+  await client.query([
+    "update document_intake_extraction.document_pages set computation_id = $3::uuid",
+    "where tenant_id = $1 and computation_id = $2::uuid",
+  ].join("\n"), [tenantId, claim.workUnitId, computationId]);
+  return { computationId, pending: ["queued", "running"].includes(row.status), status: row.status, fingerprint: repair.fingerprint };
 }
 
 async function lockClaim(client, tenantId, claim) {

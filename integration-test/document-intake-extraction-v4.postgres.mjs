@@ -211,16 +211,38 @@ async function verifyIntakeRepository(runtimeUrl) {
     assert.equal((await workRepository.renew({
       tenantId, workUnitId: firstClaim.workUnitId, leaseToken: firstClaim.leaseToken, leaseMs: 60_000,
     })).renewed, true);
-    const accepted = await workRepository.finishSuccess({
+    const primaryReview = await workRepository.finishSuccess({
       tenantId,
       claim: firstClaim,
       providerResult: {
-        text: "Accepted legal page.", finishReason: "complete", requestId: "provider-1",
+        text: "", finishReason: "complete", requestId: "provider-primary",
         usage: { inputUnits: 1, outputUnits: 2 }, billedCostUsd: 0.004,
+      },
+      validation: { outcome: "review_required", reasons: ["empty_or_too_short"], validatorVersion: "validator/v1" },
+      repair: {
+        fingerprint: "3".repeat(64),
+        capability: { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair-adapter/v1" },
+        routingPolicy: "selective-repair/v1",
+        validatorVersion: "validator/v1",
+        maximumAttempts: 2,
+        priorityBoost: 20,
+        weight: 1,
+      },
+    });
+    assert.equal(primaryReview.status, "repair_queued");
+    const repairClaim = await workRepository.claim({ tenantId, workerId: "repository-repair-worker", leaseMs: 60_000 });
+    assert.equal(repairClaim.capability.provider, "google");
+    assert.equal(repairClaim.pageNumber, firstClaim.pageNumber);
+    const repaired = await workRepository.finishSuccess({
+      tenantId,
+      claim: repairClaim,
+      providerResult: {
+        text: "Repaired legal page.", finishReason: "complete", requestId: "provider-repair",
+        usage: { inputUnits: 100, outputUnits: 30 }, billedCostUsd: 0.002,
       },
       validation: { outcome: "accepted", reasons: [], validatorVersion: "validator/v1" },
     });
-    assert.equal(accepted.status, "accepted");
+    assert.equal(repaired.status, "accepted");
     const secondClaim = await workRepository.claim({ tenantId, workerId: "repository-worker-b", leaseMs: 60_000 });
     const review = await workRepository.finishFailure({
       tenantId,
@@ -252,9 +274,10 @@ async function verifyIntakeRepository(runtimeUrl) {
         "select",
         "  (select count(*)::int from document_intake_extraction.provider_attempts where tenant_id = $1) as attempts,",
         "  (select count(*)::int from document_intake_extraction.cost_events where tenant_id = $1) as costs,",
-        "  (select count(*)::int from document_intake_extraction.computation_demands where tenant_id = $1 and fulfilled_at is not null) as fulfilled",
+        "  (select count(*)::int from document_intake_extraction.computation_demands where tenant_id = $1 and fulfilled_at is not null) as fulfilled,",
+        "  (select count(*)::int from document_intake_extraction.computation_supersessions where tenant_id = $1) as supersessions",
       ].join("\n"), [tenantId]);
-      assert.deepEqual(counts.rows[0], { attempts: 2, costs: 2, fulfilled: 2 });
+      assert.deepEqual(counts.rows[0], { attempts: 3, costs: 3, fulfilled: 3, supersessions: 1 });
     } finally {
       evidence.release();
     }

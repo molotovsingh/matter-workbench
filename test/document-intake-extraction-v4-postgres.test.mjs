@@ -12,6 +12,7 @@ import {
 
 const MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/001_control_plane.sql", import.meta.url);
 const DOCUMENT_LOCAL_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/002_document_local_claims.sql", import.meta.url);
+const SELECTIVE_REPAIR_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/003_selective_repair_lineage.sql", import.meta.url);
 
 // V4-DB-001
 test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS, fenced work, cost evidence, and an outbox", async () => {
@@ -41,10 +42,16 @@ test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS
   assert.match(documentLocalSql, /for update of pc skip locked/i);
   assert.match(documentLocalSql, /page_number = seed\.page_number \+ numbered\.contiguous_ordinal - 1/i);
   assert.doesNotMatch(documentLocalSql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
+  const selectiveRepairSql = await readFile(SELECTIVE_REPAIR_MIGRATION, "utf8");
+  assert.match(selectiveRepairSql, /create table document_intake_extraction\.computation_supersessions/i);
+  assert.match(selectiveRepairSql, /force row level security/i);
+  assert.match(selectiveRepairSql, /prior_computation_id <> replacement_computation_id/i);
+  assert.doesNotMatch(selectiveRepairSql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
 
   const runtimeGrants = buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "v4_runtime" });
   assert.match(runtimeGrants, /claim_page_work\(text, integer\)/);
   assert.match(runtimeGrants, /claim_document_local_page_work\(text, integer, integer\)/);
+  assert.match(runtimeGrants, /computation_supersessions/);
   const readGrants = buildDocumentIntakeExtractionReadRoleSql({ roleName: "v4_reader" });
   assert.doesNotMatch(readGrants, /source_blobs|provider_attempts|cost_events/);
   assert.throws(() => buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "v4_runtime; drop schema public" }), {

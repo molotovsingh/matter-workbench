@@ -77,8 +77,8 @@
       "id": "V4-VALIDATE-001",
       "category": "quality",
       "status": "automated",
-      "requirement": "Suspicious provider output becomes review_required rather than silently accepted or omitted.",
-      "evidence": ["test/document-intake-extraction-v4.test.mjs"]
+      "requirement": "Suspicious provider output atomically queues a fingerprinted selective repair when available and otherwise remains review_required; it is never silently accepted or omitted.",
+      "evidence": ["test/document-intake-extraction-v4.test.mjs", "test/document-intake-extraction-v4-range-worker.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-ASSEMBLY-001",

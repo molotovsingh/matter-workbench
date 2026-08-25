@@ -11,6 +11,7 @@ export class PostgresDocumentRangeWorker {
     pageMaterializer,
     providers = [],
     validator,
+    repairRouter = null,
     leaseMs = 60_000,
     maximumPages = 8,
   } = {}) {
@@ -21,6 +22,7 @@ export class PostgresDocumentRangeWorker {
     if (!scratchSpace?.withTaskScratch || !scratchSpace?.materializeBlob) throw new Error("PostgreSQL range worker requires bounded scratch");
     if (!pageMaterializer?.materializePageRange) throw new Error("PostgreSQL range worker requires a range materializer");
     if (!validator?.validate || !validator?.version) throw new Error("PostgreSQL range worker requires a versioned validator");
+    if (repairRouter && !repairRouter.select) throw new Error("repairRouter.select is required");
     this.workRepository = workRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
@@ -28,6 +30,7 @@ export class PostgresDocumentRangeWorker {
     this.pageMaterializer = pageMaterializer;
     this.providers = new Map(providers.map((provider) => [providerCapabilityKey(provider.capability), provider]));
     this.validator = validator;
+    this.repairRouter = repairRouter;
     this.leaseMs = boundedInteger(leaseMs, "leaseMs", 1_000, 15 * 60 * 1000);
     this.maximumPages = boundedInteger(maximumPages, "maximumPages", 1, 32);
   }
@@ -89,13 +92,14 @@ export class PostgresDocumentRangeWorker {
       const providerResult = providerResults[index];
       try {
         const validation = this.validator.validate(providerResult);
-        checkpoints.push(await this.workRepository.finishSuccess({ tenantId, claim, providerResult, validation }));
+        const repair = this.repairRouter?.select({ claim, providerResult, validation }) || null;
+        checkpoints.push(await this.workRepository.finishSuccess({ tenantId, claim, providerResult, validation, repair }));
       } catch (caught) {
         const error = validationFailure(caught, providerResult);
         checkpoints.push(await this.workRepository.finishFailure({ tenantId, claim, error }));
       }
     }
-    const publications = await this.publishAffected(tenantId, checkpoints);
+    const publications = await this.publishAffected(tenantId, checkpoints.filter((checkpoint) => checkpoint.status !== "repair_queued"));
     return {
       workUnitIds: claims.map((claim) => claim.workUnitId),
       firstPage: claims[0].pageNumber,

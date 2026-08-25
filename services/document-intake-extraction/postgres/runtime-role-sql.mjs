@@ -12,6 +12,7 @@ export function buildDocumentIntakeExtractionRuntimeRoleSql({ roleName } = {}) {
     `grant select, insert, update on document_intake_extraction.page_computations to ${role};`,
     `grant select, insert, update on document_intake_extraction.document_pages to ${role};`,
     `grant select, insert, update on document_intake_extraction.computation_demands to ${role};`,
+    `grant select, insert on document_intake_extraction.computation_supersessions to ${role};`,
     `grant select, insert, update on document_intake_extraction.provider_attempts to ${role};`,
     `grant select, insert on document_intake_extraction.cost_events to ${role};`,
     `grant select, insert on document_intake_extraction.extraction_results to ${role};`,
@@ -33,6 +34,7 @@ export function buildDocumentIntakeExtractionReadRoleSql({ roleName } = {}) {
     `grant select on document_intake_extraction.intake_files to ${role};`,
     `grant select on document_intake_extraction.documents to ${role};`,
     `grant select on document_intake_extraction.document_pages to ${role};`,
+    `grant select on document_intake_extraction.computation_supersessions to ${role};`,
     `grant select on document_intake_extraction.extraction_results to ${role};`,
     `grant execute on function document_intake_extraction.current_tenant_id() to ${role};`,
   ].join("\n");
