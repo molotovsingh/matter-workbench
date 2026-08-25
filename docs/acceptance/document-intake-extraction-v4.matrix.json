@@ -120,7 +120,7 @@
       "category": "capacity",
       "status": "automated",
       "requirement": "Provider tasks preserve contiguous same-document locality and pinned capabilities, remain bounded by pages/bytes/time, use hierarchical weighted fairness with a bounded small-job lane, and respect provider admission budgets.",
-      "evidence": ["test/document-intake-extraction-v4-scheduling.test.mjs", "test/document-intake-extraction-v4-range-worker.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
+      "evidence": ["test/document-intake-extraction-v4-scheduling.test.mjs", "test/document-intake-extraction-v4-admission.test.mjs", "test/document-intake-extraction-v4-range-worker.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-OUTBOX-001",

@@ -24,6 +24,7 @@ export function createDocumentIntakeExtractionV4Composition({
   providerStages = [],
   workerCapacity = {},
   validator = createPageValidator(),
+  admissionController = null,
   clock = () => new Date(),
 } = {}) {
   if (!pool?.connect) throw new Error("V4 composition requires a PostgreSQL pool");
@@ -87,6 +88,7 @@ export function createDocumentIntakeExtractionV4Composition({
         providers: [primaryProvider],
         validator,
         repairRouter,
+        admissionController,
         leaseMs,
         maximumPages,
       });
@@ -101,6 +103,7 @@ export function createDocumentIntakeExtractionV4Composition({
         providers: [repairProvider],
         validator,
         repairRouter,
+        admissionController,
         leaseMs,
       });
     },

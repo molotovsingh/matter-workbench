@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { AdaptiveProviderAdmissionController } from "../services/document-intake-extraction/capacity/adaptive-provider-admission.mjs";
 import { createPageValidator } from "../services/document-intake-extraction/page-validator.mjs";
 import { GEMINI37_REPAIR_CAPABILITY } from "../services/document-intake-extraction/providers/gemini37-repair-adapter.mjs";
 import { MISTRAL_OCR41_RANGE_CAPABILITY } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
@@ -65,6 +66,42 @@ test("range worker atomically requests selective page repair without repairing a
     assert.equal(repaired[0].claim.pageNumber, 5);
     assert.deepEqual(repaired[0].repair.capability, GEMINI37_REPAIR_CAPABILITY);
     assert.match(repaired[0].repair.fingerprint, /^[a-f0-9]{64}$/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("range worker defers before claiming when provider admission is exhausted and feeds 429 cooldown back", async () => {
+  const fixture = await rangeFixture();
+  let nowMs = Date.parse("2026-08-24T12:00:00.000Z");
+  const admissionController = new AdaptiveProviderAdmissionController({
+    capabilities: [{ capability: MISTRAL_OCR41_RANGE_CAPABILITY, maximumConcurrent: 1, pageOperationsPerSecond: 8, burstPageOperations: 8 }],
+    clock: () => new Date(nowMs),
+  });
+  const held = admissionController.acquire(MISTRAL_OCR41_RANGE_CAPABILITY, { weight: 1 });
+  const worker = new PostgresDocumentRangeWorker({
+    ...fixture.dependencies,
+    admissionController,
+    providers: [{
+      capability: MISTRAL_OCR41_RANGE_CAPABILITY,
+      async extractPages() {
+        const error = new Error("rate limited");
+        error.code = "provider.http_429";
+        error.retryable = true;
+        throw error;
+      },
+    }],
+  });
+  try {
+    const deferred = await worker.runOnce({ tenantId: "tenant-1" });
+    assert.equal(deferred.status, "deferred");
+    assert.equal(deferred.admissionReason, "provider_concurrency_exhausted");
+    assert.equal(fixture.repository.claims.length, 3, "deferred admission must not consume a durable claim");
+    admissionController.cancel(held.permit);
+    const failed = await worker.runOnce({ tenantId: "tenant-1" });
+    assert.equal(failed.errorCode, "provider.http_429");
+    assert.equal(admissionController.snapshot(MISTRAL_OCR41_RANGE_CAPABILITY).throttles, 1);
+    assert.ok(admissionController.snapshot(MISTRAL_OCR41_RANGE_CAPABILITY).cooldownRemainingMs >= 1000);
   } finally {
     await fixture.cleanup();
   }

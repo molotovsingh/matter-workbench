@@ -12,6 +12,7 @@ export class PostgresDocumentRangeWorker {
     providers = [],
     validator,
     repairRouter = null,
+    admissionController = null,
     leaseMs = 60_000,
     maximumPages = 8,
   } = {}) {
@@ -23,6 +24,10 @@ export class PostgresDocumentRangeWorker {
     if (!pageMaterializer?.materializePageRange) throw new Error("PostgreSQL range worker requires a range materializer");
     if (!validator?.validate || !validator?.version) throw new Error("PostgreSQL range worker requires a versioned validator");
     if (repairRouter && !repairRouter.select) throw new Error("repairRouter.select is required");
+    if (admissionController && (!admissionController.acquire || !admissionController.complete || !admissionController.cancel)) {
+      throw new Error("admissionController requires acquire, complete, and cancel");
+    }
+    if (admissionController && providers.length !== 1) throw new Error("admission-controlled range workers require one dedicated provider capability");
     this.workRepository = workRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
@@ -31,23 +36,38 @@ export class PostgresDocumentRangeWorker {
     this.providers = new Map(providers.map((provider) => [providerCapabilityKey(provider.capability), provider]));
     this.validator = validator;
     this.repairRouter = repairRouter;
+    this.admissionController = admissionController;
+    this.admissionCapability = providers[0]?.capability || null;
     this.leaseMs = boundedInteger(leaseMs, "leaseMs", 1_000, 15 * 60 * 1000);
     this.maximumPages = boundedInteger(maximumPages, "maximumPages", 1, 32);
   }
 
   async runOnce({ tenantId, workerId = "postgres-document-range-worker" } = {}) {
-    const claims = await this.workRepository.claimDocumentLocalBatch({
-      tenantId, workerId, maximumPages: this.maximumPages, leaseMs: this.leaseMs,
-    });
-    if (!claims.length) return null;
+    const admission = this.admissionController?.acquire(this.admissionCapability, { weight: this.maximumPages }) || { admitted: true, permit: null };
+    if (!admission.admitted) return { status: "deferred", admissionReason: admission.reason, retryAfterMs: admission.retryAfterMs };
+    let claims;
+    try {
+      claims = await this.workRepository.claimDocumentLocalBatch({
+        tenantId, workerId, maximumPages: this.maximumPages, leaseMs: this.leaseMs,
+      });
+    } catch (error) {
+      if (admission.permit) this.admissionController.cancel(admission.permit);
+      throw error;
+    }
+    if (!claims.length) {
+      if (admission.permit) this.admissionController.cancel(admission.permit);
+      return null;
+    }
     const capability = claims[0].capability;
     const provider = this.providers.get(providerCapabilityKey(capability));
     if (!provider?.extractPages) {
+      if (admission.permit) this.admissionController.cancel(admission.permit);
       const error = measuredLocalError(`no range provider registered for ${capability.provider}/${capability.model}`, "worker.provider_unavailable");
       return this.finishFailures({ tenantId, claims, error });
     }
     const stopHeartbeat = this.startHeartbeat({ tenantId, claims });
     let providerResults;
+    let providerStarted = false;
     try {
       const maximumOutputBytes = Number(this.pageMaterializer.maximumRangeBytes || 0);
       providerResults = await this.scratchSpace.withTaskScratch({
@@ -66,6 +86,7 @@ export class PostgresDocumentRangeWorker {
           lastPage: claims.at(-1).pageNumber,
           allocation,
         });
+        providerStarted = true;
         return provider.extractPages({
           pageNumbers: claims.map((claim) => claim.pageNumber),
           sourceSha256: claims[0].sourceSha256,
@@ -81,8 +102,13 @@ export class PostgresDocumentRangeWorker {
       if (!Array.isArray(providerResults) || providerResults.length !== claims.length) {
         throw measuredLocalError("range provider returned an invalid result count", "worker.provider_result_count_invalid");
       }
+      if (admission.permit) this.admissionController.complete(admission.permit, { outcome: "success" });
     } catch (caught) {
       stopHeartbeat();
+      if (admission.permit) {
+        if (providerStarted) this.admissionController.complete(admission.permit, admissionOutcome(caught));
+        else this.admissionController.cancel(admission.permit);
+      }
       return this.finishFailures({ tenantId, claims, error: normalizePreProviderFailure(caught) });
     }
     stopHeartbeat();
@@ -211,6 +237,14 @@ function measuredLocalError(message, code) {
   error.billedCostUsd = 0;
   error.usage = { inputUnits: 0, outputUnits: 0 };
   return error;
+}
+
+function admissionOutcome(error) {
+  const code = String(error?.code || "");
+  if (code === "provider.http_429" || code === "provider.rate_limited") {
+    return { outcome: "throttled", retryAfterMs: Number(error?.retryAfterMs || 0) };
+  }
+  return { outcome: "failed" };
 }
 
 function boundedInteger(value, field, minimum, maximum) {

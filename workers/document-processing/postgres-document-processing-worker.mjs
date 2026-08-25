@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { providerCapabilityKey } from "../../services/document-intake-extraction/providers/pinned-provider-adapter.mjs";
 
 export class PostgresDocumentProcessingWorker {
-  constructor({ workRepository, resultRepository = null, objectStore, scratchSpace, pageMaterializer, providers = [], validator, repairRouter = null, leaseMs = 60_000 } = {}) {
+  constructor({ workRepository, resultRepository = null, objectStore, scratchSpace, pageMaterializer, providers = [], validator, repairRouter = null, admissionController = null, leaseMs = 60_000 } = {}) {
     if (!workRepository?.claim || !workRepository?.renew || !workRepository?.finishSuccess || !workRepository?.finishFailure) {
       throw new Error("PostgreSQL worker requires a work repository");
     }
@@ -13,6 +13,10 @@ export class PostgresDocumentProcessingWorker {
     if (!validator?.validate || !validator?.version) throw new Error("PostgreSQL worker requires a versioned validator");
     if (resultRepository && !resultRepository.publishReadyIntake) throw new Error("resultRepository.publishReadyIntake is required");
     if (repairRouter && !repairRouter.select) throw new Error("repairRouter.select is required");
+    if (admissionController && (!admissionController.acquire || !admissionController.complete || !admissionController.cancel)) {
+      throw new Error("admissionController requires acquire, complete, and cancel");
+    }
+    if (admissionController && providers.length !== 1) throw new Error("admission-controlled page workers require one dedicated provider capability");
     this.workRepository = workRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
@@ -21,14 +25,28 @@ export class PostgresDocumentProcessingWorker {
     this.providers = new Map(providers.map((provider) => [providerCapabilityKey(provider.capability), provider]));
     this.validator = validator;
     this.repairRouter = repairRouter;
+    this.admissionController = admissionController;
+    this.admissionCapability = providers[0]?.capability || null;
     this.leaseMs = Math.max(1_000, Number(leaseMs) || 60_000);
   }
 
   async runOnce({ tenantId, workerId = "postgres-document-worker" } = {}) {
-    const claim = await this.workRepository.claim({ tenantId, workerId, leaseMs: this.leaseMs });
-    if (!claim) return null;
+    const admission = this.admissionController?.acquire(this.admissionCapability, { weight: 1 }) || { admitted: true, permit: null };
+    if (!admission.admitted) return { status: "deferred", admissionReason: admission.reason, retryAfterMs: admission.retryAfterMs };
+    let claim;
+    try {
+      claim = await this.workRepository.claim({ tenantId, workerId, leaseMs: this.leaseMs });
+    } catch (error) {
+      if (admission.permit) this.admissionController.cancel(admission.permit);
+      throw error;
+    }
+    if (!claim) {
+      if (admission.permit) this.admissionController.cancel(admission.permit);
+      return null;
+    }
     const provider = this.providers.get(providerCapabilityKey(claim.capability));
     if (!provider) {
+      if (admission.permit) this.admissionController.cancel(admission.permit);
       const error = measuredLocalError(`no provider registered for ${claim.capability.provider}/${claim.capability.model}`, "worker.provider_unavailable");
       const failed = await this.workRepository.finishFailure({ tenantId, claim, error });
       const publications = failed.status === "review_required" ? await this.publishAffected(tenantId, failed) : [];
@@ -37,6 +55,7 @@ export class PostgresDocumentProcessingWorker {
 
     const stopHeartbeat = this.startHeartbeat({ tenantId, claim });
     let providerResult;
+    let providerStarted = false;
     try {
       providerResult = await this.scratchSpace.withTaskScratch({
         taskId: claim.workUnitId,
@@ -53,6 +72,7 @@ export class PostgresDocumentProcessingWorker {
           pageNumber: claim.pageNumber,
           allocation,
         });
+        providerStarted = true;
         return provider.extractPage({
           pageNumber: claim.pageNumber,
           sourceSha256: claim.sourceSha256,
@@ -70,8 +90,13 @@ export class PostgresDocumentProcessingWorker {
           }),
         });
       });
+      if (admission.permit) this.admissionController.complete(admission.permit, { outcome: "success" });
     } catch (caught) {
       stopHeartbeat();
+      if (admission.permit) {
+        if (providerStarted) this.admissionController.complete(admission.permit, admissionOutcome(caught));
+        else this.admissionController.cancel(admission.permit);
+      }
       const error = normalizePreProviderFailure(caught);
       const failed = await this.workRepository.finishFailure({ tenantId, claim, error });
       const publications = failed.status === "review_required" ? await this.publishAffected(tenantId, failed) : [];
@@ -118,6 +143,7 @@ export class PostgresDocumentProcessingWorker {
       const outcome = await this.runOnce({ tenantId, workerId });
       if (!outcome) break;
       outcomes.push(outcome);
+      if (outcome.status === "deferred") break;
     }
     return outcomes;
   }
@@ -147,6 +173,14 @@ function normalizePreProviderFailure(error) {
     return error;
   }
   return measuredLocalError("worker failed before provider completion", "worker.local_failure");
+}
+
+function admissionOutcome(error) {
+  const code = String(error?.code || "");
+  if (code === "provider.http_429" || code === "provider.rate_limited") {
+    return { outcome: "throttled", retryAfterMs: Number(error?.retryAfterMs || 0) };
+  }
+  return { outcome: "failed" };
 }
 
 function measuredLocalError(message, code) {
