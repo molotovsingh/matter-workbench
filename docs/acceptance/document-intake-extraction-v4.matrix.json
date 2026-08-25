@@ -64,7 +64,7 @@
       "category": "resilience",
       "status": "automated",
       "requirement": "Page work is durable, leased, ownership-fenced, restartable, and does not repeat completed provider work.",
-      "evidence": ["test/document-intake-extraction-v4.test.mjs", "test/document-intake-extraction-v4-worker.test.mjs", "test/document-intake-extraction-v4-range-worker.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
+      "evidence": ["test/document-intake-extraction-v4.test.mjs", "test/document-intake-extraction-v4-worker.test.mjs", "test/document-intake-extraction-v4-range-worker.test.mjs", "test/document-intake-extraction-v4-worker-loop.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-PROVIDER-001",

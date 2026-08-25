@@ -55,6 +55,7 @@ test("isolated composition joins PostgreSQL, direct custody, primary ranges, sel
     authenticate: async () => ({ tenantId: "tenant-1" }),
     authorizeMatter: async () => true,
   }), "function");
+  assert.ok(composition.createWorkerLoop({ worker: repairWorker, tenantId: "tenant-1", concurrency: 1 }));
   assert.ok(composition.createCapacityManager({ provisioner: { setDesiredCapacity: async () => ({ observedWorkers: 1 }) } }));
   assert.ok(composition.createOutboxDispatcher({ deliver: async () => {} }));
 });

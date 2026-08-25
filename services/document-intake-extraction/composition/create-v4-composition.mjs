@@ -17,6 +17,7 @@ import { PostgresResultRepository } from "../postgres/postgres-result-repository
 import { PostgresUploadAuthorizationStore } from "../postgres/postgres-upload-authorization-store.mjs";
 import { PostgresWorkRepository } from "../postgres/postgres-work-repository.mjs";
 import { createSelectiveRepairRouter } from "../routing/selective-repair-router.mjs";
+import { BoundedDocumentWorkerLoop } from "../../../workers/document-processing/bounded-worker-loop.mjs";
 import { PostgresDocumentProcessingWorker } from "../../../workers/document-processing/postgres-document-processing-worker.mjs";
 import { PostgresDocumentRangeWorker } from "../../../workers/document-processing/postgres-document-range-worker.mjs";
 
@@ -122,6 +123,9 @@ export function createDocumentIntakeExtractionV4Composition({
         clock,
         leaseMs,
       });
+    },
+    createWorkerLoop(options = {}) {
+      return new BoundedDocumentWorkerLoop(options);
     },
     createCapacityManager({ provisioner, requestTtlMs, baseRetryMs, maximumRetryMs } = {}) {
       return new PredictiveBurstCapacityManager({

@@ -18,6 +18,8 @@ export class PostgresAuditStore {
     const normalizedResourceType = dotted(resourceType, "resourceType", 80);
     const normalizedResourceId = cleanRequired(resourceId, "resourceId", 240);
     const normalizedIdempotencyKey = cleanRequired(idempotencyKey, "idempotencyKey", 300);
+    const normalizedActorType = normalizeActorType(actorType);
+    const normalizedActorId = cleanRequired(actorId, "actorId", 200);
     const timestamp = iso(occurredAt, "occurredAt");
     return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
       const result = await client.query([
@@ -28,7 +30,7 @@ export class PostgresAuditStore {
         "returning *",
       ].join("\n"), [
         this.idFactory(), tenantId, normalizedEventType, normalizedResourceType,
-        normalizedResourceId, normalizeActorType(actorType), cleanRequired(actorId, "actorId", 200),
+        normalizedResourceId, normalizedActorType, normalizedActorId,
         normalizedIdempotencyKey, JSON.stringify(normalizedDetails), timestamp,
       ]);
       if (result.rows[0]) return mapEvent(result.rows[0], false);
@@ -38,7 +40,9 @@ export class PostgresAuditStore {
       ].join("\n"), [tenantId, normalizedEventType, normalizedIdempotencyKey]);
       if (!existing.rows[0]) throw auditError("audit append conflicted during replay", "audit.append_conflict");
       const mapped = mapEvent(existing.rows[0], true);
-      if (mapped.resourceType !== normalizedResourceType || mapped.resourceId !== normalizedResourceId || canonicalJson(mapped.details) !== canonicalJson(normalizedDetails)) {
+      if (mapped.resourceType !== normalizedResourceType || mapped.resourceId !== normalizedResourceId
+        || mapped.actorType !== normalizedActorType || mapped.actorId !== normalizedActorId
+        || canonicalJson(mapped.details) !== canonicalJson(normalizedDetails)) {
         throw auditError("audit idempotency key was reused for different evidence", "audit.idempotency_conflict");
       }
       return mapped;
