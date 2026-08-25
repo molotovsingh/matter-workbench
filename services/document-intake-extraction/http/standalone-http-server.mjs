@@ -2,7 +2,7 @@ import http from "node:http";
 
 export function createDocumentIntakeExtractionHttpServer({
   handler,
-  readinessCheck = async () => ({ ready: true }),
+  readinessCheck,
   readinessTimeoutMs = 5_000,
   requestTimeoutMs = 30_000,
   headersTimeoutMs = 10_000,

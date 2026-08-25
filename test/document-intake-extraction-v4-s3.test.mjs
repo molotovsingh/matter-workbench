@@ -30,6 +30,7 @@ test("V4-OBJECT-001 authorizes direct regional uploads, streams server hashing, 
     clock,
     tokenFactory: () => `token-${String(++tokenSequence).padStart(58, "x")}`,
   });
+  assert.deepEqual(await store.checkHealth(), { available: true, dataRegion: "ap-southeast-2" });
   const payload = Buffer.from("immutable legal PDF bytes");
   const first = await store.createUploadAuthorization({
     tenantId: "tenant-1",
@@ -160,6 +161,7 @@ test("S3 custody fails closed on wrong scope, size drift, corrupt existing blob 
 
 function fakeS3Client(objects, calls) {
   return {
+    async headBucket(input) { calls.push({ method: "headBucket", ...input }); return {}; },
     async headObject({ key }) {
       calls.push({ method: "headObject", key });
       const object = objects.get(key);

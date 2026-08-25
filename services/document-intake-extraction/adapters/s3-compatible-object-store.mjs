@@ -42,6 +42,14 @@ export class S3CompatibleObjectStore {
 
   async initialize() {}
 
+  async checkHealth() {
+    if (typeof this.client.headBucket !== "function") {
+      throw objectError("object-store health check is not configured", "object.health_check_unavailable");
+    }
+    await this.client.headBucket({ bucket: this.bucket, region: this.region });
+    return { available: true, dataRegion: this.region };
+  }
+
   async createUploadAuthorization({ tenantId, intakeId, fileId, expectedBytes, expiresAt, mimeType = "application/pdf" } = {}) {
     const normalizedTenantId = safeId(tenantId, "tenantId");
     const normalizedIntakeId = safeId(intakeId, "intakeId");

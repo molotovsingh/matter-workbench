@@ -18,6 +18,7 @@ import { PostgresResultRepository } from "../postgres/postgres-result-repository
 import { PostgresUploadAuthorizationStore } from "../postgres/postgres-upload-authorization-store.mjs";
 import { PostgresWorkRepository } from "../postgres/postgres-work-repository.mjs";
 import { createSelectiveRepairRouter } from "../routing/selective-repair-router.mjs";
+import { createDocumentIntakeExtractionReadinessCheck } from "../readiness/service-readiness.mjs";
 import { BoundedDocumentWorkerLoop } from "../../../workers/document-processing/bounded-worker-loop.mjs";
 import { PostgresDocumentProcessingWorker } from "../../../workers/document-processing/postgres-document-processing-worker.mjs";
 import { PostgresDocumentRangeWorker } from "../../../workers/document-processing/postgres-document-range-worker.mjs";
@@ -91,6 +92,9 @@ export function createDocumentIntakeExtractionV4Composition({
     repairRouter,
     createHttpHandler({ authenticate, authorizeMatter, maximumBodyBytes } = {}) {
       return createDocumentIntakeExtractionHttpHandler({ service, authenticate, authorizeMatter, maximumBodyBytes });
+    },
+    createReadinessCheck(options = {}) {
+      return createDocumentIntakeExtractionReadinessCheck({ pool, objectStore, ...options });
     },
     createHttpServer({ authenticate, authorizeMatter, maximumBodyBytes, readinessCheck, ...serverOptions } = {}) {
       const handler = createDocumentIntakeExtractionHttpHandler({ service, authenticate, authorizeMatter, maximumBodyBytes });
