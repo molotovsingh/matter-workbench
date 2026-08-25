@@ -135,6 +135,7 @@ export class DocumentProcessingWorker {
         costMeasurementStatus: "pending",
         errorCode: "",
         errorMessage: "",
+        retryable: null,
       });
       return structuredClone({ ...work, leaseToken, attemptId });
     });
@@ -191,18 +192,19 @@ export class DocumentProcessingWorker {
         costMeasurementStatus: billingKnown ? "measured" : "unknown_requires_reconciliation",
         errorCode: clean(error?.code || "provider.failed", 120),
         errorMessage: clean(error?.message || error || "provider call failed", 500),
+        retryable: error?.retryable !== false,
       });
       recordCostEvent(state, attempt, work, { idFactory: this.idFactory, occurredAt: finishedAt });
       work.lease = null;
       work.updatedAt = finishedAt;
-      if (work.attemptCount < work.maximumAttempts) {
+      if (attempt.retryable && work.attemptCount < work.maximumAttempts) {
         work.status = "queued";
       } else {
         work.status = "review_required";
         work.output = {
           text: "",
           finishReason: "failed",
-          reviewReasons: ["provider_attempts_exhausted", attempt.errorCode],
+          reviewReasons: [attempt.retryable ? "provider_attempts_exhausted" : "provider_failure_not_retryable", attempt.errorCode],
           validatorVersion: this.validator.version,
           attemptId: attempt.attemptId,
           requestId: "",

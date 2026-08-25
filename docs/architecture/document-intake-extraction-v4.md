@@ -30,7 +30,7 @@ Matter Workbench must not call providers or read processing tables. V4 must not 
 
 - **Object storage:** immutable staged uploads, content-addressed source blobs, page artifacts, and versioned result artifacts. The S3-compatible boundary uses short-lived direct PUT authorization, explicit region/encryption headers, streamed server-side size/SHA-256 verification, verified promotion, and staged-object deletion. Large reads must stream to bounded worker scratch rather than enter process memory.
 - **Control plane:** logical upload provenance, intake/batch state, hashed upload-authorization tokens, document-to-blob references, computation fingerprints, durable page work, leases, attempts, cost events, validation outcomes, result versions, and outbox events. Raw upload tokens are returned once and never persisted.
-- **Workers:** bounded encrypted scratch only. A worker can disappear without losing authoritative state or requiring completed paid work to be repeated.
+- **Workers:** bounded encrypted scratch only. The scratch boundary streams instead of buffering large blobs, reserves minimum free disk, prevents path traversal, re-verifies SHA-256, deletes allocations after success/failure, and scavenges abandoned allocations. Volume/container encryption remains an infrastructure requirement. A worker can disappear without losing authoritative state or requiring completed paid work to be repeated.
 - **Matter Workbench:** tenant/matter identity, permissions, user-facing state, and references to published normalized results.
 
 ## Custody and computation
@@ -45,7 +45,7 @@ Matter Workbench must not call providers or read processing tables. V4 must not 
 
 ## Routing and validation
 
-Routing selects capabilities rather than mandatory stages. Native extraction, Mistral, Gemini, Textract, and future local/GPU implementations are adapters behind the same provider-result contract. Provider, pinned model, adapter version, route policy, validator version, source hash, and page number form the computation fingerprint.
+Routing selects capabilities rather than mandatory stages. Native extraction, Mistral, Gemini, Textract, and future local/GPU implementations are adapters behind the same provider-result contract. Isolated HTTP adapters now exist for pinned `mistral-ocr-4-1` primary pages and `gemini-3.7-flash` LOW repair pages; they use bounded page inputs, hard timeouts, structured output, request IDs, redacted errors, and measured per-page/token cost including Gemini thinking tokens. They are evidence-only and have made no provider calls in V4. Provider, pinned model, adapter version, route policy, validator version, source hash, and page number form the computation fingerprint.
 
 Completeness and legal-critical validation are hard gates. Only accepted candidates compete using the 70% quality / 30% speed preference. Every provider attempt—including throttles, retries, failures, speculative work, and failover—must be attributed for latency, usage, and billed/logical cost.
 

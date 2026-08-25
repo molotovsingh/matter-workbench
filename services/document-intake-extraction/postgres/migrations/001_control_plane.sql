@@ -180,6 +180,7 @@ create table document_intake_extraction.provider_attempts (
   cost_measurement_status text not null check (cost_measurement_status in ('pending', 'measured', 'unknown_requires_reconciliation')),
   error_code text,
   error_message text,
+  retryable boolean,
   started_at timestamptz not null,
   finished_at timestamptz,
   latency_ms bigint check (latency_ms is null or latency_ms >= 0),

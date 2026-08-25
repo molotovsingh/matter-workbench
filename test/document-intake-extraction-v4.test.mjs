@@ -164,6 +164,36 @@ test("V4-EVIDENCE-001 attributes billed cost and usage for failed attempts and s
   }
 });
 
+test("non-retryable provider failures stop after one measured attempt and remain explicit review outcomes", async () => {
+  const fixture = await createFixture({
+    providerImplementation: async () => {
+      const error = new Error("structured provider response was invalid");
+      error.code = "provider.invalid_response";
+      error.retryable = false;
+      error.billingKnown = true;
+      error.billedCostUsd = 0.003;
+      error.usage = { inputUnits: 5, outputUnits: 2 };
+      throw error;
+    },
+  });
+  try {
+    const pdf = makePdf("Non retryable evidence");
+    const intake = await fixture.service.createIntake(createCommand([{ originalName: "invalid.pdf", expectedBytes: pdf.length }]));
+    await uploadAndCommitAll(fixture, intake, [pdf]);
+    await fixture.service.commitBatchCustody({ intakeId: intake.intakeId });
+    const runs = await fixture.worker.drain({ workerId: "non-retry-worker" });
+    assert.equal(runs.length, 1);
+    const evidence = await fixture.service.getEvidence({ intakeId: intake.intakeId });
+    assert.equal(evidence.attempts.length, 1);
+    assert.equal(evidence.attempts[0].retryable, false);
+    assert.equal(evidence.costEvents[0].billedCostUsd, 0.003);
+    assert.equal(evidence.result.status, "ready_with_review");
+    assert.deepEqual(evidence.result.documents[0].pages[0].reviewReasons, ["provider_failure_not_retryable", "provider.invalid_response"]);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("page work rejects a stale worker checkpoint after lease ownership moves", async () => {
   const fixture = await createFixture({
     leaseMs: 1_000,
