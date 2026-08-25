@@ -51,10 +51,12 @@ test("isolated composition joins PostgreSQL, direct custody, primary ranges, sel
   });
   assert.ok(rangeWorker instanceof PostgresDocumentRangeWorker);
   assert.ok(repairWorker instanceof PostgresDocumentProcessingWorker);
-  assert.equal(typeof composition.createHttpHandler({
+  const httpOptions = {
     authenticate: async () => ({ tenantId: "tenant-1" }),
     authorizeMatter: async () => true,
-  }), "function");
+  };
+  assert.equal(typeof composition.createHttpHandler(httpOptions), "function");
+  assert.ok(composition.createHttpServer({ ...httpOptions, readinessCheck: async () => ({ ready: true }) }));
   assert.ok(composition.createWorkerLoop({ worker: repairWorker, tenantId: "tenant-1", concurrency: 1 }));
   assert.ok(composition.createCapacityManager({ provisioner: { setDesiredCapacity: async () => ({ observedWorkers: 1 }) } }));
   assert.ok(composition.createOutboxDispatcher({ deliver: async () => {} }));

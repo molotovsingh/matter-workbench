@@ -4,6 +4,7 @@ import { PredictiveBurstCapacityManager } from "../capacity/predictive-burst-cap
 import { IntakeProgressService } from "../progress/intake-progress-service.mjs";
 import { OutboxDispatcher } from "../events/outbox-dispatcher.mjs";
 import { createDocumentIntakeExtractionHttpHandler } from "../http/document-intake-extraction-http.mjs";
+import { createDocumentIntakeExtractionHttpServer } from "../http/standalone-http-server.mjs";
 import { PostgresAuditStore } from "../postgres/postgres-audit-store.mjs";
 import { PostgresDocumentIntakeExtractionService } from "../postgres/postgres-document-intake-extraction-service.mjs";
 import { PostgresWorkerCapacityStore } from "../postgres/postgres-worker-capacity-store.mjs";
@@ -90,6 +91,10 @@ export function createDocumentIntakeExtractionV4Composition({
     repairRouter,
     createHttpHandler({ authenticate, authorizeMatter, maximumBodyBytes } = {}) {
       return createDocumentIntakeExtractionHttpHandler({ service, authenticate, authorizeMatter, maximumBodyBytes });
+    },
+    createHttpServer({ authenticate, authorizeMatter, maximumBodyBytes, readinessCheck, ...serverOptions } = {}) {
+      const handler = createDocumentIntakeExtractionHttpHandler({ service, authenticate, authorizeMatter, maximumBodyBytes });
+      return createDocumentIntakeExtractionHttpServer({ handler, readinessCheck, ...serverOptions });
     },
     createRangeWorker({ scratchSpace, pageMaterializer, leaseMs, maximumPages } = {}) {
       return new PostgresDocumentRangeWorker({
