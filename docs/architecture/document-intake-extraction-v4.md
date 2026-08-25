@@ -53,7 +53,9 @@ Completeness and legal-critical validation are hard gates. Only accepted candida
 
 The production control plane will use owned PostgreSQL state and leased/fenced page work. Scheduling is weighted-fair across tenants/matters, preserves a small-job fast lane, and prefers same-document provider ranges. A small pre-warmed worker baseline protects latency; predicted page/byte volume and upload progress start burst workers before batch commit. Provider admission follows live quotas, throttling, latency, and route capacity.
 
-The current filesystem adapters are deliberately an isolated vertical-slice reference. They prove state transitions and restart semantics but are not multi-process production substitutes for PostgreSQL and S3-compatible storage.
+The isolated capacity planner combines upload progress, corpus page density/route mix, queue depth, rolling provider throughput/throttling, local worker throughput, scratch capacity, and boot latency. It emits ranges and named exception reasons rather than a false precise countdown, and uses the remaining upload window to request burst workers. Its rolling calibrator keeps workload classes separate so PDFEval-like and large mixed legal corpora do not share one misleading density assumption.
+
+The current filesystem adapters and in-memory calibration model are deliberately isolated vertical-slice references. They prove state transitions, restart semantics, and capacity decisions but are not multi-process production substitutes for PostgreSQL, S3-compatible storage, and durable telemetry.
 
 ## Publication and integration
 
