@@ -58,6 +58,62 @@ export class PostgresWorkRepository {
     });
   }
 
+  async claimDocumentLocalBatch({ tenantId, workerId, maximumPages = 8, leaseMs = 60_000 } = {}) {
+    const owner = clean(workerId, 200);
+    if (!owner) throw new Error("work batch claim requires workerId");
+    const pages = boundedInteger(maximumPages, "maximumPages", 1, 32);
+    const milliseconds = boundedInteger(leaseMs, "leaseMs", 1_000, 15 * 60 * 1000);
+    return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        "select * from document_intake_extraction.claim_document_local_page_work($1, $2::int, $3::int)",
+        [owner, pages, milliseconds],
+      );
+      const rows = result.rows.sort((left, right) => Number(left.page_number) - Number(right.page_number));
+      if (!rows.length) return [];
+      const sourceSha256 = String(rows[0].source_sha256);
+      if (rows.some((row, index) => String(row.source_sha256) !== sourceSha256 || Number(row.page_number) !== Number(rows[0].page_number) + index)) {
+        throw repositoryError("database returned a non-contiguous document-local claim", "v4_postgres.batch_claim_invalid");
+      }
+      const blob = await client.query("select object_key, bytes::text from document_intake_extraction.source_blobs where sha256 = $1", [sourceSha256]);
+      if (!blob.rows[0]) throw repositoryError("claimed work source blob was missing", "v4_postgres.source_blob_missing");
+      const claims = [];
+      for (const row of rows) {
+        const attemptId = this.idFactory();
+        const startedAt = this.clock().toISOString();
+        await client.query([
+          "insert into document_intake_extraction.provider_attempts",
+          "  (attempt_id, tenant_id, computation_id, fingerprint, provider, model, adapter_version, attempt_number, status, cost_measurement_status, started_at)",
+          "values ($1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8::int, 'running', 'pending', $9::timestamptz)",
+        ].join("\n"), [attemptId, tenantId, row.computation_id, row.fingerprint, row.provider, row.model, row.adapter_version, row.attempt_count, startedAt]);
+        const activated = await client.query([
+          "update document_intake_extraction.page_computations set active_attempt_id = $4::uuid",
+          "where tenant_id = $1 and computation_id = $2::uuid and status = 'running' and lease_token = $3::uuid and active_attempt_id is null",
+          "returning computation_id",
+        ].join("\n"), [tenantId, row.computation_id, row.lease_token, attemptId]);
+        if (!activated.rows[0]) throw leaseLost();
+        claims.push({
+          workUnitId: String(row.computation_id),
+          fingerprint: String(row.fingerprint),
+          tenantId,
+          sourceSha256,
+          blobReference: { sha256: sourceSha256, objectKey: blob.rows[0].object_key },
+          sourceBytes: Number(blob.rows[0].bytes),
+          pageNumber: Number(row.page_number),
+          capability: { provider: row.provider, model: row.model, adapterVersion: row.adapter_version },
+          routingPolicy: row.routing_policy,
+          validatorVersion: row.validator_version,
+          attemptCount: Number(row.attempt_count),
+          maximumAttempts: Number(row.maximum_attempts),
+          leaseToken: String(row.lease_token),
+          leaseExpiresAt: iso(row.lease_expires_at),
+          attemptId,
+          startedAt,
+        });
+      }
+      return claims;
+    });
+  }
+
   async renew({ tenantId, workUnitId, leaseToken, leaseMs = 60_000 } = {}) {
     return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
       const result = await client.query(

@@ -36,14 +36,17 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
     const adminPool = new pg.Pool({ connectionString: databaseAdminUrl, max: 2 });
     try {
       const first = await runDocumentIntakeExtractionMigrations({ pool: adminPool });
-      assert.deepEqual(first.migrations.map((migration) => migration.status), ["applied"]);
+      assert.ok(first.migrations.length >= 2);
+      assert.ok(first.migrations.every((migration) => migration.status === "applied"));
       const replay = await runDocumentIntakeExtractionMigrations({ pool: adminPool });
-      assert.deepEqual(replay.migrations.map((migration) => migration.status), ["already_applied"]);
+      assert.equal(replay.migrations.length, first.migrations.length);
+      assert.ok(replay.migrations.every((migration) => migration.status === "already_applied"));
       await adminPool.query(buildDocumentIntakeExtractionRuntimeRoleSql({ roleName }));
 
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifyTenantIsolation(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
+      await verifyDocumentLocalClaims(runtimeUrl);
       await verifyLeaseExpirationEvidence(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
       await verifyIntakeRepository(runtimeUrl);
@@ -506,6 +509,43 @@ async function verifyConcurrentClaims(runtimeUrl) {
     assert.equal(correctLease.rows[0].renewed, true);
   } finally {
     await Promise.all([workerA.end(), workerB.end()]);
+  }
+}
+
+async function verifyDocumentLocalClaims(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const sourceSha = "e".repeat(64);
+  const seed = new pg.Client({ connectionString: runtimeUrl });
+  await seed.connect();
+  try {
+    await seed.query([
+      "insert into document_intake_extraction.source_blobs (sha256, object_key, bytes, page_count, inspector_version, verified_at)",
+      "values ($1, $2, 100, 5, 'integration-inspector/v1', now())",
+    ].join("\n"), [sourceSha, `blobs/sha256/ee/${sourceSha}`]);
+    await withTenant(seed, tenantId, async () => {
+      for (let pageNumber = 1; pageNumber <= 5; pageNumber += 1) {
+        await seed.query([
+          "insert into document_intake_extraction.page_computations",
+          "  (computation_id, tenant_id, fingerprint, source_sha256, page_number, provider, model, adapter_version, routing_policy, validator_version, status)",
+          "values ($1, $2, $3, $4, $5, 'mistral', 'mistral-ocr-4-1', 'range-adapter/v1', 'route/v1', 'validator/v1', 'queued')",
+        ].join("\n"), [randomUUID(), tenantId, pageNumber.toString(16).repeat(64), sourceSha, pageNumber]);
+      }
+    });
+  } finally {
+    await seed.end();
+  }
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 2 });
+  try {
+    const repository = new PostgresWorkRepository({ pool });
+    const first = await repository.claimDocumentLocalBatch({ tenantId, workerId: "range-a", maximumPages: 3 });
+    assert.deepEqual(first.map((claim) => claim.pageNumber), [1, 2, 3]);
+    assert.equal(new Set(first.map((claim) => claim.leaseToken)).size, 3);
+    assert.ok(first.every((claim) => claim.attemptId));
+    const second = await repository.claimDocumentLocalBatch({ tenantId, workerId: "range-b", maximumPages: 3 });
+    assert.deepEqual(second.map((claim) => claim.pageNumber), [4, 5]);
+    assert.deepEqual(await repository.claimDocumentLocalBatch({ tenantId, workerId: "range-c", maximumPages: 3 }), []);
+  } finally {
+    await pool.end();
   }
 }
 

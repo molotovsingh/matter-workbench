@@ -147,7 +147,7 @@ test("PDF page materializer invokes a bounded exact-page split and rejects overs
     maximumPageBytes: 100,
     execFileImpl: async (command, args, options) => {
       calls.push({ command, args, options });
-      await writeFile(args.at(-1), "%PDF split page");
+      await writeFile(args.at(-1).replace("%d", args[1]), "%PDF split page");
     },
   });
   try {
@@ -156,9 +156,27 @@ test("PDF page materializer invokes a bounded exact-page split and rejects overs
     assert.equal(await readFile(page.filePath, "utf8"), "%PDF split page");
     const oversized = new PdfPageMaterializer({
       maximumPageBytes: 4,
-      execFileImpl: async (_command, args) => writeFile(args.at(-1), "oversized"),
+      execFileImpl: async (_command, args) => writeFile(args.at(-1).replace("%d", args[1]), "oversized"),
     });
     await assert.rejects(() => oversized.materializePage({ sourceFilePath: source, pageNumber: 1, allocation }), { code: "worker.page_size_invalid" });
+
+    const rangeCalls = [];
+    const rangeMaterializer = new PdfPageMaterializer({
+      execFileImpl: async (command, args) => {
+        rangeCalls.push({ command, args });
+        if (command === "pdfseparate") {
+          for (let pageNumber = Number(args[1]); pageNumber <= Number(args[3]); pageNumber += 1) {
+            await writeFile(args.at(-1).replace("%d", String(pageNumber)), `%PDF page ${pageNumber}`);
+          }
+        } else {
+          await writeFile(args.at(-1), "%PDF joined range");
+        }
+      },
+    });
+    const range = await rangeMaterializer.materializePageRange({ sourceFilePath: source, firstPage: 3, lastPage: 5, allocation });
+    assert.deepEqual({ firstPage: range.firstPage, lastPage: range.lastPage, pageCount: range.pageCount }, { firstPage: 3, lastPage: 5, pageCount: 3 });
+    assert.equal(rangeCalls[1].command, "pdfunite");
+    assert.equal(await readFile(range.filePath, "utf8"), "%PDF joined range");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

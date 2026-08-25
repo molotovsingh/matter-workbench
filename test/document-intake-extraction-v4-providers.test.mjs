@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { createGemini37RepairPageAdapter } from "../services/document-intake-extraction/providers/gemini37-repair-adapter.mjs";
 import { createMistralOcr41PageAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-adapter.mjs";
+import { createMistralOcr41RangeAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
 
 const PAGE_PDF = Buffer.from("%PDF-1.4 isolated page bytes");
 
@@ -34,6 +35,48 @@ test("pinned Mistral OCR 4.1 adapter preserves page output and attributes page-b
   assert.equal(output.usage.inputUnits, 1);
   assert.equal(output.billedCostUsd, 0.004);
   assert.ok(output.diagnostics.includes("provider_confidence=0.9700"));
+});
+
+test("document-local Mistral OCR 4.1 range adapter preserves page order and allocates one provider call exactly", async () => {
+  let calls = 0;
+  const adapter = createMistralOcr41RangeAdapter({
+    apiKey: "mistral-secret-test",
+    usdPerThousandPages: 4,
+    fetchImpl: async () => {
+      calls += 1;
+      return jsonResponse({
+        pages: [
+          { markdown: "Page eleven", confidence: 0.9 },
+          { markdown: "Page twelve", confidence: 0.8 },
+          { markdown: "Page thirteen", confidence: 0.7 },
+        ],
+        usage_info: { pages_processed: 3 },
+      }, { headers: { "x-request-id": "mistral-range-1" } });
+    },
+  });
+  const outputs = await adapter.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } });
+  assert.equal(calls, 1);
+  assert.deepEqual(outputs.map((output) => output.pageNumber), [11, 12, 13]);
+  assert.deepEqual(outputs.map((output) => output.text), ["Page eleven", "Page twelve", "Page thirteen"]);
+  assert.ok(Math.abs(outputs.reduce((sum, output) => sum + output.billedCostUsd, 0) - 0.012) < 1e-12);
+  assert.deepEqual(outputs.map((output) => output.requestId), ["mistral-range-1", "mistral-range-1", "mistral-range-1"]);
+  await assert.rejects(() => adapter.extractPages({ pageNumbers: [1, 3], source: { readBytes: async () => PAGE_PDF } }), /ordered and contiguous/);
+
+  const incomplete = createMistralOcr41RangeAdapter({
+    apiKey: "mistral-secret-test",
+    usdPerThousandPages: 4,
+    fetchImpl: async () => jsonResponse({ pages: [{ markdown: "only one" }], usage_info: { pages_processed: 3 } }),
+  });
+  await assert.rejects(async () => {
+    try {
+      await incomplete.extractPages({ pageNumbers: [1, 2, 3], source: { readBytes: async () => PAGE_PDF } });
+    } catch (error) {
+      assert.equal(error.billingKnown, true);
+      assert.equal(error.usage.inputUnits, 3);
+      assert.equal(error.billedCostUsd, 0.012);
+      throw error;
+    }
+  }, { code: "provider.invalid_response" });
 });
 
 test("pinned Gemini 3.7 LOW repair adapter measures input, output, and thinking-token cost", async () => {
