@@ -101,6 +101,7 @@ export class PostgresDocumentRangeWorker {
           pageNumbers: claims.map((claim) => claim.pageNumber),
           sourceSha256: claims[0].sourceSha256,
           fingerprints: claims.map((claim) => claim.fingerprint),
+          attemptNumber: Math.max(...claims.map((claim) => Number(claim.attemptCount) || 1)),
           source: {
             filePath: range.filePath,
             bytes: range.bytes,

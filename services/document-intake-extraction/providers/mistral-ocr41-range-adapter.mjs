@@ -7,11 +7,23 @@ export const MISTRAL_OCR41_RANGE_CAPABILITY = Object.freeze({
   adapterVersion: "mistral-ocr41-document-range-adapter/1.0.0",
 });
 
+// A hung first attempt must not consume the whole processing-SLO budget: the
+// first attempt gets a tight timeout so the fenced retry still lands inside
+// the objective, while retries keep the generous timeout so a genuinely slow
+// but succeeding call is never permanently killed. An unknown attempt number
+// behaves like a retry (full timeout) for backward compatibility.
+export function resolveAttemptTimeoutMs({ attemptNumber, firstAttemptTimeoutMs, timeoutMs } = {}) {
+  const attempt = Number(attemptNumber);
+  if (Number.isSafeInteger(attempt) && attempt === 1) return Math.min(firstAttemptTimeoutMs, timeoutMs);
+  return timeoutMs;
+}
+
 export function createMistralOcr41RangeAdapter({
   apiKey,
   endpoint = "https://api.mistral.ai/v1/ocr",
   fetchImpl = fetch,
   timeoutMs = 120_000,
+  firstAttemptTimeoutMs = 45_000,
   usdPerThousandPages = 4,
   maximumPages = 32,
 } = {}) {
@@ -19,16 +31,17 @@ export function createMistralOcr41RangeAdapter({
   const capability = assertPinnedProviderCapability(MISTRAL_OCR41_RANGE_CAPABILITY);
   const pagePrice = positiveNumber(usdPerThousandPages, "usdPerThousandPages") / 1000;
   const pageLimit = boundedInteger(maximumPages, "maximumPages", 1, 32);
+  const firstTimeout = positiveNumber(firstAttemptTimeoutMs, "firstAttemptTimeoutMs");
   return Object.freeze({
     capability,
-    async extractPages({ pageNumbers, source } = {}) {
+    async extractPages({ pageNumbers, source, attemptNumber } = {}) {
       const pagesRequested = normalizeContiguousPages(pageNumbers, pageLimit);
       const pdfBytes = await readBoundedRangeBytes(source);
       const { payload, requestId } = await fetchProviderJson({
         fetchImpl,
         url: endpoint,
         provider: "Mistral OCR",
-        timeoutMs,
+        timeoutMs: resolveAttemptTimeoutMs({ attemptNumber, firstAttemptTimeoutMs: firstTimeout, timeoutMs }),
         apiKey: secret,
         init: {
           method: "POST",

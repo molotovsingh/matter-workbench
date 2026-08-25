@@ -85,6 +85,7 @@ export class PostgresDocumentProcessingWorker {
           pageNumber: claim.pageNumber,
           sourceSha256: claim.sourceSha256,
           fingerprint: claim.fingerprint,
+          attemptNumber: Number(claim.attemptCount) || 1,
           source: {
             filePath: page.filePath,
             bytes: page.bytes,

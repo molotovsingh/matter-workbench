@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { createGemini37RepairPageAdapter } from "../services/document-intake-extraction/providers/gemini37-repair-adapter.mjs";
 import { createMistralOcr41PageAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-adapter.mjs";
-import { createMistralOcr41RangeAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
+import { createMistralOcr41RangeAdapter, resolveAttemptTimeoutMs } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
 import { fetchProviderJson } from "../services/document-intake-extraction/providers/provider-http.mjs";
 
 const PAGE_PDF = Buffer.from("%PDF-1.4 isolated page bytes");
@@ -57,6 +57,10 @@ test("document-local Mistral OCR 4.1 range adapter preserves page order and allo
   });
   const outputs = await adapter.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } });
   assert.equal(calls, 1);
+  assert.equal(resolveAttemptTimeoutMs({ attemptNumber: 1, firstAttemptTimeoutMs: 45_000, timeoutMs: 120_000 }), 45_000, "first attempts fail fast");
+  assert.equal(resolveAttemptTimeoutMs({ attemptNumber: 2, firstAttemptTimeoutMs: 45_000, timeoutMs: 120_000 }), 120_000, "retries keep the generous timeout");
+  assert.equal(resolveAttemptTimeoutMs({ firstAttemptTimeoutMs: 45_000, timeoutMs: 120_000 }), 120_000, "unknown attempt behaves like a retry");
+  assert.equal(resolveAttemptTimeoutMs({ attemptNumber: 1, firstAttemptTimeoutMs: 300_000, timeoutMs: 120_000 }), 120_000, "first-attempt timeout never exceeds the overall timeout");
   assert.deepEqual(outputs.map((output) => output.pageNumber), [11, 12, 13]);
   assert.deepEqual(outputs.map((output) => output.text), ["Page eleven", "Page twelve", "Page thirteen"]);
   assert.ok(Math.abs(outputs.reduce((sum, output) => sum + output.billedCostUsd, 0) - 0.012) < 1e-12);

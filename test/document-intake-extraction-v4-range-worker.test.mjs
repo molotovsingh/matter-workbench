@@ -22,9 +22,10 @@ test("range worker turns contiguous same-document claims into one provider call 
     ...fixture.dependencies,
     providers: [{
       capability: MISTRAL_OCR41_RANGE_CAPABILITY,
-      async extractPages({ pageNumbers, source }) {
+      async extractPages({ pageNumbers, source, attemptNumber }) {
         providerCalls += 1;
         assert.deepEqual(pageNumbers, [4, 5, 6]);
+        assert.equal(attemptNumber, 1, "adapter must learn the attempt number for tiered timeouts");
         assert.match((await source.readBytes()).toString(), /range 4-6/);
         return pageNumbers.map((pageNumber) => providerResult(pageNumber));
       },
