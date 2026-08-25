@@ -1,22 +1,13 @@
 import { CONTRACT_VERSIONS, assertPinnedProviderCapability, normalizeProviderResult } from "../../../packages/extraction-contracts/index.mjs";
-import { fetchProviderJson, providerError } from "./provider-http.mjs";
+import { fetchProviderJson, providerError, resolveAttemptTimeoutMs } from "./provider-http.mjs";
+
+export { resolveAttemptTimeoutMs };
 
 export const MISTRAL_OCR41_RANGE_CAPABILITY = Object.freeze({
   provider: "mistral",
   model: "mistral-ocr-4-1",
   adapterVersion: "mistral-ocr41-document-range-adapter/1.0.0",
 });
-
-// A hung first attempt must not consume the whole processing-SLO budget: the
-// first attempt gets a tight timeout so the fenced retry still lands inside
-// the objective, while retries keep the generous timeout so a genuinely slow
-// but succeeding call is never permanently killed. An unknown attempt number
-// behaves like a retry (full timeout) for backward compatibility.
-export function resolveAttemptTimeoutMs({ attemptNumber, firstAttemptTimeoutMs, timeoutMs } = {}) {
-  const attempt = Number(attemptNumber);
-  if (Number.isSafeInteger(attempt) && attempt === 1) return Math.min(firstAttemptTimeoutMs, timeoutMs);
-  return timeoutMs;
-}
 
 export function createMistralOcr41RangeAdapter({
   apiKey,

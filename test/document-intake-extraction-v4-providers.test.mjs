@@ -1,12 +1,74 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createGemini37RangeAdapter } from "../services/document-intake-extraction/providers/gemini37-range-adapter.mjs";
 import { createGemini37RepairPageAdapter } from "../services/document-intake-extraction/providers/gemini37-repair-adapter.mjs";
 import { createMistralOcr41PageAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-adapter.mjs";
 import { createMistralOcr41RangeAdapter, resolveAttemptTimeoutMs } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
 import { fetchProviderJson } from "../services/document-intake-extraction/providers/provider-http.mjs";
 
 const PAGE_PDF = Buffer.from("%PDF-1.4 isolated page bytes");
+
+// V4-PROVIDER-001 Gemini document-range adapter evidence
+test("pinned Gemini 3.7 range adapter maps ordered pages, splits token cost, and flags label drift", async () => {
+  let calls = 0;
+  const adapter = createGemini37RangeAdapter({
+    apiKey: "gemini-secret-test",
+    fetchImpl: async (url, init) => {
+      calls += 1;
+      const body = JSON.parse(init.body);
+      assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, "LOW");
+      assert.equal(body.contents[0].parts[1].inlineData.data, PAGE_PDF.toString("base64"));
+      return jsonResponse({
+        candidates: [{
+          finishReason: "STOP",
+          content: { parts: [{ text: JSON.stringify({ pages: [
+            { page: 11, markdown: "Page eleven text.", warnings: [] },
+            { page: 12, markdown: "Page twelve text.", warnings: ["stamp partially illegible"] },
+            { page: 99, markdown: "Page thirteen text.", warnings: [] },
+          ] }) }] },
+        }],
+        usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 500, thoughtsTokenCount: 100 },
+      }, { headers: { "x-request-id": "gemini-range-1" } });
+    },
+  });
+  assert.deepEqual(adapter.capability, {
+    provider: "gemini",
+    model: "gemini-3.7-flash",
+    adapterVersion: "gemini37-document-range-adapter/1.0.0-thinking-low",
+  });
+  const outputs = await adapter.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } });
+  assert.equal(calls, 1);
+  assert.deepEqual(outputs.map((output) => output.pageNumber), [11, 12, 13]);
+  assert.deepEqual(outputs.map((output) => output.text), ["Page eleven text.", "Page twelve text.", "Page thirteen text."]);
+  const expectedTotal = 900 * 0.75 / 1_000_000 + 600 * 3.75 / 1_000_000;
+  assert.ok(Math.abs(outputs.reduce((sum, output) => sum + output.billedCostUsd, 0) - expectedTotal) < 1e-12);
+  assert.ok(outputs[1].diagnostics.includes("stamp partially illegible"));
+  assert.ok(outputs[2].diagnostics.some((entry) => entry.includes("provider_page_label_mismatch expected=13 received=99")));
+
+  const short = createGemini37RangeAdapter({
+    apiKey: "gemini-secret-test",
+    fetchImpl: async () => jsonResponse({
+      candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ pages: [{ page: 1, markdown: "only one", warnings: [] }] }) }] } }],
+      usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 50 },
+    }),
+  });
+  await assert.rejects(
+    () => short.extractPages({ pageNumbers: [1, 2, 3], source: { readBytes: async () => PAGE_PDF } }),
+    (error) => error.code === "provider.invalid_response" && error.billingKnown === true,
+  );
+  const malformed = createGemini37RangeAdapter({
+    apiKey: "gemini-secret-test",
+    fetchImpl: async () => jsonResponse({
+      candidates: [{ finishReason: "STOP", content: { parts: [{ text: "not json at all" }] } }],
+      usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 10 },
+    }),
+  });
+  await assert.rejects(
+    () => malformed.extractPages({ pageNumbers: [1], source: { readBytes: async () => PAGE_PDF } }),
+    (error) => error.code === "provider.invalid_response",
+  );
+});
 
 // V4-PROVIDER-001 controlled HTTP adapter evidence
 test("pinned Mistral OCR 4.1 adapter preserves page output and attributes page-billed cost", async () => {

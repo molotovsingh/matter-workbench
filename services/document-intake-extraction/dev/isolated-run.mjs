@@ -47,6 +47,7 @@ import {
   GEMINI37_REPAIR_CAPABILITY,
   createGemini37RepairPageAdapter,
 } from "../providers/gemini37-repair-adapter.mjs";
+import { createGemini37RangeAdapter } from "../providers/gemini37-range-adapter.mjs";
 import { CONTRACT_VERSIONS } from "../../../packages/extraction-contracts/index.mjs";
 
 const TERMINAL_INTAKE_STATUSES = new Set(["ready", "ready_with_review"]);
@@ -248,6 +249,8 @@ function parseArguments(argv) {
     out: "",
     tenantId: "isolated-dev-tenant",
     matterId: "isolated-dev-matter",
+    primary: "mistral",
+    rangePages: 8,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -266,6 +269,10 @@ function parseArguments(argv) {
     else if (flag === "--timeout-minutes") options.timeoutMinutes = requireInteger(next(), "--timeout-minutes", 1, 240);
     else if (flag === "--out") options.out = path.resolve(next());
     else if (flag === "--tenant") options.tenantId = next();
+    else if (flag === "--primary") {
+      options.primary = next();
+      if (!["mistral", "gemini"].includes(options.primary)) fail("--primary must be mistral or gemini");
+    } else if (flag === "--range-pages") options.rangePages = requireInteger(next(), "--range-pages", 1, 32);
     else fail(`unknown option ${flag}`);
   }
   if (!options.dir) fail("--dir <pdf folder> is required");
@@ -336,8 +343,15 @@ function buildProviders(options) {
   }
   const mistralKey = String(process.env.MISTRAL_API_KEY || "").trim();
   const geminiKey = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
-  if (!mistralKey) fail("MISTRAL_API_KEY is required (or use --mock-providers)");
   if (!geminiKey) fail("GEMINI_API_KEY or GOOGLE_API_KEY is required (or use --mock-providers)");
+  if (options.primary === "gemini") {
+    return {
+      providerLabel: "Gemini 3.7 Flash range primary + Gemini 3.7 selective repair (paid calls)",
+      primaryProvider: createGemini37RangeAdapter({ apiKey: geminiKey }),
+      repairProvider: createGemini37RepairPageAdapter({ apiKey: geminiKey }),
+    };
+  }
+  if (!mistralKey) fail("MISTRAL_API_KEY is required (or use --mock-providers)");
   return {
     providerLabel: "Mistral OCR 4.1 primary + Gemini 3.7 selective repair (paid calls)",
     primaryProvider: createMistralOcr41RangeAdapter({ apiKey: mistralKey }),
@@ -397,6 +411,7 @@ function startWorkers({ composition, options, homeRoot, signal }) {
     worker: composition.createRangeWorker({
       scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "range") }),
       pageMaterializer,
+      maximumPages: options.rangePages,
     }),
     tenantId: options.tenantId,
     workerIdPrefix: "isolated-range",
