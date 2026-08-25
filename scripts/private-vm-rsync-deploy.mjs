@@ -19,6 +19,7 @@ const RSYNC_EXCLUDES = [
   "Alignment Interview.md",
   "docs/architecture/document-intake-extraction-v4*",
   "docs/acceptance/document-intake-extraction-v4*",
+  "docs/operations/document-intake-extraction-v4*",
   ".env",
   ".env.*",
   "*.tgz",

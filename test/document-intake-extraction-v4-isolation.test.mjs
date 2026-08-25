@@ -10,6 +10,12 @@ const V4_ROOTS = [
   "services/document-intake-extraction/",
   "workers/document-processing/",
 ];
+const V4_DEPLOY_ARTIFACTS = [
+  ...V4_ROOTS,
+  "docs/architecture/document-intake-extraction-v4*",
+  "docs/acceptance/document-intake-extraction-v4*",
+  "docs/operations/document-intake-extraction-v4*",
+];
 const SOURCE_EXTENSION = /\.(?:mjs|js|cjs|ts|tsx)$/;
 const IMPORT_SPECIFIER = /(?:import\s+(?:[^"']*?\s+from\s+)?|export\s+[^"']*?\s+from\s+|import\s*\(|require\s*\()\s*["']([^"']+)["']/g;
 
@@ -50,8 +56,8 @@ test("V4-ISO-001 keeps production callers and legacy dependencies outside the is
 // V4-DEPLOY-001
 test("V4-DEPLOY-001 excludes every V4 executable directory from private beta deployment", async () => {
   const deploySource = await readFile(path.join(ROOT, "scripts/private-vm-rsync-deploy.mjs"), "utf8");
-  for (const directory of V4_ROOTS) {
-    assert.match(deploySource, new RegExp(`^[ \\t]*["']${escapeRegex(directory)}["'],?$`, "m"), `${directory} must be an rsync exclusion`);
+  for (const artifact of V4_DEPLOY_ARTIFACTS) {
+    assert.match(deploySource, new RegExp(`^[ \\t]*["']${escapeRegex(artifact)}["'],?$`, "m"), `${artifact} must be an rsync exclusion`);
   }
 });
 
