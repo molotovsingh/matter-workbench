@@ -48,6 +48,7 @@ import {
   createGemini37RepairPageAdapter,
 } from "../providers/gemini37-repair-adapter.mjs";
 import { createGemini37RangeAdapter } from "../providers/gemini37-range-adapter.mjs";
+import { AdaptiveProviderAdmissionController } from "../capacity/adaptive-provider-admission.mjs";
 import { CONTRACT_VERSIONS } from "../../../packages/extraction-contracts/index.mjs";
 
 const TERMINAL_INTAKE_STATUSES = new Set(["ready", "ready_with_review"]);
@@ -154,7 +155,28 @@ async function main() {
     const { primaryProvider, repairProvider, providerLabel } = buildProviders(options);
     log(`providers: ${providerLabel}`);
 
+    // Backpressure instead of futile calls: AIMD admission per capability, so
+    // provider throttling halves in-flight work and honors cooldowns rather
+    // than burning page attempt budgets on 429 storms.
+    const admissionController = new AdaptiveProviderAdmissionController({
+      capabilities: [
+        {
+          capability: primaryProvider.capability,
+          maximumConcurrent: options.lanes,
+          pageOperationsPerSecond: options.admissionRate,
+          burstPageOperations: Math.max(options.rangePages, options.lanes * options.rangePages),
+        },
+        {
+          capability: repairProvider.capability,
+          maximumConcurrent: Math.max(2, options.repairLanes),
+          pageOperationsPerSecond: Math.max(2, Math.round(options.admissionRate / 4)),
+          burstPageOperations: Math.max(4, options.repairLanes * 2),
+        },
+      ],
+    });
+
     const composition = createDocumentIntakeExtractionV4Composition({
+      admissionController,
       pool: runtimePool,
       objectStoreFactory: ({ authorizationStore }) => new S3CompatibleObjectStore({
         bucket: "mwb-v4-isolated",
@@ -251,6 +273,7 @@ function parseArguments(argv) {
     matterId: "isolated-dev-matter",
     primary: "mistral",
     rangePages: 8,
+    admissionRate: 40,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -273,6 +296,7 @@ function parseArguments(argv) {
       options.primary = next();
       if (!["mistral", "gemini"].includes(options.primary)) fail("--primary must be mistral or gemini");
     } else if (flag === "--range-pages") options.rangePages = requireInteger(next(), "--range-pages", 1, 32);
+    else if (flag === "--admission-rate") options.admissionRate = requireInteger(next(), "--admission-rate", 1, 1000);
     else fail(`unknown option ${flag}`);
   }
   if (!options.dir) fail("--dir <pdf folder> is required");

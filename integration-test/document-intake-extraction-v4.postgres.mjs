@@ -56,6 +56,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       await verifyDocumentLocalClaims(runtimeUrl);
       await verifyCapabilityScopedClaims(runtimeUrl);
       await verifyProviderFailureRepair(runtimeUrl);
+      await verifyRepairLineageReuse(runtimeUrl);
       await verifyLeaseExpirationEvidence(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
       await verifyIntakeRepository(runtimeUrl);
@@ -767,7 +768,7 @@ async function verifyProviderFailureRepair(runtimeUrl) {
       await seed.query([
         "insert into document_intake_extraction.page_computations",
         "  (computation_id, tenant_id, fingerprint, source_sha256, page_number, provider, model, adapter_version, routing_policy, validator_version, status, maximum_attempts)",
-        "values ($1, $2, $3, $4, 1, $5, $6, $7, 'route/v1', 'validator/v1', 'queued', 1)",
+        "values ($1, $2, $3, $4, 1, $5, $6, $7, 'route/v1', 'validator/v1', 'queued', 2)",
       ].join("\n"), [randomUUID(), tenantId, "a1".repeat(32), sourceSha, primary.provider, primary.model, primary.adapterVersion]);
     });
   } finally {
@@ -776,6 +777,24 @@ async function verifyProviderFailureRepair(runtimeUrl) {
   const pool = new pg.Pool({ connectionString: runtimeUrl, max: 2 });
   try {
     const repository = new PostgresWorkRepository({ pool });
+    const throttledClaim = await repository.claim({ tenantId, workerId: "failover-throttled", capabilities: [primary] });
+    const throttled = await repository.finishFailure({
+      tenantId,
+      claim: throttledClaim,
+      error: Object.assign(new Error("rate limited"), {
+        code: "provider.http_429", retryable: true, retryAfterMs: 5_000,
+        usage: { inputUnits: 0, outputUnits: 0 },
+      }),
+    });
+    assert.equal(throttled.status, "queued", "a retryable throttle must requeue, not terminalize");
+    assert.ok(throttled.retryAfterMs >= 5_000, "provider retry-after hints must extend the retry backoff");
+    const resetRunAfter = await pool.connect();
+    try {
+      await resetRunAfter.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      await resetRunAfter.query("update document_intake_extraction.page_computations set run_after = now() where tenant_id = $1", [tenantId]);
+    } finally {
+      resetRunAfter.release();
+    }
     const primaryClaim = await repository.claim({ tenantId, workerId: "failover-primary", capabilities: [primary] });
     const failed = await repository.finishFailure({
       tenantId,
@@ -810,6 +829,118 @@ async function verifyProviderFailureRepair(runtimeUrl) {
       validation: { outcome: "accepted", reasons: [], validatorVersion: "validator/v1" },
     });
     assert.equal(repaired.status, "accepted");
+  } finally {
+    await pool.end();
+  }
+}
+
+async function verifyRepairLineageReuse(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const sourceSha = "f1".repeat(32);
+  const primary = { provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "range-adapter/v1" };
+  const repairCapability = { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair-adapter/v1" };
+  const primaryFingerprint = "1a".repeat(32);
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 4 });
+  try {
+    const intakeRepository = new PostgresIntakeRepository({ pool });
+    const authorizationStore = new PostgresUploadAuthorizationStore({ pool });
+    const workRepository = new PostgresWorkRepository({ pool });
+    const resultRepository = new PostgresResultRepository({ pool });
+    const routedPages = [{
+      pageNumber: 1,
+      fingerprint: primaryFingerprint,
+      capability: primary,
+      routingPolicy: "route/v1",
+      validatorVersion: "validator/v1",
+      priority: 0,
+      weight: 1,
+      virtualFinish: 1,
+    }];
+    async function commitIntakeWithDocument(idempotencyKey, tokenDigest) {
+      const intake = await intakeRepository.createIntake({
+        schemaVersion: "document-intake-extraction.create-intake-command/v1",
+        tenantId,
+        matterId: "matter-lineage",
+        idempotencyKey,
+        files: [{ originalName: "agreement.pdf", relativePath: "agreement.pdf", expectedBytes: 100 }],
+      });
+      await authorizationStore.create({
+        schemaVersion: "document-intake-extraction.s3-upload-authorization-record/v1",
+        tokenDigest,
+        tenantId,
+        intakeId: intake.intakeId,
+        fileId: intake.files[0].fileId,
+        expectedBytes: 100,
+        stagedObjectKey: `staging/${intake.intakeId}/${intake.files[0].fileId}`,
+        status: "authorized",
+        dataRegion: "local-disk",
+        expiresAt: "2026-08-25T12:15:00.000Z",
+        createdAt: "2026-08-25T12:00:00.000Z",
+        updatedAt: "2026-08-25T12:00:00.000Z",
+      });
+      await authorizationStore.updateByTokenDigest(tokenDigest, {
+        tenantId,
+        expectedStatuses: ["authorized"],
+        patch: {
+          status: "committed",
+          sha256: sourceSha,
+          bytes: 100,
+          blobObjectKey: `blobs/sha256/f1/${sourceSha}`,
+          objectReused: false,
+          committedAt: "2026-08-25T12:05:00.000Z",
+        },
+      });
+      const document = await intakeRepository.recordInspectedDocument({
+        tenantId,
+        intakeId: intake.intakeId,
+        fileId: intake.files[0].fileId,
+        sourceSha256: sourceSha,
+        pageCount: 1,
+        inspectorVersion: "inspector/v1",
+        pages: routedPages,
+      });
+      return { intake, document };
+    }
+
+    const first = await commitIntakeWithDocument("lineage-intake-1", "aa".repeat(32));
+    const primaryClaim = await workRepository.claim({ tenantId, workerId: "lineage-primary", capabilities: [primary] });
+    const failed = await workRepository.finishFailure({
+      tenantId,
+      claim: primaryClaim,
+      error: Object.assign(new Error("parser rejected"), {
+        code: "provider.http_400", retryable: false, billingKnown: true, billedCostUsd: 0, usage: { inputUnits: 0, outputUnits: 0 },
+      }),
+      repair: {
+        fingerprint: "2b".repeat(32),
+        capability: repairCapability,
+        routingPolicy: "selective-repair/v1",
+        validatorVersion: "validator/v1",
+        maximumAttempts: 2,
+        priorityBoost: 20,
+        weight: 1,
+      },
+    });
+    assert.equal(failed.status, "repair_queued");
+    const repairClaim = await workRepository.claim({ tenantId, workerId: "lineage-repair", capabilities: [repairCapability] });
+    await workRepository.finishSuccess({
+      tenantId,
+      claim: repairClaim,
+      providerResult: {
+        text: "Repaired lineage page text.", finishReason: "complete", requestId: "lineage-repair-1",
+        usage: { inputUnits: 40, outputUnits: 15 }, billedCostUsd: 0.002,
+      },
+      validation: { outcome: "accepted", reasons: [], validatorVersion: "validator/v1" },
+    });
+
+    const second = await commitIntakeWithDocument("lineage-intake-2", "bb".repeat(32));
+    assert.equal(second.document.pages.length, 1);
+    assert.equal(second.document.pages[0].computationId, repairClaim.workUnitId, "re-uploaded document must bind to the repair lineage tip, not the failed primary");
+    await intakeRepository.commitBatchCustody({ tenantId, intakeId: second.intake.intakeId });
+    const publication = await resultRepository.publishReadyIntake({ tenantId, intakeId: second.intake.intakeId });
+    assert.equal(publication.published, true);
+    assert.equal(publication.result.status, "ready", "repaired lineage must publish without review");
+    assert.equal(publication.result.reviewPageCount, 0);
+    assert.equal(publication.result.documents[0].pages[0].text, "Repaired lineage page text.");
   } finally {
     await pool.end();
   }

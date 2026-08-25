@@ -196,7 +196,11 @@ export class PostgresWorkRepository {
         attemptId: claim.attemptId,
         requestId: "",
       } : null;
-      const retryMs = Math.min(maximumRetryMs, baseRetryMs * (2 ** Math.max(0, locked.attemptCount - 1)));
+      // Providers that answer 429/503 usually say when to come back; honor
+      // that hint when it is longer than our own exponential backoff.
+      const providerRetryMs = Number(error?.retryAfterMs);
+      const backoffMs = baseRetryMs * (2 ** Math.max(0, locked.attemptCount - 1));
+      const retryMs = Math.min(maximumRetryMs, Math.max(backoffMs, Number.isFinite(providerRetryMs) && providerRetryMs > 0 ? providerRetryMs : 0));
       await client.query([
         "update document_intake_extraction.page_computations",
         "set status = case when $4::boolean then 'review_required' else 'queued' end,",

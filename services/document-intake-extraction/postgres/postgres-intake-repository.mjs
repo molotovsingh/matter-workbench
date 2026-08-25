@@ -233,17 +233,42 @@ export class PostgresIntakeRepository {
           || computationRow.adapter_version !== page.capability.adapterVersion) {
           throw repositoryError("page computation fingerprint collision", "v4_postgres.fingerprint_conflict");
         }
+        // A reused computation may have been superseded by selective repair
+        // (possibly more than once). Bind this intake's page and demand to the
+        // lineage tip so a re-upload inherits repaired text and pending
+        // repairs, never a stale terminal review outcome.
+        const lineage = await client.query([
+          "with recursive lineage (computation_id, depth) as (",
+          "  select $2::uuid, 0",
+          "  union all",
+          "  select cs.replacement_computation_id, lineage.depth + 1",
+          "  from document_intake_extraction.computation_supersessions cs",
+          "  join lineage on cs.prior_computation_id = lineage.computation_id",
+          "  where cs.tenant_id = $1 and lineage.depth < 16",
+          ")",
+          "select pc.computation_id::text, pc.status",
+          "from lineage",
+          "join document_intake_extraction.page_computations pc",
+          "  on pc.tenant_id = $1 and pc.computation_id = lineage.computation_id",
+          "order by lineage.depth desc",
+          "limit 1",
+        ].join("\n"), [tenantId, computationRow.computation_id]);
+        const tip = lineage.rows[0];
+        if (!tip) throw repositoryError("page computation lineage could not be resolved", "v4_postgres.lineage_unresolved");
         await client.query([
           "insert into document_intake_extraction.document_pages (tenant_id, document_id, page_number, computation_id)",
           "values ($1, $2::uuid, $3::int, $4::uuid)",
           "on conflict (tenant_id, document_id, page_number) do nothing",
-        ].join("\n"), [tenantId, file.document_id, page.pageNumber, computationRow.computation_id]);
+        ].join("\n"), [tenantId, file.document_id, page.pageNumber, tip.computation_id]);
         await client.query([
           "insert into document_intake_extraction.computation_demands",
-          "  (tenant_id, intake_id, computation_id, priority, virtual_finish)",
-          "values ($1, $2::uuid, $3::uuid, $4::int, $5::numeric)",
+          "  (tenant_id, intake_id, computation_id, priority, virtual_finish, fulfilled_at)",
+          "values ($1, $2::uuid, $3::uuid, $4::int, $5::numeric, case when $6::boolean then now() else null end)",
           "on conflict (tenant_id, intake_id, computation_id) do nothing",
-        ].join("\n"), [tenantId, intakeId, computationRow.computation_id, page.priority, page.virtualFinish]);
+        ].join("\n"), [
+          tenantId, intakeId, tip.computation_id, page.priority, page.virtualFinish,
+          ["accepted", "review_required"].includes(tip.status),
+        ]);
       }
       await client.query([
         "update document_intake_extraction.intakes",
