@@ -5,6 +5,7 @@ import test from "node:test";
 import pg from "pg";
 
 import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
+import { PostgresUploadAuthorizationStore } from "../services/document-intake-extraction/postgres/postgres-upload-authorization-store.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../services/document-intake-extraction/postgres/runtime-role-sql.mjs";
 
 const adminUrl = String(process.env.MWB_POSTGRES_TEST_ADMIN_URL || "").trim();
@@ -39,6 +40,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifyTenantIsolation(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
+      await verifyDurableUploadAuthorization(runtimeUrl);
     } finally {
       await adminPool.end();
     }
@@ -81,6 +83,84 @@ async function verifyTenantIsolation(runtimeUrl) {
     });
   } finally {
     await client.end();
+  }
+}
+
+async function verifyDurableUploadAuthorization(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const intakeId = randomUUID();
+  const fileId = randomUUID();
+  const documentId = randomUUID();
+  const tokenDigest = "e".repeat(64);
+  const sourceSha = "f".repeat(64);
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 2 });
+  const seed = await pool.connect();
+  try {
+    await seed.query("begin");
+    await seed.query("select set_config('document_intake_extraction.tenant_id', $1, true)", [tenantId]);
+    await insertIntake(seed, { tenantId, intakeId, idempotencyKey: "authorization" });
+    await seed.query([
+      "insert into document_intake_extraction.intake_files",
+      "  (file_id, tenant_id, intake_id, document_id, ordinal, original_name, relative_path, mime_type, expected_bytes, status)",
+      "values ($1, $2, $3, $4, 0, 'agreement.pdf', 'agreement.pdf', 'application/pdf', 100, 'awaiting_upload')",
+    ].join("\n"), [fileId, tenantId, intakeId, documentId]);
+    await seed.query("commit");
+  } finally {
+    seed.release();
+  }
+  try {
+    const store = new PostgresUploadAuthorizationStore({ pool });
+    const created = await store.create({
+      schemaVersion: "document-intake-extraction.s3-upload-authorization-record/v1",
+      tokenDigest,
+      tenantId,
+      intakeId,
+      fileId,
+      expectedBytes: 100,
+      stagedObjectKey: `staging/${intakeId}/${fileId}`,
+      status: "authorized",
+      dataRegion: "ap-southeast-2",
+      expiresAt: "2026-08-24T12:15:00.000Z",
+      createdAt: "2026-08-24T12:00:00.000Z",
+      updatedAt: "2026-08-24T12:00:00.000Z",
+    });
+    assert.equal(created.status, "authorized");
+    assert.equal(await store.readByTokenDigest(tokenDigest, { tenantId: `other-${tenantId}` }), null);
+    const committed = await store.updateByTokenDigest(tokenDigest, {
+      tenantId,
+      expectedStatuses: ["authorized", "uploaded"],
+      patch: {
+        status: "committed",
+        sha256: sourceSha,
+        bytes: 100,
+        blobObjectKey: `blobs/sha256/ff/${sourceSha}`,
+        objectReused: false,
+        committedAt: "2026-08-24T12:05:00.000Z",
+      },
+    });
+    assert.equal(committed.status, "committed");
+    assert.equal(committed.dataRegion, "ap-southeast-2");
+    assert.equal(await store.updateByTokenDigest(tokenDigest, {
+      tenantId,
+      expectedStatuses: ["authorized"],
+      patch: { status: "committed", sha256: sourceSha, bytes: 100, blobObjectKey: `blobs/sha256/ff/${sourceSha}`, committedAt: "2026-08-24T12:05:00.000Z" },
+    }), null);
+    const check = await pool.connect();
+    try {
+      await check.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      const state = await check.query([
+        "select i.committed_file_count, i.committed_bytes::text, f.status, b.logical_reference_count",
+        "from document_intake_extraction.intakes i",
+        "join document_intake_extraction.intake_files f on f.tenant_id = i.tenant_id and f.intake_id = i.intake_id",
+        "join document_intake_extraction.blob_tenant_references b on b.tenant_id = i.tenant_id and b.source_sha256 = f.source_sha256",
+        "where i.tenant_id = $1 and i.intake_id = $2",
+      ].join("\n"), [tenantId, intakeId]);
+      assert.deepEqual(state.rows[0], { committed_file_count: 1, committed_bytes: "100", status: "committed", logical_reference_count: 1 });
+    } finally {
+      check.release();
+    }
+  } finally {
+    await pool.end();
   }
 }
 

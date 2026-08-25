@@ -72,6 +72,7 @@ create table document_intake_extraction.intake_files (
   upload_token_digest char(64) check (upload_token_digest is null or upload_token_digest ~ '^[a-f0-9]{64}$'),
   staged_object_key text,
   upload_authorization_expires_at timestamptz,
+  upload_authorization_json jsonb,
   source_sha256 char(64),
   custody_receipt_json jsonb,
   committed_at timestamptz,
@@ -278,6 +279,8 @@ create index intakes_scheduler_idx on document_intake_extraction.intakes
   (status, scheduler_priority desc, scheduler_virtual_finish, created_at);
 create index intake_files_commit_idx on document_intake_extraction.intake_files
   (tenant_id, intake_id, status, ordinal);
+create unique index intake_files_upload_token_idx on document_intake_extraction.intake_files
+  (tenant_id, upload_token_digest) where upload_token_digest is not null;
 create index documents_source_idx on document_intake_extraction.documents
   (tenant_id, source_sha256);
 create index page_computations_claim_idx on document_intake_extraction.page_computations
