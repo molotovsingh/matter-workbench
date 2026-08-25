@@ -109,6 +109,13 @@
       "evidence": ["test/document-intake-extraction-v4-postgres.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
+      "id": "V4-SCHEDULE-001",
+      "category": "capacity",
+      "status": "automated",
+      "requirement": "Provider tasks preserve contiguous same-document locality and pinned capabilities, remain bounded by pages/bytes/time, use hierarchical weighted fairness with a bounded small-job lane, and respect provider admission budgets.",
+      "evidence": ["test/document-intake-extraction-v4-scheduling.test.mjs"]
+    },
+    {
       "id": "V4-ETA-001",
       "category": "performance",
       "status": "automated",
