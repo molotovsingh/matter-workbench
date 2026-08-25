@@ -436,7 +436,7 @@ function buildProviders(options) {
     ? createGpt54RepairPageAdapter({
       apiKey: openaiKey,
       inputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_INPUT_USD_PER_M || 1.25),
-      outputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_OUTPUT_USD_PER_M || 10),
+      outputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_OUTPUT_USD_PER_M || 7.5),
       rasterize: rasterizePageToPng,
     })
     : null;
