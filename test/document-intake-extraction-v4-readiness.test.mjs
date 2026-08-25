@@ -18,6 +18,7 @@ test("V4 readiness fails closed while certification and cutover evidence remain 
   assert.equal(evaluation.cutoverAllowed, false);
   assert.equal(evaluation.evidenceProblems.length, 0);
   assert.ok(evaluation.totals.implementedEvidenceGates >= 18);
+  assert.equal(evaluation.totals.pendingGatesWithTooling, 5);
   assert.deepEqual(evaluation.blockers.map((blocker) => blocker.gateId), [
     "V4-LOAD-001", "V4-QUALITY-001", "V4-QUOTA-001", "V4-SECURITY-001", "V4-CUTOVER-001",
   ]);

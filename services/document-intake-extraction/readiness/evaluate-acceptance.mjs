@@ -7,8 +7,11 @@ export async function evaluateV4Acceptance({ matrixPath, repositoryRoot = proces
   if (matrix.schemaVersion !== "document-intake-extraction.acceptance-matrix/v1") throw new Error("unsupported V4 acceptance matrix");
   const evidenceProblems = [];
   for (const gate of matrix.gates) {
-    if (gate.status !== "automated") continue;
-    for (const evidence of gate.evidence || []) {
+    const paths = [
+      ...(gate.status === "automated" ? gate.evidence || [] : []),
+      ...(gate.tooling || []),
+    ];
+    for (const evidence of paths) {
       const target = path.resolve(repositoryRoot, evidence);
       if (!target.startsWith(`${path.resolve(repositoryRoot)}${path.sep}`)) {
         evidenceProblems.push({ gateId: gate.id, evidence, problem: "path_escape" });
@@ -38,6 +41,7 @@ export async function evaluateV4Acceptance({ matrixPath, repositoryRoot = proces
       gates: matrix.gates.length,
       implementedEvidenceGates: implemented.length,
       pendingEvidenceGates: blockers.length,
+      pendingGatesWithTooling: matrix.gates.filter((gate) => gate.status !== "automated" && (gate.tooling || []).length > 0).length,
       evidenceProblems: evidenceProblems.length,
     },
     implementedGateIds: implemented.map((gate) => gate.id),
