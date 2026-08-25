@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createGpt54RepairPageAdapter } from "../services/document-intake-extraction/providers/gpt54-repair-adapter.mjs";
 import { createGemini37RangeAdapter } from "../services/document-intake-extraction/providers/gemini37-range-adapter.mjs";
 import { createGemini37RepairPageAdapter } from "../services/document-intake-extraction/providers/gemini37-repair-adapter.mjs";
 import { createMistralOcr41PageAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-adapter.mjs";
@@ -233,3 +234,33 @@ test("provider HTTP boundary bounds response bytes and preserves Retry-After for
 function jsonResponse(value, { status = 200, headers = {} } = {}) {
   return new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json", ...headers } });
 }
+
+// V4-PROVIDER-001 apex repair adapter evidence
+test("pinned GPT-5.4 apex repair adapter reads a rasterized page and attributes token cost", async () => {
+  const calls = [];
+  const adapter = createGpt54RepairPageAdapter({
+    apiKey: "openai-secret-test",
+    inputUsdPerMillionTokens: 1.25,
+    outputUsdPerMillionTokens: 10,
+    rasterize: async () => Buffer.from("png-bytes"),
+    fetchImpl: async (url, init) => {
+      calls.push(JSON.parse(init.body));
+      return jsonResponse({
+        choices: [{ message: { content: "Recovered stamp text." }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 1000, completion_tokens: 200 },
+      });
+    },
+  });
+  const output = await adapter.extractPage({ pageNumber: 9, source: {} });
+  assert.equal(output.text, "Recovered stamp text.");
+  assert.equal(output.pageNumber, 9);
+  assert.ok(Math.abs(output.billedCostUsd - (1000 * 1.25 / 1e6 + 200 * 10 / 1e6)) < 1e-12);
+  assert.equal(calls[0].model, "gpt-5.4");
+  assert.match(calls[0].messages[0].content[1].image_url.url, /^data:image\/png;base64,/);
+  const empty = createGpt54RepairPageAdapter({
+    apiKey: "k", inputUsdPerMillionTokens: 1.25, outputUsdPerMillionTokens: 10,
+    rasterize: async () => Buffer.from("x"),
+    fetchImpl: async () => jsonResponse({ choices: [{ message: { content: "" }, finish_reason: "stop" }], usage: {} }),
+  });
+  await assert.rejects(() => empty.extractPage({ pageNumber: 1, source: {} }), (error) => error.code === "provider.invalid_response" && error.billingKnown === true);
+});

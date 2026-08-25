@@ -249,3 +249,16 @@ function providerResult(pageNumber) {
     diagnostics: [],
   };
 }
+
+// Escalation-ladder evidence: each failed rung climbs to the next capability.
+test("selective repair ladder escalates capability by capability and then stops", () => {
+  const APEX = { provider: "openai", model: "gpt-5.4", adapterVersion: "apex/v1" };
+  const router = createSelectiveRepairRouter({ repairProviders: [GEMINI37_REPAIR_CAPABILITY, APEX] });
+  const claim = (capability) => ({ capability, sourceSha256: "a".repeat(64), pageNumber: 3, tenantId: "tenant-1", validatorVersion: "v", weight: 1 });
+  const error = { code: "provider.http_500" };
+  assert.deepEqual(router.selectForFailure({ claim: claim(MISTRAL_OCR41_RANGE_CAPABILITY), error }).capability, GEMINI37_REPAIR_CAPABILITY, "primary failures start at rung one");
+  assert.deepEqual(router.selectForFailure({ claim: claim(GEMINI37_REPAIR_CAPABILITY), error }).capability, APEX, "rung-one failures climb to the apex");
+  assert.equal(router.selectForFailure({ claim: claim(APEX), error }), null, "the exhausted ladder yields review");
+  assert.deepEqual(router.select({ claim: claim(GEMINI37_REPAIR_CAPABILITY), validation: { outcome: "review_required", reasons: ["empty_or_too_short"] } }).capability, APEX);
+  assert.equal(router.selectForFailure({ claim: claim(MISTRAL_OCR41_RANGE_CAPABILITY), error: { code: "scratch.capacity_exhausted" } }), null);
+});

@@ -50,6 +50,17 @@ import {
 import { createGemini37RangeAdapter } from "../providers/gemini37-range-adapter.mjs";
 import { AdaptiveProviderAdmissionController } from "../capacity/adaptive-provider-admission.mjs";
 import { startWatchDashboard } from "./watch-dashboard.mjs";
+import { createGpt54RepairPageAdapter } from "../providers/gpt54-repair-adapter.mjs";
+import { execFile as execFileCallback } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFilePromise = promisify(execFileCallback);
+
+async function rasterizePageToPng(source) {
+  const outPrefix = `${source.filePath}.apex`;
+  await execFilePromise("pdftoppm", ["-f", "1", "-l", "1", "-r", "150", "-png", "-singlefile", source.filePath, outPrefix], { timeout: 60_000 });
+  return readFile(`${outPrefix}.png`);
+}
 import { CONTRACT_VERSIONS } from "../../../packages/extraction-contracts/index.mjs";
 
 const TERMINAL_INTAKE_STATUSES = new Set(["ready", "ready_with_review"]);
@@ -153,7 +164,7 @@ async function main() {
 
     const localS3 = createLocalDiskS3({ root: path.join(homeRoot, "object-store") });
     const inspectorScratch = new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "inspector") });
-    const { primaryProvider, repairProvider, providerLabel } = buildProviders(options);
+    const { primaryProvider, repairProvider, apexProvider = null, providerLabel } = buildProviders(options);
     log(`providers: ${providerLabel}`);
 
     // Backpressure instead of futile calls: AIMD admission per capability, so
@@ -180,6 +191,14 @@ async function main() {
           pageOperationsPerSecond: Math.max(2, Math.round(options.admissionRate / 4)),
           burstPageOperations: Math.max(4, options.repairLanes * 2),
         },
+        ...(apexProvider ? [{
+          capability: apexProvider.capability,
+          minimumConcurrent: 1,
+          startConcurrent: 1,
+          maximumConcurrent: 2,
+          pageOperationsPerSecond: 2,
+          burstPageOperations: 4,
+        }] : []),
       ],
     });
 
@@ -196,6 +215,7 @@ async function main() {
       documentInspectorFactory: ({ objectStore: store }) => new PdfInfoDocumentInspector({ objectStore: store, scratchSpace: inspectorScratch }),
       primaryProvider,
       repairProvider,
+      repairProviders: apexProvider ? [repairProvider, apexProvider] : undefined,
       providerStages: [
         { stage: "primary_ocr", ...primaryProvider.capability, workShare: 0.9, fallback: { pageOperationsPerSecond: 4 } },
         { stage: "selective_repair", ...repairProvider.capability, workShare: 0.1, fallback: { pageOperationsPerSecond: 0.5 } },
@@ -223,7 +243,7 @@ async function main() {
       : null;
     if (dashboard) log(`watch dashboard live at ${dashboard.url}`);
 
-    const workerRuns = startWorkers({ composition, options, homeRoot, signal: abort.signal, dashboard });
+    const workerRuns = startWorkers({ composition, options, homeRoot, signal: abort.signal, dashboard, apexProvider });
 
     const tenantId = options.tenantId;
     timings.uploadStartedAt = Date.now();
@@ -304,6 +324,7 @@ function parseArguments(argv) {
     minLanes: 2,
     watch: false,
     watchPort: 4499,
+    apex: true,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -329,6 +350,7 @@ function parseArguments(argv) {
     else if (flag === "--admission-rate") options.admissionRate = requireInteger(next(), "--admission-rate", 1, 1000);
     else if (flag === "--min-lanes") options.minLanes = requireInteger(next(), "--min-lanes", 1, 128);
     else if (flag === "--watch") options.watch = true;
+    else if (flag === "--no-apex") options.apex = false;
     else if (flag === "--watch-port") options.watchPort = requireInteger(next(), "--watch-port", 1024, 65535);
     else fail(`unknown option ${flag}`);
   }
@@ -405,19 +427,35 @@ function buildProviders(options) {
   }
   const mistralKey = String(process.env.MISTRAL_API_KEY || "").trim();
   const geminiKey = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
+  const openaiKey = String(process.env.OPENAI_API_KEY || "").trim();
   if (!geminiKey) fail("GEMINI_API_KEY or GOOGLE_API_KEY is required (or use --mock-providers)");
+  // Apex rung: frontier-LLM page reading after the OCR lanes are exhausted.
+  // Prices default to assumed GPT-5.4 rates; override via env and reconcile
+  // against billing exports — the ledger records what was configured.
+  const apexProvider = options.apex && openaiKey
+    ? createGpt54RepairPageAdapter({
+      apiKey: openaiKey,
+      inputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_INPUT_USD_PER_M || 1.25),
+      outputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_OUTPUT_USD_PER_M || 10),
+      rasterize: rasterizePageToPng,
+    })
+    : null;
+  if (options.apex && !openaiKey) log("apex rung disabled: OPENAI_API_KEY is not configured");
+  const apexLabel = apexProvider ? " + GPT-5.4 apex repair" : "";
   if (options.primary === "gemini") {
     return {
-      providerLabel: "Gemini 3.7 Flash range primary + Gemini 3.7 selective repair (paid calls)",
+      providerLabel: `Gemini 3.7 Flash range primary + Gemini 3.7 selective repair${apexLabel} (paid calls)`,
       primaryProvider: createGemini37RangeAdapter({ apiKey: geminiKey }),
       repairProvider: createGemini37RepairPageAdapter({ apiKey: geminiKey }),
+      apexProvider,
     };
   }
   if (!mistralKey) fail("MISTRAL_API_KEY is required (or use --mock-providers)");
   return {
-    providerLabel: "Mistral OCR 4.1 primary + Gemini 3.7 selective repair (paid calls)",
+    providerLabel: `Mistral OCR 4.1 primary + Gemini 3.7 selective repair${apexLabel} (paid calls)`,
     primaryProvider: createMistralOcr41RangeAdapter({ apiKey: mistralKey }),
     repairProvider: createGemini37RepairPageAdapter({ apiKey: geminiKey }),
+    apexProvider,
   };
 }
 
@@ -457,7 +495,7 @@ async function ensureRuntimeRole(adminPool, databaseAdminPool, databaseUrl, home
   return url.toString();
 }
 
-function startWorkers({ composition, options, homeRoot, signal, dashboard = null }) {
+function startWorkers({ composition, options, homeRoot, signal, dashboard = null, apexProvider = null }) {
   const pageMaterializer = new PdfPageMaterializer();
   const onOutcome = (label) => async (event) => {
     if (event.type === "completed") {
@@ -496,8 +534,24 @@ function startWorkers({ composition, options, homeRoot, signal, dashboard = null
     idlePollMs: 400,
     onOutcome: onOutcome("repair"),
   });
-  log(`workers started: ${options.lanes} range lane(s), ${options.repairLanes} repair lane(s)`);
-  return [rangeLoop.run({ signal }), repairLoop.run({ signal })];
+  const runs = [rangeLoop.run({ signal }), repairLoop.run({ signal })];
+  if (apexProvider) {
+    const apexLoop = composition.createWorkerLoop({
+      worker: composition.createRepairWorker({
+        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "apex") }),
+        pageMaterializer,
+        provider: apexProvider,
+      }),
+      tenantId: options.tenantId,
+      workerIdPrefix: "isolated-apex",
+      concurrency: 2,
+      idlePollMs: 500,
+      onOutcome: onOutcome("apex"),
+    });
+    runs.push(apexLoop.run({ signal }));
+  }
+  log(`workers started: ${options.lanes} range lane(s), ${options.repairLanes} repair lane(s)${apexProvider ? ", 2 apex lane(s)" : ""}`);
+  return runs;
 }
 
 async function pollUntilReady({ service, tenantId, intakeId, options, timings }) {

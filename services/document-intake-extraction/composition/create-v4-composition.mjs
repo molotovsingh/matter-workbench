@@ -30,6 +30,7 @@ export function createDocumentIntakeExtractionV4Composition({
   documentInspectorFactory,
   primaryProvider,
   repairProvider,
+  repairProviders = null,
   calibration = null,
   providerStages = [],
   workerCapacity = {},
@@ -45,6 +46,11 @@ export function createDocumentIntakeExtractionV4Composition({
   }
   if (!repairProvider?.capability || typeof repairProvider.extractPage !== "function") {
     throw new Error("V4 composition requires a page repair provider");
+  }
+  const repairLadder = Array.isArray(repairProviders) && repairProviders.length ? repairProviders : [repairProvider];
+  for (const rung of repairLadder) {
+    if (!rung?.capability || typeof rung.extractPage !== "function") throw new Error("every repair ladder rung requires a page repair provider");
+    assertPinnedProviderCapability(rung.capability);
   }
   const primaryCapability = assertPinnedProviderCapability(primaryProvider.capability);
   assertPinnedProviderCapability(repairProvider.capability);
@@ -68,7 +74,7 @@ export function createDocumentIntakeExtractionV4Composition({
     version: "mistral-ocr41-document-range-primary/v1",
     select: () => primaryCapability,
   });
-  const repairRouter = createSelectiveRepairRouter({ repairProvider });
+  const repairRouter = createSelectiveRepairRouter({ repairProviders: repairLadder });
   const progressService = new IntakeProgressService({
     intakeRepository, calibration: capacityCalibration, providerStages, workerCapacity, clock,
   });
@@ -119,14 +125,14 @@ export function createDocumentIntakeExtractionV4Composition({
         maximumPages,
       });
     },
-    createRepairWorker({ scratchSpace, pageMaterializer, leaseMs } = {}) {
+    createRepairWorker({ scratchSpace, pageMaterializer, leaseMs, provider = repairProvider } = {}) {
       return new PostgresDocumentProcessingWorker({
         workRepository,
         resultRepository,
         objectStore,
         scratchSpace,
         pageMaterializer,
-        providers: [repairProvider],
+        providers: [provider],
         validator,
         repairRouter,
         admissionController,

@@ -47,13 +47,14 @@ export function startWatchDashboard({ port = 4499, service, tenantId, getIntakeI
       if (request.url === "/state.json") {
         const intakeId = getIntakeId();
         for (const lane of admissionController ? admissionController.snapshot() : []) {
-          const key = `${lane.capability.provider}/${lane.capability.model}`;
+          const key = `${lane.capability.provider}/${lane.capability.model}/${lane.capability.adapterVersion}`;
+          const label = `${lane.capability.provider} ${lane.capability.adapterVersion.includes("repair") ? "repair" : "primary"}`;
           const previous = previousLimits.get(key);
           if (previous !== undefined && previous !== lane.concurrencyLimit) {
             pushEvent(lane.concurrencyLimit > previous ? "scale" : "throttle",
               lane.concurrencyLimit > previous
-                ? `⚡ ${key} engines ${previous} → ${lane.concurrencyLimit}`
-                : `⛔ ${key} backed off ${previous} → ${lane.concurrencyLimit}`);
+                ? `⚡ ${label} engines ${previous} → ${lane.concurrencyLimit}`
+                : `⛔ ${label} backed off ${previous} → ${lane.concurrencyLimit}`);
           }
           previousLimits.set(key, lane.concurrencyLimit);
         }
