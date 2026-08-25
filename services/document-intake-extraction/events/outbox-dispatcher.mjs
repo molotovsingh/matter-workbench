@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 export class OutboxDispatcher {
   constructor({ store, deliver, baseRetryMs = 1_000, maximumRetryMs = 15 * 60 * 1000 } = {}) {
     if (!store?.claim || !store?.markDelivered || !store?.markFailed) throw new Error("outbox dispatcher requires a durable store");
@@ -40,28 +42,43 @@ export class OutboxDispatcher {
   }
 }
 
-export function createHttpEventDelivery({ endpoint, bearerToken, fetchImpl = fetch, timeoutMs = 15_000 } = {}) {
+export function createHttpEventDelivery({ endpoint, bearerToken, signingKey, keyId, clock = () => new Date(), fetchImpl = fetch, timeoutMs = 15_000 } = {}) {
   const url = new URL(endpoint);
   if (url.protocol !== "https:" && url.hostname !== "127.0.0.1" && url.hostname !== "localhost") {
     throw new Error("outbox event delivery requires HTTPS outside local tests");
   }
   const secret = String(bearerToken || "").trim();
-  if (!secret) throw new Error("outbox bearer token is required");
+  const hmacKey = String(signingKey || "");
+  const signingKeyId = String(keyId || "").trim();
+  if (!secret && !hmacKey) throw new Error("outbox bearer token or signing key is required");
+  if (hmacKey && hmacKey.length < 32) throw new Error("outbox signing key must contain at least 32 characters");
+  if (hmacKey && !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,119}$/.test(signingKeyId)) throw new Error("outbox signing keyId is invalid");
   const milliseconds = positiveInteger(timeoutMs, "timeoutMs");
   return async function deliverEvent(event, { idempotencyKey } = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), milliseconds);
+    const stableIdempotencyKey = String(idempotencyKey || event.eventId);
+    const body = JSON.stringify(event.payload);
+    const timestamp = clock().toISOString();
+    const signature = hmacKey
+      ? `sha256=${createHmac("sha256", hmacKey).update(`${timestamp}.${stableIdempotencyKey}.${body}`).digest("hex")}`
+      : "";
     let response;
     try {
       response = await fetchImpl(url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${secret}`,
+          ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+          ...(signature ? {
+            "X-Event-Key-Id": signingKeyId,
+            "X-Event-Timestamp": timestamp,
+            "X-Event-Signature": signature,
+          } : {}),
           "Content-Type": "application/json",
-          "Idempotency-Key": String(idempotencyKey || event.eventId),
+          "Idempotency-Key": stableIdempotencyKey,
           "X-Event-Type": event.type,
         },
-        body: JSON.stringify(event.payload),
+        body,
         signal: controller.signal,
       });
     } catch (error) {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import test from "node:test";
 
 import { OutboxDispatcher, createHttpEventDelivery, retryDelay } from "../services/document-intake-extraction/events/outbox-dispatcher.mjs";
@@ -54,6 +55,28 @@ test("HTTP event delivery requires HTTPS and sends only the versioned payload wi
   assert.equal(requests[0].init.headers["X-Event-Type"], "extraction.result.ready");
   assert.equal(requests[0].init.headers.Authorization, "Bearer delivery-secret");
   assert.deepEqual(requests[0].body, event("event-http", 1).payload);
+});
+
+test("HTTP event delivery supports rotatable keyed signatures over timestamp, idempotency key, and exact body", async () => {
+  const requests = [];
+  const signingKey = "signing-key-with-at-least-thirty-two-characters";
+  const timestamp = "2026-08-24T12:00:00.000Z";
+  const deliver = createHttpEventDelivery({
+    endpoint: "https://events.example.com/v1/extraction-events",
+    signingKey,
+    keyId: "mwb-events-2026-08",
+    clock: () => new Date(timestamp),
+    fetchImpl: async (_url, init) => { requests.push(init); return new Response(null, { status: 204 }); },
+  });
+  const current = event("event-signed", 1);
+  await deliver(current, { idempotencyKey: "event-signed" });
+  const body = JSON.stringify(current.payload);
+  const expected = `sha256=${createHmac("sha256", signingKey).update(`${timestamp}.event-signed.${body}`).digest("hex")}`;
+  assert.equal(requests[0].headers["X-Event-Key-Id"], "mwb-events-2026-08");
+  assert.equal(requests[0].headers["X-Event-Timestamp"], timestamp);
+  assert.equal(requests[0].headers["X-Event-Signature"], expected);
+  assert.equal(requests[0].headers.Authorization, undefined);
+  assert.throws(() => createHttpEventDelivery({ endpoint: "https://events.example.com", signingKey: "short", keyId: "key-1" }), /at least 32/);
 });
 
 function event(eventId, attemptCount) {
