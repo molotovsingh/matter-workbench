@@ -177,7 +177,8 @@
       "status": "pending_evidence",
       "requirement": "Finite shadow evidence and soak volume pass an explicit go/no-go gate before legacy drain, one-way cutover, and legacy runtime removal.",
       "owner": "Cutover authority",
-      "blocker": "Minimum shadow/soak volume and all preceding certification evidence remain open."
+      "blocker": "Minimum shadow/soak volume and all preceding certification evidence remain open.",
+      "tooling": ["test/document-intake-extraction-v4-cutover.test.mjs", "docs/operations/document-intake-extraction-v4-cutover.md"]
     }
   ]
 }
