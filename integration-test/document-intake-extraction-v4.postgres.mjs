@@ -54,6 +54,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       await verifyWorkerCapacityRequests(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
       await verifyDocumentLocalClaims(runtimeUrl);
+      await verifyCapabilityScopedClaims(runtimeUrl);
       await verifyLeaseExpirationEvidence(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
       await verifyIntakeRepository(runtimeUrl);
@@ -702,6 +703,47 @@ async function verifyDocumentLocalClaims(runtimeUrl) {
     const second = await repository.claimDocumentLocalBatch({ tenantId, workerId: "range-b", maximumPages: 3 });
     assert.deepEqual(second.map((claim) => claim.pageNumber), [4, 5]);
     assert.deepEqual(await repository.claimDocumentLocalBatch({ tenantId, workerId: "range-c", maximumPages: 3 }), []);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function verifyCapabilityScopedClaims(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const sourceSha = "d".repeat(64);
+  const primary = { provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "range-adapter/v1" };
+  const repair = { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair-adapter/v1" };
+  const seed = new pg.Client({ connectionString: runtimeUrl });
+  await seed.connect();
+  try {
+    await seed.query([
+      "insert into document_intake_extraction.source_blobs (sha256, object_key, bytes, page_count, inspector_version, verified_at)",
+      "values ($1, $2, 100, 2, 'integration-inspector/v1', now())",
+      "on conflict (sha256) do nothing",
+    ].join("\n"), [sourceSha, `blobs/sha256/dd/${sourceSha}`]);
+    await withTenant(seed, tenantId, async () => {
+      for (const [pageNumber, capability] of [[1, primary], [2, repair]]) {
+        await seed.query([
+          "insert into document_intake_extraction.page_computations",
+          "  (computation_id, tenant_id, fingerprint, source_sha256, page_number, provider, model, adapter_version, routing_policy, validator_version, status)",
+          "values ($1, $2, $3, $4, $5, $6, $7, $8, 'route/v1', 'validator/v1', 'queued')",
+        ].join("\n"), [randomUUID(), tenantId, String(pageNumber).repeat(64), sourceSha, pageNumber, capability.provider, capability.model, capability.adapterVersion]);
+      }
+    });
+  } finally {
+    await seed.end();
+  }
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 2 });
+  try {
+    const repository = new PostgresWorkRepository({ pool });
+    const repairClaim = await repository.claim({ tenantId, workerId: "scoped-repair", capabilities: [repair] });
+    assert.equal(repairClaim.capability.provider, "google", "a repair-only worker must never claim primary-capability pages");
+    assert.equal(repairClaim.pageNumber, 2);
+    assert.equal(await repository.claim({ tenantId, workerId: "scoped-unknown", capabilities: [{ provider: "aws", model: "textract-1", adapterVersion: "adapter/v1" }] }), null);
+    const primaryBatch = await repository.claimDocumentLocalBatch({ tenantId, workerId: "scoped-range", maximumPages: 8, capabilities: [primary] });
+    assert.deepEqual(primaryBatch.map((claim) => claim.pageNumber), [1]);
+    assert.equal(primaryBatch[0].capability.provider, "mistral");
+    assert.deepEqual(await repository.claimDocumentLocalBatch({ tenantId, workerId: "scoped-range-2", capabilities: [primary] }), []);
   } finally {
     await pool.end();
   }

@@ -22,8 +22,8 @@ export function buildDocumentIntakeExtractionRuntimeRoleSql({ roleName } = {}) {
     `grant select, insert on document_intake_extraction.audit_events to ${role};`,
     `grant execute on function document_intake_extraction.current_tenant_id() to ${role};`,
     `grant execute on function document_intake_extraction.expire_page_leases() to ${role};`,
-    `grant execute on function document_intake_extraction.claim_page_work(text, integer) to ${role};`,
-    `grant execute on function document_intake_extraction.claim_document_local_page_work(text, integer, integer) to ${role};`,
+    `grant execute on function document_intake_extraction.claim_page_work(text, integer, jsonb) to ${role};`,
+    `grant execute on function document_intake_extraction.claim_document_local_page_work(text, integer, integer, jsonb) to ${role};`,
     `grant execute on function document_intake_extraction.renew_page_lease(uuid, uuid, integer) to ${role};`,
     `grant execute on function document_intake_extraction.reconcile_attempt_cost(uuid, numeric, numeric, numeric, text) to ${role};`,
   ].join("\n");

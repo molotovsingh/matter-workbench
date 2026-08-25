@@ -10,14 +10,15 @@ export class PostgresWorkRepository {
     this.idFactory = idFactory;
   }
 
-  async claim({ tenantId, workerId, leaseMs = 60_000 } = {}) {
+  async claim({ tenantId, workerId, leaseMs = 60_000, capabilities = null } = {}) {
     const owner = clean(workerId, 200);
     if (!owner) throw new Error("work claim requires workerId");
     const milliseconds = boundedInteger(leaseMs, "leaseMs", 1_000, 15 * 60 * 1000);
+    const allowed = capabilityFilterJson(capabilities);
     return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
       const result = await client.query(
-        "select * from document_intake_extraction.claim_page_work($1, $2::int)",
-        [owner, milliseconds],
+        "select * from document_intake_extraction.claim_page_work($1, $2::int, $3::jsonb)",
+        [owner, milliseconds, allowed],
       );
       const row = result.rows[0];
       if (!row) return null;
@@ -58,15 +59,16 @@ export class PostgresWorkRepository {
     });
   }
 
-  async claimDocumentLocalBatch({ tenantId, workerId, maximumPages = 8, leaseMs = 60_000 } = {}) {
+  async claimDocumentLocalBatch({ tenantId, workerId, maximumPages = 8, leaseMs = 60_000, capabilities = null } = {}) {
     const owner = clean(workerId, 200);
     if (!owner) throw new Error("work batch claim requires workerId");
     const pages = boundedInteger(maximumPages, "maximumPages", 1, 32);
     const milliseconds = boundedInteger(leaseMs, "leaseMs", 1_000, 15 * 60 * 1000);
+    const allowed = capabilityFilterJson(capabilities);
     return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
       const result = await client.query(
-        "select * from document_intake_extraction.claim_document_local_page_work($1, $2::int, $3::int)",
-        [owner, pages, milliseconds],
+        "select * from document_intake_extraction.claim_document_local_page_work($1, $2::int, $3::int, $4::jsonb)",
+        [owner, pages, milliseconds, allowed],
       );
       const rows = result.rows.sort((left, right) => Number(left.page_number) - Number(right.page_number));
       if (!rows.length) return [];
@@ -310,6 +312,22 @@ function nonNegativeNumber(value, field, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) throw new Error(`${field} must be non-negative`);
   return number;
+}
+
+function capabilityFilterJson(capabilities) {
+  if (capabilities === null || capabilities === undefined) return null;
+  if (!Array.isArray(capabilities) || !capabilities.length) {
+    throw new Error("capabilities must be null or a non-empty array of pinned provider capabilities");
+  }
+  return JSON.stringify(capabilities.map((capability, index) => {
+    const provider = String(capability?.provider || "").trim();
+    const model = String(capability?.model || "").trim();
+    const adapterVersion = String(capability?.adapterVersion || capability?.adapter_version || "").trim();
+    if (!provider || !model || !adapterVersion) {
+      throw new Error(`capabilities[${index}] requires provider, model, and adapterVersion`);
+    }
+    return { provider, model, adapter_version: adapterVersion };
+  }));
 }
 
 function boundedInteger(value, field, minimum, maximum) {

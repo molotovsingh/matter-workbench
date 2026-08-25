@@ -18,6 +18,7 @@ const WORKER_CAPACITY_MIGRATION = new URL("../services/document-intake-extractio
 const WORKLOAD_CLASS_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/006_intake_workload_class.sql", import.meta.url);
 const AUDIT_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/007_append_only_audit.sql", import.meta.url);
 const COST_RECONCILIATION_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/008_cost_reconciliation.sql", import.meta.url);
+const CAPABILITY_SCOPED_CLAIMS_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/009_capability_scoped_claims.sql", import.meta.url);
 
 // V4-DB-001
 test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS, fenced work, cost evidence, and an outbox", async () => {
@@ -74,9 +75,18 @@ test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS
   assert.match(reconciliationSql, /is not distinct from confirmed_billed_cost_usd/i);
   assert.doesNotMatch(reconciliationSql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
 
+  const capabilityScopedSql = await readFile(CAPABILITY_SCOPED_CLAIMS_MIGRATION, "utf8");
+  assert.match(capabilityScopedSql, /allowed_capabilities jsonb default null/i);
+  for (const claimFunction of ["claim_page_work", "claim_document_local_page_work"]) {
+    assert.match(capabilityScopedSql, new RegExp(`drop function document_intake_extraction\\.${claimFunction}\\(`, "i"), `${claimFunction} must replace the unscoped signature`);
+  }
+  assert.match(capabilityScopedSql, /capability->>'provider' = pc\.provider/i);
+  assert.match(capabilityScopedSql, /capability->>'adapter_version' = pc\.adapter_version/i);
+  assert.doesNotMatch(capabilityScopedSql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
+
   const runtimeGrants = buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "v4_runtime" });
-  assert.match(runtimeGrants, /claim_page_work\(text, integer\)/);
-  assert.match(runtimeGrants, /claim_document_local_page_work\(text, integer, integer\)/);
+  assert.match(runtimeGrants, /claim_page_work\(text, integer, jsonb\)/);
+  assert.match(runtimeGrants, /claim_document_local_page_work\(text, integer, integer, jsonb\)/);
   assert.match(runtimeGrants, /computation_supersessions/);
   assert.match(runtimeGrants, /worker_capacity_requests/);
   assert.match(runtimeGrants, /grant select, insert on document_intake_extraction\.audit_events/);

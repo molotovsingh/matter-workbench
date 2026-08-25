@@ -23,7 +23,9 @@ export class PostgresDocumentProcessingWorker {
     this.objectStore = objectStore;
     this.scratchSpace = scratchSpace;
     this.pageMaterializer = pageMaterializer;
+    if (!providers.length) throw new Error("PostgreSQL worker requires at least one provider capability");
     this.providers = new Map(providers.map((provider) => [providerCapabilityKey(provider.capability), provider]));
+    this.capabilities = providers.map((provider) => provider.capability);
     this.validator = validator;
     this.repairRouter = repairRouter;
     this.admissionController = admissionController;
@@ -38,7 +40,7 @@ export class PostgresDocumentProcessingWorker {
     if (!admission.admitted) return { status: "deferred", admissionReason: admission.reason, retryAfterMs: admission.retryAfterMs };
     let claim;
     try {
-      claim = await this.workRepository.claim({ tenantId, workerId, leaseMs: this.leaseMs });
+      claim = await this.workRepository.claim({ tenantId, workerId, leaseMs: this.leaseMs, capabilities: this.capabilities });
     } catch (error) {
       if (admission.permit) this.admissionController.cancel(admission.permit);
       throw error;

@@ -68,6 +68,7 @@ test("PostgreSQL worker streams verified source through bounded scratch and chec
   try {
     const outcome = await worker.runOnce({ tenantId: "tenant-1", workerId: "worker-1" });
     assert.equal(outcome.status, "accepted");
+    assert.deepEqual(repository.claimInputs[0].capabilities, [CAPABILITY], "worker must claim only pages routed to its own provider capabilities");
     assert.equal(providerBytes.toString(), payload.toString());
     assert.equal(repository.successes.length, 1);
     assert.equal(repository.successes[0].providerResult.billedCostUsd, 0.004);
@@ -207,7 +208,9 @@ function fakeWorkRepository(initialClaim) {
     successes: [],
     failures: [],
     renewals: [],
-    async claim() {
+    claimInputs: [],
+    async claim(input) {
+      this.claimInputs.push(input);
       const value = available;
       available = null;
       return value;

@@ -36,6 +36,7 @@ test("range worker turns contiguous same-document claims into one provider call 
   try {
     const outcome = await worker.runOnce({ tenantId: "tenant-1", workerId: "range-worker-1" });
     assert.equal(providerCalls, 1);
+    assert.deepEqual(fixture.repository.batchClaimInputs[0].capabilities, [MISTRAL_OCR41_RANGE_CAPABILITY], "range worker must claim only pages routed to its own provider capabilities");
     assert.deepEqual(outcome.statuses, ["accepted", "accepted", "accepted"]);
     assert.equal(fixture.repository.successes.length, 3);
     assert.equal(fixture.repository.failures.length, 0);
@@ -159,8 +160,8 @@ async function rangeFixture() {
   let clockTick = 0;
   const repository = {
     claims,
-    successes: [], failures: [], renewals: [],
-    async claimDocumentLocalBatch() { const result = this.claims; this.claims = []; return result; },
+    successes: [], failures: [], renewals: [], batchClaimInputs: [],
+    async claimDocumentLocalBatch(input) { this.batchClaimInputs.push(input); const result = this.claims; this.claims = []; return result; },
     async renew(input) { this.renewals.push(input); return { renewed: true }; },
     async finishSuccess(input) { this.successes.push(input); return { status: input.repair ? "repair_queued" : input.validation.outcome, intakeIds: ["intake-1"] }; },
     async finishFailure(input) { this.failures.push(input); return { status: "review_required", intakeIds: ["intake-1"] }; },
