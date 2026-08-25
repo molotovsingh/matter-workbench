@@ -39,6 +39,7 @@ test("range worker turns contiguous same-document claims into one provider call 
     assert.deepEqual(outcome.statuses, ["accepted", "accepted", "accepted"]);
     assert.equal(fixture.repository.successes.length, 3);
     assert.equal(fixture.repository.failures.length, 0);
+    assert.deepEqual(fixture.capacityRecords.map((record) => ({ pageOperations: record.pageOperations, outcome: record.outcome })), [{ pageOperations: 3, outcome: "success" }]);
     assert.deepEqual(publications, [{ tenantId: "tenant-1", intakeId: "intake-1" }]);
     assert.deepEqual(await readdir(fixture.root), []);
   } finally {
@@ -130,6 +131,7 @@ test("range worker allocates known failed-call cost across every claimed page", 
     assert.equal(fixture.repository.failures.length, 3);
     assert.ok(fixture.repository.failures.every(({ error }) => Math.abs(error.billedCostUsd - 0.004) < 1e-12));
     assert.deepEqual(fixture.repository.failures.map(({ error }) => error.usage.inputUnits), [1, 1, 1]);
+    assert.equal(fixture.capacityRecords[0].outcome, "failed");
     assert.deepEqual(await readdir(fixture.root), []);
   } finally {
     await fixture.cleanup();
@@ -153,6 +155,8 @@ async function rangeFixture() {
     capability: MISTRAL_OCR41_RANGE_CAPABILITY,
     validatorVersion: "page-validator/v1",
   }));
+  const capacityRecords = [];
+  let clockTick = 0;
   const repository = {
     claims,
     successes: [], failures: [], renewals: [],
@@ -184,8 +188,11 @@ async function rangeFixture() {
         },
       },
       validator: createPageValidator(),
+      capacityCalibration: { async recordProvider(input) { capacityRecords.push(input); } },
+      clock: () => new Date(Date.parse("2026-08-24T12:00:00.000Z") + (clockTick += 10)),
       maximumPages: 8,
     },
+    capacityRecords,
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }

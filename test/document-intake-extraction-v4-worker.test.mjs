@@ -27,6 +27,8 @@ test("PostgreSQL worker streams verified source through bounded scratch and chec
   });
   let providerBytes;
   const published = [];
+  const capacityRecords = [];
+  let clockTick = 0;
   const worker = new PostgresDocumentProcessingWorker({
     workRepository: repository,
     resultRepository: {
@@ -60,6 +62,8 @@ test("PostgreSQL worker streams verified source through bounded scratch and chec
       },
     }],
     validator: createPageValidator(),
+    capacityCalibration: { async recordProvider(input) { capacityRecords.push(input); } },
+    clock: () => new Date(Date.parse("2026-08-24T12:00:00.000Z") + (clockTick += 10)),
   });
   try {
     const outcome = await worker.runOnce({ tenantId: "tenant-1", workerId: "worker-1" });
@@ -67,6 +71,7 @@ test("PostgreSQL worker streams verified source through bounded scratch and chec
     assert.equal(providerBytes.toString(), payload.toString());
     assert.equal(repository.successes.length, 1);
     assert.equal(repository.successes[0].providerResult.billedCostUsd, 0.004);
+    assert.deepEqual(capacityRecords.map((record) => ({ pageOperations: record.pageOperations, outcome: record.outcome })), [{ pageOperations: 1, outcome: "success" }]);
     assert.deepEqual(published, [{ tenantId: "tenant-1", intakeId: "intake-1" }]);
     assert.deepEqual(outcome.publications, [{ intakeId: "intake-1", published: true, resultId: "result-1" }]);
     assert.deepEqual(await readdir(root), [], "worker task scratch must be gone before checkpoint returns");

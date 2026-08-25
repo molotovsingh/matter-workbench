@@ -1,10 +1,13 @@
 import { assertPinnedProviderCapability } from "../../../packages/extraction-contracts/index.mjs";
 import { createPageValidator } from "../page-validator.mjs";
-import { RollingCapacityCalibration } from "../capacity/rolling-capacity-calibration.mjs";
 import { IntakeProgressService } from "../progress/intake-progress-service.mjs";
 import { OutboxDispatcher } from "../events/outbox-dispatcher.mjs";
 import { createDocumentIntakeExtractionHttpHandler } from "../http/document-intake-extraction-http.mjs";
 import { PostgresDocumentIntakeExtractionService } from "../postgres/postgres-document-intake-extraction-service.mjs";
+import {
+  PostgresCapacityCalibrationRepository,
+  TenantCapacityCalibrationRegistry,
+} from "../postgres/postgres-capacity-calibration-repository.mjs";
 import { PostgresIntakeRepository } from "../postgres/postgres-intake-repository.mjs";
 import { PostgresOutboxStore } from "../postgres/postgres-outbox-store.mjs";
 import { PostgresResultRepository } from "../postgres/postgres-result-repository.mjs";
@@ -20,7 +23,7 @@ export function createDocumentIntakeExtractionV4Composition({
   documentInspectorFactory,
   primaryProvider,
   repairProvider,
-  calibration = new RollingCapacityCalibration(),
+  calibration = null,
   providerStages = [],
   workerCapacity = {},
   validator = createPageValidator(),
@@ -43,6 +46,8 @@ export function createDocumentIntakeExtractionV4Composition({
   const workRepository = new PostgresWorkRepository({ pool, clock });
   const outboxStore = new PostgresOutboxStore({ pool, clock });
   const uploadAuthorizationStore = new PostgresUploadAuthorizationStore({ pool, clock });
+  const capacityRepository = new PostgresCapacityCalibrationRepository({ pool, clock });
+  const capacityCalibration = calibration || new TenantCapacityCalibrationRegistry({ repository: capacityRepository });
   const objectStore = objectStoreFactory({ authorizationStore: uploadAuthorizationStore });
   if (!objectStore?.createUploadAuthorization || !objectStore?.commitAuthorizedUpload || !objectStore?.openBlobStream) {
     throw new Error("objectStoreFactory must return direct custody and streaming methods");
@@ -55,7 +60,7 @@ export function createDocumentIntakeExtractionV4Composition({
   });
   const repairRouter = createSelectiveRepairRouter({ repairProvider });
   const progressService = new IntakeProgressService({
-    intakeRepository, calibration, providerStages, workerCapacity, clock,
+    intakeRepository, calibration: capacityCalibration, providerStages, workerCapacity, clock,
   });
   const service = new PostgresDocumentIntakeExtractionService({
     intakeRepository,
@@ -64,14 +69,15 @@ export function createDocumentIntakeExtractionV4Composition({
     documentInspector,
     capabilityRouter,
     progressService,
+    capacityCalibration,
     clock,
   });
 
   return Object.freeze({
     service,
-    repositories: Object.freeze({ intakeRepository, resultRepository, workRepository, outboxStore, uploadAuthorizationStore }),
+    repositories: Object.freeze({ intakeRepository, resultRepository, workRepository, outboxStore, uploadAuthorizationStore, capacityRepository }),
     objectStore,
-    calibration,
+    calibration: capacityCalibration,
     validator,
     capabilityRouter,
     repairRouter,
@@ -89,6 +95,8 @@ export function createDocumentIntakeExtractionV4Composition({
         validator,
         repairRouter,
         admissionController,
+        capacityCalibration,
+        clock,
         leaseMs,
         maximumPages,
       });
@@ -104,6 +112,8 @@ export function createDocumentIntakeExtractionV4Composition({
         validator,
         repairRouter,
         admissionController,
+        capacityCalibration,
+        clock,
         leaseMs,
       });
     },

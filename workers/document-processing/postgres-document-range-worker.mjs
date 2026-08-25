@@ -13,6 +13,8 @@ export class PostgresDocumentRangeWorker {
     validator,
     repairRouter = null,
     admissionController = null,
+    capacityCalibration = null,
+    clock = () => new Date(),
     leaseMs = 60_000,
     maximumPages = 8,
   } = {}) {
@@ -28,6 +30,7 @@ export class PostgresDocumentRangeWorker {
       throw new Error("admissionController requires acquire, complete, and cancel");
     }
     if (admissionController && providers.length !== 1) throw new Error("admission-controlled range workers require one dedicated provider capability");
+    if (capacityCalibration && !capacityCalibration.recordProvider) throw new Error("capacityCalibration.recordProvider is required");
     this.workRepository = workRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
@@ -38,11 +41,13 @@ export class PostgresDocumentRangeWorker {
     this.repairRouter = repairRouter;
     this.admissionController = admissionController;
     this.admissionCapability = providers[0]?.capability || null;
+    this.capacityCalibration = capacityCalibration;
+    this.clock = clock;
     this.leaseMs = boundedInteger(leaseMs, "leaseMs", 1_000, 15 * 60 * 1000);
     this.maximumPages = boundedInteger(maximumPages, "maximumPages", 1, 32);
   }
 
-  async runOnce({ tenantId, workerId = "postgres-document-range-worker" } = {}) {
+  async runOnce({ tenantId, workerId = "postgres-document-range-worker", workloadClass = "default" } = {}) {
     const admission = this.admissionController?.acquire(this.admissionCapability, { weight: this.maximumPages }) || { admitted: true, permit: null };
     if (!admission.admitted) return { status: "deferred", admissionReason: admission.reason, retryAfterMs: admission.retryAfterMs };
     let claims;
@@ -68,6 +73,8 @@ export class PostgresDocumentRangeWorker {
     const stopHeartbeat = this.startHeartbeat({ tenantId, claims });
     let providerResults;
     let providerStarted = false;
+    let providerStartedAtMs = 0;
+    let capacityRecorded = false;
     try {
       const maximumOutputBytes = Number(this.pageMaterializer.maximumRangeBytes || 0);
       providerResults = await this.scratchSpace.withTaskScratch({
@@ -87,6 +94,7 @@ export class PostgresDocumentRangeWorker {
           allocation,
         });
         providerStarted = true;
+        providerStartedAtMs = this.clock().getTime();
         return provider.extractPages({
           pageNumbers: claims.map((claim) => claim.pageNumber),
           sourceSha256: claims[0].sourceSha256,
@@ -102,9 +110,17 @@ export class PostgresDocumentRangeWorker {
       if (!Array.isArray(providerResults) || providerResults.length !== claims.length) {
         throw measuredLocalError("range provider returned an invalid result count", "worker.provider_result_count_invalid");
       }
+      await this.recordCapacity({ tenantId, workloadClass, capability, pageOperations: claims.length, providerStartedAtMs, outcome: "success" });
+      capacityRecorded = true;
       if (admission.permit) this.admissionController.complete(admission.permit, { outcome: "success" });
     } catch (caught) {
       stopHeartbeat();
+      if (providerStarted && !capacityRecorded) {
+        await this.recordCapacity({
+          tenantId, workloadClass, capability, pageOperations: claims.length, providerStartedAtMs,
+          outcome: admissionOutcome(caught).outcome === "throttled" ? "throttled" : "failed",
+        });
+      }
       if (admission.permit) {
         if (providerStarted) this.admissionController.complete(admission.permit, admissionOutcome(caught));
         else this.admissionController.cancel(admission.permit);
@@ -133,6 +149,18 @@ export class PostgresDocumentRangeWorker {
       statuses: checkpoints.map((checkpoint) => checkpoint.status),
       publications,
     };
+  }
+
+  async recordCapacity({ tenantId, workloadClass, capability, pageOperations, providerStartedAtMs, outcome }) {
+    if (!this.capacityCalibration || !providerStartedAtMs) return null;
+    const durationMs = Math.max(1, Math.round(this.clock().getTime() - providerStartedAtMs));
+    try {
+      return await this.capacityCalibration.recordProvider({
+        tenantId, workloadClass, ...capability, pageOperations, durationMs, outcome,
+      });
+    } catch {
+      return null;
+    }
   }
 
   async finishFailures({ tenantId, claims, error }) {

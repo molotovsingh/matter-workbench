@@ -6,7 +6,9 @@ const TERMINAL = new Set(["accepted", "review_required"]);
 export class IntakeProgressService {
   constructor({ intakeRepository, calibration, providerStages = [], workerCapacity = {}, clock = () => new Date() } = {}) {
     if (!intakeRepository?.readProgressSnapshot) throw new Error("progress service requires intakeRepository.readProgressSnapshot");
-    if (!calibration?.estimateCorpus || !calibration?.estimateProvider) throw new Error("progress service requires rolling capacity calibration");
+    if (!calibration?.forTenant && (!calibration?.estimateCorpus || !calibration?.estimateProvider)) {
+      throw new Error("progress service requires rolling or tenant-scoped capacity calibration");
+    }
     this.intakeRepository = intakeRepository;
     this.calibration = calibration;
     this.providerStages = providerStages;
@@ -17,12 +19,13 @@ export class IntakeProgressService {
   async getProgress({ tenantId, intakeId, workloadClass = "default", uploadBytesPerSecond = 0 } = {}) {
     const snapshot = await this.intakeRepository.readProgressSnapshot({ tenantId, intakeId });
     const intake = snapshot.intake;
-    const corpus = this.calibration.estimateCorpus(workloadClass);
+    const calibration = this.calibration.forTenant ? await this.calibration.forTenant(tenantId) : this.calibration;
+    const corpus = calibration.estimateCorpus(workloadClass);
     const currentWeight = snapshot.work.reduce((sum, row) => sum + row.weight, 0);
     const completedWeight = snapshot.work.filter((row) => TERMINAL.has(row.status)).reduce((sum, row) => sum + row.weight, 0);
     const runningWeight = snapshot.work.filter((row) => row.status === "running").reduce((sum, row) => sum + row.weight, 0);
     const providerStages = this.providerStages.map((stage) => {
-      const estimate = this.calibration.estimateProvider(stage, stage.fallback || {});
+      const estimate = calibration.estimateProvider(stage, stage.fallback || {});
       const observedWeight = snapshot.work
         .filter((row) => row.provider === stage.provider && row.model === stage.model && row.adapterVersion === stage.adapterVersion)
         .reduce((sum, row) => sum + row.weight, 0);
@@ -34,6 +37,7 @@ export class IntakeProgressService {
         conservativePageOperationsPerSecond: estimate.pageOperationsPerSecond.conservative,
         optimisticPageOperationsPerSecond: estimate.pageOperationsPerSecond.optimistic,
         throttleRate: estimate.throttleRate,
+        failureRate: estimate.failureRate,
         sampleCount: estimate.sampleCount,
       };
     });

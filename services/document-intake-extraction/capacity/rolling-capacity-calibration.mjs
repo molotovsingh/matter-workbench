@@ -19,14 +19,16 @@ export class RollingCapacityCalibration {
     return sample;
   }
 
-  recordProvider({ provider, model, adapterVersion, pageOperations, durationMs, throttled = false } = {}) {
+  recordProvider({ provider, model, adapterVersion, pageOperations, durationMs, outcome = "success", throttled = false } = {}) {
     const key = providerKey({ provider, model, adapterVersion });
     const operations = positiveNumber(pageOperations, "pageOperations");
     const milliseconds = positiveNumber(durationMs, "durationMs");
+    const normalizedOutcome = throttled ? "throttled" : normalizeOutcome(outcome);
     const sample = {
       pageOperationsPerSecond: operations / (milliseconds / 1000),
       latencyMsPerOperation: milliseconds / operations,
-      throttled: Boolean(throttled),
+      outcome: normalizedOutcome,
+      throttled: normalizedOutcome === "throttled",
     };
     pushSample(this.providers, key, sample, this.maximumSamplesPerKey);
     return sample;
@@ -52,12 +54,15 @@ export class RollingCapacityCalibration {
 
   estimateProvider(capability, fallback = {}) {
     const samples = this.providers.get(providerKey(capability)) || [];
-    const throughputs = samples.map((sample) => sample.pageOperationsPerSecond);
-    const latencies = samples.map((sample) => sample.latencyMsPerOperation);
-    const throttleRate = samples.length ? samples.filter((sample) => sample.throttled).length / samples.length : finiteFallback(fallback.throttleRate, 0);
+    const successful = samples.filter((sample) => sampleOutcome(sample) === "success");
+    const throughputs = successful.map((sample) => sample.pageOperationsPerSecond);
+    const latencies = successful.map((sample) => sample.latencyMsPerOperation);
+    const throttleRate = samples.length ? samples.filter((sample) => sampleOutcome(sample) === "throttled").length / samples.length : finiteFallback(fallback.throttleRate, 0);
+    const failureRate = samples.length ? samples.filter((sample) => sampleOutcome(sample) === "failed").length / samples.length : finiteFallback(fallback.failureRate, 0);
     const medianThroughput = quantile(throughputs, 0.5, positiveNumber(fallback.pageOperationsPerSecond, "fallback.pageOperationsPerSecond", 1));
     return {
       sampleCount: samples.length,
+      successfulSampleCount: successful.length,
       pageOperationsPerSecond: {
         conservative: quantile(throughputs, 0.1, medianThroughput * 0.5),
         median: medianThroughput,
@@ -68,6 +73,7 @@ export class RollingCapacityCalibration {
         p95: quantile(latencies, 0.95, 2000 / medianThroughput),
       },
       throttleRate,
+      failureRate,
     };
   }
 
@@ -93,6 +99,17 @@ export function providerKey({ provider, model, adapterVersion } = {}) {
   const values = [provider, model, adapterVersion].map((value) => String(value || "").trim());
   if (values.some((value) => !value)) throw new Error("provider, model, and adapterVersion are required for capacity calibration");
   return values.join("\u0000");
+}
+
+function normalizeOutcome(value) {
+  const outcome = String(value || "success");
+  if (!["success", "failed", "throttled"].includes(outcome)) throw new Error("provider capacity outcome is invalid");
+  return outcome;
+}
+
+function sampleOutcome(sample = {}) {
+  if (sample.outcome) return normalizeOutcome(sample.outcome);
+  return sample.throttled ? "throttled" : "success";
 }
 
 function pushSample(map, key, sample, maximum) {

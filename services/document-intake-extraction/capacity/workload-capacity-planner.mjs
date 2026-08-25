@@ -221,6 +221,7 @@ function normalizeProviderStage(stage, index, corpus) {
   const quota = positiveNumber(stage.quotaPageOperationsPerSecond, `providerStages[${index}].quotaPageOperationsPerSecond`, Infinity);
   const safetyFactor = clamp(nonNegativeNumber(stage.safetyFactor, `providerStages[${index}].safetyFactor`, 0.8), 0.05, 1);
   const throttleRate = clamp(nonNegativeNumber(stage.throttleRate, `providerStages[${index}].throttleRate`, 0), 0, 0.95);
+  const failureRate = clamp(nonNegativeNumber(stage.failureRate, `providerStages[${index}].failureRate`, 0), 0, 0.95);
   const capability = assertPinnedProviderCapability({
     provider: stage.provider,
     model: stage.model,
@@ -236,8 +237,10 @@ function normalizeProviderStage(stage, index, corpus) {
     sampleCount: boundedInteger(stage.sampleCount ?? 0, `providerStages[${index}].sampleCount`, 0, Number.MAX_SAFE_INTEGER),
     medianPageOperationsPerSecond: Math.min(median, quota),
     optimisticPageOperationsPerSecond: Math.min(optimistic, quota),
-    effectivePageOperationsPerSecond: Math.min(conservative, quota) * safetyFactor * (1 - throttleRate),
+    effectivePageOperationsPerSecond: Math.min(conservative, quota) * safetyFactor * (1 - throttleRate) * (1 - failureRate),
     quotaPageOperationsPerSecond: quota,
+    throttleRate,
+    failureRate,
     targetSeconds: positiveNumber(stage.targetSeconds, `providerStages[${index}].targetSeconds`, 55),
   };
 }

@@ -11,6 +11,7 @@ export class PostgresDocumentIntakeExtractionService {
     documentInspector,
     capabilityRouter,
     progressService = null,
+    capacityCalibration = null,
     clock = () => new Date(),
     uploadAuthorizationTtlMs = 15 * 60 * 1000,
   } = {}) {
@@ -22,12 +23,14 @@ export class PostgresDocumentIntakeExtractionService {
     if (!documentInspector?.inspect) throw new Error("PostgreSQL service requires a document inspector");
     if (!capabilityRouter?.select || !capabilityRouter?.version) throw new Error("PostgreSQL service requires a versioned capability router");
     if (progressService && !progressService.getProgress) throw new Error("progressService.getProgress is required");
+    if (capacityCalibration && !capacityCalibration.recordCorpus) throw new Error("capacityCalibration.recordCorpus is required");
     this.intakeRepository = intakeRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
     this.documentInspector = documentInspector;
     this.capabilityRouter = capabilityRouter;
     this.progressService = progressService;
+    this.capacityCalibration = capacityCalibration;
     this.clock = clock;
     this.uploadAuthorizationTtlMs = uploadAuthorizationTtlMs;
   }
@@ -100,7 +103,7 @@ export class PostgresDocumentIntakeExtractionService {
         virtualFinish: pageNumber,
       });
     }
-    await this.intakeRepository.recordInspectedDocument({
+    const inspectedDocument = await this.intakeRepository.recordInspectedDocument({
       tenantId,
       intakeId,
       fileId,
@@ -109,6 +112,16 @@ export class PostgresDocumentIntakeExtractionService {
       inspectorVersion: inspection.inspectorVersion,
       pages: routedPages,
     });
+    if (this.capacityCalibration && !inspectedDocument.duplicateOfDocumentId) {
+      await this.capacityCalibration.recordCorpus({
+        tenantId,
+        workloadClass: "default",
+        bytes: receipt.bytes,
+        pages: inspection.pageCount,
+        ocrPages: inspection.pageCount,
+        repairPages: 0,
+      }).catch(() => null);
+    }
     return {
       ...receipt,
       pageCount: inspection.pageCount,

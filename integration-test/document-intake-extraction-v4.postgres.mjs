@@ -5,6 +5,7 @@ import test from "node:test";
 import pg from "pg";
 
 import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
+import { PostgresCapacityCalibrationRepository } from "../services/document-intake-extraction/postgres/postgres-capacity-calibration-repository.mjs";
 import { PostgresIntakeRepository } from "../services/document-intake-extraction/postgres/postgres-intake-repository.mjs";
 import { PostgresOutboxStore } from "../services/document-intake-extraction/postgres/postgres-outbox-store.mjs";
 import { PostgresResultRepository } from "../services/document-intake-extraction/postgres/postgres-result-repository.mjs";
@@ -45,6 +46,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
 
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifyTenantIsolation(runtimeUrl);
+      await verifyDurableCapacityCalibration(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
       await verifyDocumentLocalClaims(runtimeUrl);
       await verifyLeaseExpirationEvidence(runtimeUrl);
@@ -93,6 +95,38 @@ async function verifyTenantIsolation(runtimeUrl) {
     });
   } finally {
     await client.end();
+  }
+}
+
+async function verifyDurableCapacityCalibration(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const otherTenantId = `tenant-${randomUUID()}`;
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 3 });
+  try {
+    const repository = new PostgresCapacityCalibrationRepository({ pool });
+    await repository.recordCorpus({ tenantId, workloadClass: "mixed-legal", bytes: 1000, pages: 10, ocrPages: 8, repairPages: 1 });
+    await repository.recordProvider({
+      tenantId, workloadClass: "mixed-legal", provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "range/v1",
+      pageOperations: 100, durationMs: 1000, outcome: "success",
+    });
+    await repository.recordProvider({
+      tenantId, workloadClass: "mixed-legal", provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "range/v1",
+      pageOperations: 100, durationMs: 10, outcome: "throttled",
+    });
+    await repository.recordProvider({
+      tenantId, workloadClass: "mixed-legal", provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "range/v1",
+      pageOperations: 100, durationMs: 20, outcome: "failed",
+    });
+    const calibration = await repository.loadCalibration({ tenantId });
+    assert.equal(calibration.estimateCorpus("mixed-legal").sampleCount, 1);
+    const provider = calibration.estimateProvider({ provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "range/v1" });
+    assert.equal(provider.pageOperationsPerSecond.median, 100);
+    assert.equal(provider.successfulSampleCount, 1);
+    assert.equal(provider.throttleRate, 1 / 3);
+    assert.equal(provider.failureRate, 1 / 3);
+    assert.equal((await repository.loadCalibration({ tenantId: otherTenantId })).estimateCorpus("mixed-legal").sampleCount, 0);
+  } finally {
+    await pool.end();
   }
 }
 
