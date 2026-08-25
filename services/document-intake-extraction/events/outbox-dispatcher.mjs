@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export class OutboxDispatcher {
   constructor({ store, deliver, baseRetryMs = 1_000, maximumRetryMs = 15 * 60 * 1000 } = {}) {
@@ -98,9 +98,45 @@ export function createHttpEventDelivery({ endpoint, bearerToken, signingKey, key
   };
 }
 
+export async function verifyHttpEventSignature({ headers = {}, rawBody, resolveSigningKey, clock = () => new Date(), maximumSkewMs = 5 * 60 * 1000 } = {}) {
+  if (typeof resolveSigningKey !== "function") throw new Error("resolveSigningKey is required");
+  const keyId = readHeader(headers, "x-event-key-id");
+  const timestamp = readHeader(headers, "x-event-timestamp");
+  const signature = readHeader(headers, "x-event-signature");
+  const idempotencyKey = readHeader(headers, "idempotency-key");
+  if (!keyId || !timestamp || !signature || !idempotencyKey) throw signatureError("signed event headers are incomplete", "outbox.signature_headers_missing");
+  const eventTime = new Date(timestamp).getTime();
+  const now = clock().getTime();
+  if (!Number.isFinite(eventTime) || Math.abs(now - eventTime) > positiveInteger(maximumSkewMs, "maximumSkewMs")) {
+    throw signatureError("signed event timestamp is outside the replay window", "outbox.signature_timestamp_invalid");
+  }
+  const key = String(await resolveSigningKey(keyId) || "");
+  if (key.length < 32) throw signatureError("signed event key is unavailable", "outbox.signature_key_unavailable");
+  const body = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : String(rawBody ?? "");
+  const expected = `sha256=${createHmac("sha256", key).update(`${timestamp}.${idempotencyKey}.${body}`).digest("hex")}`;
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) {
+    throw signatureError("signed event verification failed", "outbox.signature_invalid");
+  }
+  return { verified: true, keyId, timestamp, idempotencyKey };
+}
+
 export function retryDelay(attemptCount, baseRetryMs, maximumRetryMs) {
   const exponent = Math.max(0, Math.min(20, Number(attemptCount || 1) - 1));
   return Math.min(maximumRetryMs, baseRetryMs * (2 ** exponent));
+}
+
+function readHeader(headers, name) {
+  if (typeof headers?.get === "function") return String(headers.get(name) || "").trim();
+  const entry = Object.entries(headers || {}).find(([key]) => key.toLowerCase() === name);
+  return String(entry?.[1] || "").trim();
+}
+
+function signatureError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
 }
 
 function safeCode(value) {

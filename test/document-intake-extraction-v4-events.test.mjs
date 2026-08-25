@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
 
-import { OutboxDispatcher, createHttpEventDelivery, retryDelay } from "../services/document-intake-extraction/events/outbox-dispatcher.mjs";
+import {
+  OutboxDispatcher,
+  createHttpEventDelivery,
+  retryDelay,
+  verifyHttpEventSignature,
+} from "../services/document-intake-extraction/events/outbox-dispatcher.mjs";
 
 // V4-OUTBOX-001
 test("V4-OUTBOX-001 dispatches leased outbox events with idempotency and distinguishes retry from dead letter", async () => {
@@ -76,6 +81,25 @@ test("HTTP event delivery supports rotatable keyed signatures over timestamp, id
   assert.equal(requests[0].headers["X-Event-Timestamp"], timestamp);
   assert.equal(requests[0].headers["X-Event-Signature"], expected);
   assert.equal(requests[0].headers.Authorization, undefined);
+  const verified = await verifyHttpEventSignature({
+    headers: requests[0].headers,
+    rawBody: requests[0].body,
+    resolveSigningKey: async (keyId) => keyId === "mwb-events-2026-08" ? signingKey : "",
+    clock: () => new Date(timestamp),
+  });
+  assert.equal(verified.verified, true);
+  await assert.rejects(() => verifyHttpEventSignature({
+    headers: requests[0].headers,
+    rawBody: `${requests[0].body}tampered`,
+    resolveSigningKey: async () => signingKey,
+    clock: () => new Date(timestamp),
+  }), { code: "outbox.signature_invalid" });
+  await assert.rejects(() => verifyHttpEventSignature({
+    headers: requests[0].headers,
+    rawBody: requests[0].body,
+    resolveSigningKey: async () => signingKey,
+    clock: () => new Date("2026-08-24T12:10:00.000Z"),
+  }), { code: "outbox.signature_timestamp_invalid" });
   assert.throws(() => createHttpEventDelivery({ endpoint: "https://events.example.com", signingKey: "short", keyId: "key-1" }), /at least 32/);
 });
 
