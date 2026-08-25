@@ -6,12 +6,56 @@ import path from "node:path";
 import test from "node:test";
 
 import { createPageValidator } from "../services/document-intake-extraction/page-validator.mjs";
+import { createSelectiveRepairRouter } from "../services/document-intake-extraction/routing/selective-repair-router.mjs";
 import { PdfPageMaterializer } from "../workers/document-processing/pdf-page-materializer.mjs";
 import { PdfInfoDocumentInspector } from "../workers/document-processing/pdfinfo-document-inspector.mjs";
 import { PostgresDocumentProcessingWorker } from "../workers/document-processing/postgres-document-processing-worker.mjs";
 import { WorkerScratchSpace } from "../workers/document-processing/worker-scratch-space.mjs";
 
 const CAPABILITY = { provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "adapter/v1" };
+const REPAIR_CAPABILITY = { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair/v1" };
+
+// Provider-terminal failover evidence: pages the primary provider rejects
+// outright must route to the repair capability, not straight to review.
+test("PostgreSQL worker routes terminal provider failures to the repair capability", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-pg-worker-failover-"));
+  const payload = Buffer.from("%PDF-1.4 source document");
+  const sha256 = createHash("sha256").update(payload).digest("hex");
+  const repository = fakeWorkRepository(claim({ sha256, sourceBytes: payload.length }));
+  const worker = new PostgresDocumentProcessingWorker({
+    workRepository: repository,
+    objectStore: { openBlobStream: async () => ({ contentLength: payload.length, body: payload }) },
+    scratchSpace: new WorkerScratchSpace({
+      root, maximumTaskBytes: 1024, minimumFreeBytes: 0,
+      statfsImpl: async () => ({ bavail: 1_000_000, bsize: 1 }),
+    }),
+    pageMaterializer: {
+      async materializePage({ sourceFilePath, allocation, pageNumber }) {
+        const target = allocation.pathFor(`page-${pageNumber}.pdf`);
+        await copyFile(sourceFilePath, target);
+        return { filePath: target, bytes: payload.length, pageNumber };
+      },
+    },
+    providers: [{
+      capability: CAPABILITY,
+      async extractPage() {
+        throw Object.assign(new Error("document parser rejected the page"), {
+          code: "provider.http_400", retryable: false, billingKnown: true, billedCostUsd: 0, usage: { inputUnits: 0, outputUnits: 0 },
+        });
+      },
+    }],
+    validator: createPageValidator(),
+    repairRouter: createSelectiveRepairRouter({ repairProvider: REPAIR_CAPABILITY }),
+  });
+  try {
+    await worker.runOnce({ tenantId: "tenant-1", workerId: "worker-1" });
+    assert.equal(repository.failures.length, 1);
+    assert.deepEqual(repository.failures[0].repair?.capability, REPAIR_CAPABILITY);
+    assert.match(repository.failures[0].repair.fingerprint, /^[a-f0-9]{64}$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 // V4-WORK-001 PostgreSQL worker evidence
 test("PostgreSQL worker streams verified source through bounded scratch and checkpoints accepted provider work", async () => {
@@ -190,6 +234,8 @@ test("PDF page materializer invokes a bounded exact-page split and rejects overs
 
 function claim({ sha256, sourceBytes }) {
   return {
+    tenantId: "tenant-1",
+    validatorVersion: "page-validator/v1",
     workUnitId: "11111111-1111-4111-8111-111111111111",
     attemptId: "22222222-2222-4222-8222-222222222222",
     leaseToken: "33333333-3333-4333-8333-333333333333",

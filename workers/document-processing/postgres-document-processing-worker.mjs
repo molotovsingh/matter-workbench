@@ -114,7 +114,8 @@ export class PostgresDocumentProcessingWorker {
         else this.admissionController.cancel(admission.permit);
       }
       const error = normalizePreProviderFailure(caught);
-      const failed = await this.workRepository.finishFailure({ tenantId, claim, error });
+      const repair = this.repairRouter?.selectForFailure?.({ claim, error }) || null;
+      const failed = await this.workRepository.finishFailure({ tenantId, claim, error, repair });
       const publications = failed.status === "review_required" ? await this.publishAffected(tenantId, failed) : [];
       return { workUnitId: claim.workUnitId, status: failed.status, errorCode: error.code, publications };
     }

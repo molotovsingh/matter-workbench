@@ -169,7 +169,8 @@ export class PostgresDocumentRangeWorker {
     const allocations = allocateSharedFailure(error, claims.length);
     const checkpoints = [];
     for (let index = 0; index < claims.length; index += 1) {
-      checkpoints.push(await this.workRepository.finishFailure({ tenantId, claim: claims[index], error: allocations[index] }));
+      const repair = this.repairRouter?.selectForFailure?.({ claim: claims[index], error: allocations[index] }) || null;
+      checkpoints.push(await this.workRepository.finishFailure({ tenantId, claim: claims[index], error: allocations[index], repair }));
     }
     const publications = await this.publishAffected(tenantId, checkpoints.filter((checkpoint) => checkpoint.status === "review_required"));
     return {

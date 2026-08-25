@@ -167,7 +167,7 @@ export class PostgresWorkRepository {
     });
   }
 
-  async finishFailure({ tenantId, claim, error, baseRetryMs = 1_000, maximumRetryMs = 60_000 } = {}) {
+  async finishFailure({ tenantId, claim, error, repair = null, baseRetryMs = 1_000, maximumRetryMs = 60_000 } = {}) {
     if (!claim?.workUnitId || !claim?.attemptId) throw new Error("work claim is required");
     const finishedAt = this.clock().toISOString();
     return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
@@ -208,13 +208,17 @@ export class PostgresWorkRepository {
         tenantId, claim.workUnitId, claim.leaseToken, terminal, JSON.stringify(output || {}),
         new Date(new Date(finishedAt).getTime() + retryMs).toISOString(), claim.attemptId,
       ]);
+      const repairCheckpoint = terminal && repair
+        ? await enqueueRepairWithClient(client, { idFactory: this.idFactory, tenantId, claim, repair, occurredAt: finishedAt })
+        : null;
       if (terminal) {
         await client.query([
           "update document_intake_extraction.computation_demands set fulfilled_at = coalesce(fulfilled_at, $3::timestamptz)",
           "where tenant_id = $1 and computation_id = $2::uuid",
         ].join("\n"), [tenantId, claim.workUnitId, finishedAt]);
       }
-      return { ...locked, status: terminal ? "review_required" : "queued", output, retryAfterMs: terminal ? null : retryMs };
+      const status = repairCheckpoint?.pending ? "repair_queued" : terminal ? "review_required" : "queued";
+      return { ...locked, status, primaryStatus: terminal ? "review_required" : "queued", output, repair: repairCheckpoint, retryAfterMs: terminal ? null : retryMs };
     });
   }
 }

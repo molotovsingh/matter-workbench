@@ -73,6 +73,44 @@ test("range worker atomically requests selective page repair without repairing a
   }
 });
 
+test("range worker routes terminal provider failures to cross-provider repair, but never local worker failures", async () => {
+  const repairRouter = createSelectiveRepairRouter({ repairProvider: GEMINI37_REPAIR_CAPABILITY });
+  for (const [code, expectRepair] of [["provider.http_400", true], ["scratch.capacity_exhausted", false]]) {
+    const fixture = await rangeFixture();
+    const worker = new PostgresDocumentRangeWorker({
+      ...fixture.dependencies,
+      repairRouter,
+      providers: [{
+        capability: MISTRAL_OCR41_RANGE_CAPABILITY,
+        async extractPages() {
+          throw Object.assign(new Error("terminal provider rejection"), {
+            code, retryable: false, billingKnown: true, billedCostUsd: 0, usage: { inputUnits: 0, outputUnits: 0 },
+          });
+        },
+      }],
+    });
+    try {
+      await worker.runOnce({ tenantId: "tenant-1" });
+      assert.equal(fixture.repository.failures.length, 3);
+      for (const failure of fixture.repository.failures) {
+        if (expectRepair) {
+          assert.deepEqual(failure.repair?.capability, GEMINI37_REPAIR_CAPABILITY, `${code} must route to the repair capability`);
+          assert.match(failure.repair.fingerprint, /^[a-f0-9]{64}$/);
+        } else {
+          assert.equal(failure.repair, null, `${code} must not cross providers`);
+        }
+      }
+    } finally {
+      await fixture.cleanup();
+    }
+  }
+  const sameCapabilityRouter = createSelectiveRepairRouter({ repairProvider: MISTRAL_OCR41_RANGE_CAPABILITY });
+  assert.equal(sameCapabilityRouter.selectForFailure({
+    claim: { capability: MISTRAL_OCR41_RANGE_CAPABILITY, sourceSha256: "a".repeat(64), pageNumber: 1, tenantId: "tenant-1", validatorVersion: "v" },
+    error: { code: "provider.http_500" },
+  }), null, "failure repair must never route a capability to itself");
+});
+
 test("range worker defers before claiming when provider admission is exhausted and feeds 429 cooldown back", async () => {
   const fixture = await rangeFixture();
   let nowMs = Date.parse("2026-08-24T12:00:00.000Z");

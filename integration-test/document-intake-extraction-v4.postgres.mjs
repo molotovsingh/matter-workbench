@@ -55,6 +55,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       await verifyConcurrentClaims(runtimeUrl);
       await verifyDocumentLocalClaims(runtimeUrl);
       await verifyCapabilityScopedClaims(runtimeUrl);
+      await verifyProviderFailureRepair(runtimeUrl);
       await verifyLeaseExpirationEvidence(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
       await verifyIntakeRepository(runtimeUrl);
@@ -744,6 +745,71 @@ async function verifyCapabilityScopedClaims(runtimeUrl) {
     assert.deepEqual(primaryBatch.map((claim) => claim.pageNumber), [1]);
     assert.equal(primaryBatch[0].capability.provider, "mistral");
     assert.deepEqual(await repository.claimDocumentLocalBatch({ tenantId, workerId: "scoped-range-2", capabilities: [primary] }), []);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function verifyProviderFailureRepair(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const sourceSha = "c".repeat(64);
+  const primary = { provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "range-adapter/v1" };
+  const repairCapability = { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair-adapter/v1" };
+  const seed = new pg.Client({ connectionString: runtimeUrl });
+  await seed.connect();
+  try {
+    await seed.query([
+      "insert into document_intake_extraction.source_blobs (sha256, object_key, bytes, page_count, inspector_version, verified_at)",
+      "values ($1, $2, 100, 1, 'integration-inspector/v1', now())",
+      "on conflict (sha256) do nothing",
+    ].join("\n"), [sourceSha, `blobs/sha256/cc/${sourceSha}`]);
+    await withTenant(seed, tenantId, async () => {
+      await seed.query([
+        "insert into document_intake_extraction.page_computations",
+        "  (computation_id, tenant_id, fingerprint, source_sha256, page_number, provider, model, adapter_version, routing_policy, validator_version, status, maximum_attempts)",
+        "values ($1, $2, $3, $4, 1, $5, $6, $7, 'route/v1', 'validator/v1', 'queued', 1)",
+      ].join("\n"), [randomUUID(), tenantId, "a1".repeat(32), sourceSha, primary.provider, primary.model, primary.adapterVersion]);
+    });
+  } finally {
+    await seed.end();
+  }
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 2 });
+  try {
+    const repository = new PostgresWorkRepository({ pool });
+    const primaryClaim = await repository.claim({ tenantId, workerId: "failover-primary", capabilities: [primary] });
+    const failed = await repository.finishFailure({
+      tenantId,
+      claim: primaryClaim,
+      error: Object.assign(new Error("document parser rejected the page"), {
+        code: "provider.http_400", retryable: false, billingKnown: true, billedCostUsd: 0,
+        usage: { inputUnits: 0, outputUnits: 0 },
+      }),
+      repair: {
+        fingerprint: "b2".repeat(32),
+        capability: repairCapability,
+        routingPolicy: "selective-repair/v1",
+        validatorVersion: "validator/v1",
+        maximumAttempts: 2,
+        priorityBoost: 20,
+        weight: 1,
+      },
+    });
+    assert.equal(failed.status, "repair_queued", "terminal provider failure with a repair route must queue repair, not review");
+    assert.equal(failed.primaryStatus, "review_required");
+    assert.equal(await repository.claim({ tenantId, workerId: "failover-wrong-lane", capabilities: [primary] }), null);
+    const repairClaim = await repository.claim({ tenantId, workerId: "failover-repair", capabilities: [repairCapability] });
+    assert.equal(repairClaim.capability.provider, "google");
+    assert.equal(repairClaim.pageNumber, 1);
+    const repaired = await repository.finishSuccess({
+      tenantId,
+      claim: repairClaim,
+      providerResult: {
+        text: "Recovered legal page text.", finishReason: "complete", requestId: "failover-repair-1",
+        usage: { inputUnits: 50, outputUnits: 20 }, billedCostUsd: 0.002,
+      },
+      validation: { outcome: "accepted", reasons: [], validatorVersion: "validator/v1" },
+    });
+    assert.equal(repaired.status, "accepted");
   } finally {
     await pool.end();
   }
