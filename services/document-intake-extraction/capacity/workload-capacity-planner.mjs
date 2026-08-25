@@ -33,6 +33,12 @@ export function planWorkloadCapacity({
   };
   pages.median = clampInteger(pages.median, pages.low, pages.high);
 
+  const completedPageOperations = nonNegativeNumber(workload.completedPageOperations, "workload.completedPageOperations", 0);
+  const remainingPages = {
+    low: Math.max(0, pages.low - completedPageOperations),
+    median: Math.max(0, pages.median - completedPageOperations),
+    high: Math.max(0, pages.high - completedPageOperations),
+  };
   const p95Seconds = positiveNumber(objective.p95Seconds, "objective.p95Seconds", 60);
   const p99Seconds = positiveNumber(objective.p99Seconds, "objective.p99Seconds", 120);
   if (p99Seconds < p95Seconds) throw new Error("objective.p99Seconds must be at least p95Seconds");
@@ -40,9 +46,9 @@ export function planWorkloadCapacity({
   const assemblySeconds = nonNegativeNumber(objective.assemblySeconds, "objective.assemblySeconds", 2);
   const usableP95Seconds = Math.max(1, p95Seconds - fixedSeconds - assemblySeconds);
 
-  const workerPlan = planWorkers({ pages, workers, usableP95Seconds });
+  const workerPlan = planWorkers({ pages: remainingPages, workers, usableP95Seconds });
   const providerPlan = planProviders({
-    pages,
+    pages: remainingPages,
     corpus: prior,
     providerStages,
     queueOperations: nonNegativeNumber(queue.weightedPageOperations, "queue.weightedPageOperations", 0),
@@ -91,6 +97,8 @@ export function planWorkloadCapacity({
       committedBytes,
       uploadProgress: progress,
       predictedPages: pages,
+      remainingPageOperations: remainingPages,
+      completedPageOperations,
       predictedProviderPageOperations: providerPlan.pageOperations,
     },
     calibration: {

@@ -134,7 +134,7 @@
       "category": "performance",
       "status": "automated",
       "requirement": "The isolated planner predicts corpus-sensitive page/provider work, returns ETA ranges and exception reasons, and starts burst capacity during the remaining upload window.",
-      "evidence": ["test/document-intake-extraction-v4-capacity.test.mjs"]
+      "evidence": ["test/document-intake-extraction-v4-capacity.test.mjs", "test/document-intake-extraction-v4-progress.test.mjs"]
     },
     {
       "id": "V4-LOAD-001",

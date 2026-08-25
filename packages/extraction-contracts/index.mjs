@@ -4,6 +4,7 @@ export const CONTRACT_VERSIONS = Object.freeze({
   createIntakeCommand: "document-intake-extraction.create-intake-command/v1",
   apiResponse: "document-intake-extraction.api-response/v1",
   intake: "document-intake-extraction.intake/v1",
+  progress: "document-intake-extraction.progress/v1",
   uploadAuthorization: "document-intake-extraction.upload-authorization/v1",
   custodyReceipt: "document-intake-extraction.custody-receipt/v1",
   pageWorkUnit: "document-intake-extraction.page-work-unit/v1",

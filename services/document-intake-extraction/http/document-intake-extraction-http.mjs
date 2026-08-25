@@ -57,6 +57,14 @@ export function createDocumentIntakeExtractionHttpHandler({
         return sendJson(response, 200, "intake.custody_committed", { intake });
       }
 
+      const progressRead = matchSegments(segments, ["v1", "intakes", ":intakeId", "progress"]);
+      if (request.method === "GET" && progressRead) {
+        await requireAuthorizedIntake(service, progressRead.intakeId, principal, authorizeMatter, "intake.progress.read");
+        if (typeof service.getProgress !== "function") throw httpError("Progress projection unavailable", "api.progress_unavailable", 503);
+        const progress = await service.getProgress({ tenantId: principal.tenantId, intakeId: progressRead.intakeId });
+        return sendJson(response, 200, "intake.progress.read", { progress });
+      }
+
       const intakeRead = matchSegments(segments, ["v1", "intakes", ":intakeId"]);
       if (request.method === "GET" && intakeRead) {
         const intake = await requireAuthorizedIntake(service, intakeRead.intakeId, principal, authorizeMatter, "intake.read");

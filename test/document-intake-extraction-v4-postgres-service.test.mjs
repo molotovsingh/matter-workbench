@@ -56,6 +56,9 @@ test("PostgreSQL service composes durable intake, direct custody, routed work, b
       version: "route/v1",
       select: async () => ({ provider: "mistral", model: "mistral-ocr-4-1", adapterVersion: "adapter/v1" }),
     },
+    progressService: {
+      async getProgress(input) { return { schemaVersion: "document-intake-extraction.progress/v1", ...input, status: "processing" }; },
+    },
     clock: () => new Date("2026-08-24T12:00:00.000Z"),
   });
 
@@ -75,6 +78,7 @@ test("PostgreSQL service composes durable intake, direct custody, routed work, b
   assert.equal(calls.inspected[0].pages[0].capability.model, "mistral-ocr-4-1");
 
   assert.equal((await service.commitBatchCustody({ tenantId: "tenant-1", intakeId: intake.intakeId })).status, "processing");
+  assert.equal((await service.getProgress({ tenantId: "tenant-1", intakeId: intake.intakeId })).status, "processing");
   published = true;
   assert.equal((await service.commitBatchCustody({ tenantId: "tenant-1", intakeId: intake.intakeId })).status, "ready");
   assert.equal((await service.getResult({ tenantId: "tenant-1", resultId: "result-1" })).resultId, "result-1");

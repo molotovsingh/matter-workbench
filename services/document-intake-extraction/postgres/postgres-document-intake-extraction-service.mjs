@@ -10,6 +10,7 @@ export class PostgresDocumentIntakeExtractionService {
     objectStore,
     documentInspector,
     capabilityRouter,
+    progressService = null,
     clock = () => new Date(),
     uploadAuthorizationTtlMs = 15 * 60 * 1000,
   } = {}) {
@@ -20,11 +21,13 @@ export class PostgresDocumentIntakeExtractionService {
     if (!objectStore?.createUploadAuthorization || !objectStore?.commitAuthorizedUpload) throw new Error("PostgreSQL service requires an object store");
     if (!documentInspector?.inspect) throw new Error("PostgreSQL service requires a document inspector");
     if (!capabilityRouter?.select || !capabilityRouter?.version) throw new Error("PostgreSQL service requires a versioned capability router");
+    if (progressService && !progressService.getProgress) throw new Error("progressService.getProgress is required");
     this.intakeRepository = intakeRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
     this.documentInspector = documentInspector;
     this.capabilityRouter = capabilityRouter;
+    this.progressService = progressService;
     this.clock = clock;
     this.uploadAuthorizationTtlMs = uploadAuthorizationTtlMs;
   }
@@ -118,6 +121,12 @@ export class PostgresDocumentIntakeExtractionService {
     const publication = await this.resultRepository.publishReadyIntake({ tenantId, intakeId });
     if (publication?.result) return this.intakeRepository.readIntake({ tenantId, intakeId });
     return committed;
+  }
+
+  async getProgress(input) {
+    if (!this.progressService) throw serviceError("progress projection is not configured", "intake.progress_unavailable");
+    const { tenantId, intakeId } = normalizeTenantResource(input, "intakeId");
+    return this.progressService.getProgress({ tenantId, intakeId, workloadClass: input.workloadClass, uploadBytesPerSecond: input.uploadBytesPerSecond });
   }
 
   async getResult(input) {

@@ -83,6 +83,42 @@ export class PostgresIntakeRepository {
     });
   }
 
+  async readProgressSnapshot({ tenantId, intakeId } = {}) {
+    return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
+      const intake = await readIntakeWithClient(client, tenantId, intakeId);
+      if (!intake) throw repositoryError("intake not found", "intake.not_found");
+      const work = await client.query([
+        "select pc.status, pc.provider, pc.model, pc.adapter_version, count(*)::int as computations, coalesce(sum(pc.weight), 0)::text as weight",
+        "from document_intake_extraction.computation_demands cd",
+        "join document_intake_extraction.page_computations pc on pc.tenant_id = cd.tenant_id and pc.computation_id = cd.computation_id",
+        "where cd.tenant_id = $1 and cd.intake_id = $2::uuid",
+        "group by pc.status, pc.provider, pc.model, pc.adapter_version",
+        "order by pc.provider, pc.model, pc.status",
+      ].join("\n"), [tenantId, intakeId]);
+      const queue = await client.query([
+        "select coalesce(sum(pending.weight), 0)::text as weighted_page_operations",
+        "from (",
+        "  select distinct pc.computation_id, pc.weight",
+        "  from document_intake_extraction.computation_demands cd",
+        "  join document_intake_extraction.page_computations pc on pc.tenant_id = cd.tenant_id and pc.computation_id = cd.computation_id",
+        "  where cd.tenant_id = $1 and cd.intake_id <> $2::uuid and cd.fulfilled_at is null and pc.status in ('queued', 'running')",
+        ") pending",
+      ].join("\n"), [tenantId, intakeId]);
+      return {
+        intake,
+        work: work.rows.map((row) => ({
+          status: row.status,
+          provider: row.provider,
+          model: row.model,
+          adapterVersion: row.adapter_version,
+          computations: Number(row.computations),
+          weight: Number(row.weight),
+        })),
+        queueWeightedPageOperations: Number(queue.rows[0]?.weighted_page_operations || 0),
+      };
+    });
+  }
+
   async commitBatchCustody({ tenantId, intakeId } = {}) {
     return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
       const locked = await client.query([
