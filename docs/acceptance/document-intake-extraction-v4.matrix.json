@@ -133,8 +133,8 @@
       "id": "V4-ETA-001",
       "category": "performance",
       "status": "automated",
-      "requirement": "The isolated planner predicts corpus-sensitive page/provider work, returns ETA ranges and exception reasons, and starts burst capacity during the remaining upload window.",
-      "evidence": ["test/document-intake-extraction-v4-capacity.test.mjs", "test/document-intake-extraction-v4-capacity-persistence.test.mjs", "test/document-intake-extraction-v4-progress.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
+      "requirement": "The planner predicts corpus-sensitive work, returns ETA ranges and exceptions, persists live calibration, and creates fenced idempotent worker-capacity requests inside the remaining upload window.",
+      "evidence": ["test/document-intake-extraction-v4-capacity.test.mjs", "test/document-intake-extraction-v4-capacity-persistence.test.mjs", "test/document-intake-extraction-v4-capacity-manager.test.mjs", "test/document-intake-extraction-v4-progress.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-LOAD-001",

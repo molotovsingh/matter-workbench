@@ -14,6 +14,7 @@ const MIGRATION = new URL("../services/document-intake-extraction/postgres/migra
 const DOCUMENT_LOCAL_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/002_document_local_claims.sql", import.meta.url);
 const SELECTIVE_REPAIR_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/003_selective_repair_lineage.sql", import.meta.url);
 const CAPACITY_OUTCOME_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/004_capacity_outcomes.sql", import.meta.url);
+const WORKER_CAPACITY_MIGRATION = new URL("../services/document-intake-extraction/postgres/migrations/005_worker_capacity_requests.sql", import.meta.url);
 
 // V4-DB-001
 test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS, fenced work, cost evidence, and an outbox", async () => {
@@ -51,11 +52,17 @@ test("V4-DB-001 defines an owned PostgreSQL control plane with forced tenant RLS
   const capacityOutcomeSql = await readFile(CAPACITY_OUTCOME_MIGRATION, "utf8");
   assert.match(capacityOutcomeSql, /outcome in \('success', 'failed', 'throttled'\)/i);
   assert.doesNotMatch(capacityOutcomeSql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
+  const workerCapacitySql = await readFile(WORKER_CAPACITY_MIGRATION, "utf8");
+  assert.match(workerCapacitySql, /create table document_intake_extraction\.worker_capacity_requests/i);
+  assert.match(workerCapacitySql, /force row level security/i);
+  assert.match(workerCapacitySql, /request_fingerprint char\(64\)/i);
+  assert.doesNotMatch(workerCapacitySql, /\b(?:public\.)?(?:matters|processing_jobs|upload_sessions)\b/i);
 
   const runtimeGrants = buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "v4_runtime" });
   assert.match(runtimeGrants, /claim_page_work\(text, integer\)/);
   assert.match(runtimeGrants, /claim_document_local_page_work\(text, integer, integer\)/);
   assert.match(runtimeGrants, /computation_supersessions/);
+  assert.match(runtimeGrants, /worker_capacity_requests/);
   const readGrants = buildDocumentIntakeExtractionReadRoleSql({ roleName: "v4_reader" });
   assert.doesNotMatch(readGrants, /source_blobs|provider_attempts|cost_events/);
   assert.throws(() => buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "v4_runtime; drop schema public" }), {

@@ -1,9 +1,11 @@
 import { assertPinnedProviderCapability } from "../../../packages/extraction-contracts/index.mjs";
 import { createPageValidator } from "../page-validator.mjs";
+import { PredictiveBurstCapacityManager } from "../capacity/predictive-burst-capacity-manager.mjs";
 import { IntakeProgressService } from "../progress/intake-progress-service.mjs";
 import { OutboxDispatcher } from "../events/outbox-dispatcher.mjs";
 import { createDocumentIntakeExtractionHttpHandler } from "../http/document-intake-extraction-http.mjs";
 import { PostgresDocumentIntakeExtractionService } from "../postgres/postgres-document-intake-extraction-service.mjs";
+import { PostgresWorkerCapacityStore } from "../postgres/postgres-worker-capacity-store.mjs";
 import {
   PostgresCapacityCalibrationRepository,
   TenantCapacityCalibrationRegistry,
@@ -47,6 +49,7 @@ export function createDocumentIntakeExtractionV4Composition({
   const outboxStore = new PostgresOutboxStore({ pool, clock });
   const uploadAuthorizationStore = new PostgresUploadAuthorizationStore({ pool, clock });
   const capacityRepository = new PostgresCapacityCalibrationRepository({ pool, clock });
+  const workerCapacityStore = new PostgresWorkerCapacityStore({ pool, clock });
   const capacityCalibration = calibration || new TenantCapacityCalibrationRegistry({ repository: capacityRepository });
   const objectStore = objectStoreFactory({ authorizationStore: uploadAuthorizationStore });
   if (!objectStore?.createUploadAuthorization || !objectStore?.commitAuthorizedUpload || !objectStore?.openBlobStream) {
@@ -75,7 +78,7 @@ export function createDocumentIntakeExtractionV4Composition({
 
   return Object.freeze({
     service,
-    repositories: Object.freeze({ intakeRepository, resultRepository, workRepository, outboxStore, uploadAuthorizationStore, capacityRepository }),
+    repositories: Object.freeze({ intakeRepository, resultRepository, workRepository, outboxStore, uploadAuthorizationStore, capacityRepository, workerCapacityStore }),
     objectStore,
     calibration: capacityCalibration,
     validator,
@@ -115,6 +118,11 @@ export function createDocumentIntakeExtractionV4Composition({
         capacityCalibration,
         clock,
         leaseMs,
+      });
+    },
+    createCapacityManager({ provisioner, requestTtlMs, baseRetryMs, maximumRetryMs } = {}) {
+      return new PredictiveBurstCapacityManager({
+        store: workerCapacityStore, provisioner, clock, requestTtlMs, baseRetryMs, maximumRetryMs,
       });
     },
     createOutboxDispatcher({ deliver, baseRetryMs, maximumRetryMs } = {}) {

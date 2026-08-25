@@ -11,6 +11,7 @@ import { PostgresOutboxStore } from "../services/document-intake-extraction/post
 import { PostgresResultRepository } from "../services/document-intake-extraction/postgres/postgres-result-repository.mjs";
 import { PostgresUploadAuthorizationStore } from "../services/document-intake-extraction/postgres/postgres-upload-authorization-store.mjs";
 import { PostgresWorkRepository } from "../services/document-intake-extraction/postgres/postgres-work-repository.mjs";
+import { PostgresWorkerCapacityStore } from "../services/document-intake-extraction/postgres/postgres-worker-capacity-store.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../services/document-intake-extraction/postgres/runtime-role-sql.mjs";
 
 const adminUrl = String(process.env.MWB_POSTGRES_TEST_ADMIN_URL || "").trim();
@@ -47,6 +48,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifyTenantIsolation(runtimeUrl);
       await verifyDurableCapacityCalibration(runtimeUrl);
+      await verifyWorkerCapacityRequests(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
       await verifyDocumentLocalClaims(runtimeUrl);
       await verifyLeaseExpirationEvidence(runtimeUrl);
@@ -125,6 +127,48 @@ async function verifyDurableCapacityCalibration(runtimeUrl) {
     assert.equal(provider.throttleRate, 1 / 3);
     assert.equal(provider.failureRate, 1 / 3);
     assert.equal((await repository.loadCalibration({ tenantId: otherTenantId })).estimateCorpus("mixed-legal").sampleCount, 0);
+  } finally {
+    await pool.end();
+  }
+}
+
+async function verifyWorkerCapacityRequests(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const otherTenantId = `tenant-${randomUUID()}`;
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 4 });
+  const store = new PostgresWorkerCapacityStore({ pool });
+  const notBefore = new Date(Date.now() - 1_000);
+  const expiresAt = new Date(Date.now() + 10 * 60_000);
+  try {
+    const input = {
+      tenantId, poolId: "ocr-ap-southeast-2", workloadClass: "mixed-legal", desiredWorkers: 8, minimumWorkers: 2, maximumWorkers: 20,
+      action: "scale_now", reason: { predictedPages: 10_000 }, notBefore, expiresAt,
+    };
+    const created = await store.request(input);
+    assert.equal(created.generation, 1);
+    assert.equal(created.idempotent, false);
+    const replay = await store.request({ ...input, notBefore: new Date(notBefore.getTime() + 500), expiresAt: new Date(expiresAt.getTime() + 500) });
+    assert.equal(replay.capacityRequestId, created.capacityRequestId);
+    assert.equal(replay.generation, 1);
+    assert.equal(replay.idempotent, true);
+    const updated = await store.request({ ...input, desiredWorkers: 10 });
+    assert.equal(updated.generation, 2);
+    const [first, second] = await Promise.all([
+      store.claimDue({ tenantId, workerId: "capacity-a" }),
+      store.claimDue({ tenantId, workerId: "capacity-b" }),
+    ]);
+    const claim = first || second;
+    assert.ok(claim);
+    assert.equal(Boolean(first) !== Boolean(second), true);
+    await assert.rejects(() => store.markApplied({
+      tenantId, capacityRequestId: claim.capacityRequestId, generation: claim.generation, leaseToken: randomUUID(), observedWorkers: 10,
+    }), { code: "capacity.lease_lost" });
+    const applied = await store.markApplied({
+      tenantId, capacityRequestId: claim.capacityRequestId, generation: claim.generation, leaseToken: claim.leaseToken, observedWorkers: 10,
+    });
+    assert.equal(applied.status, "applied");
+    assert.equal((await store.read({ tenantId, poolId: input.poolId })).observedWorkers, 10);
+    assert.equal(await store.read({ tenantId: otherTenantId, poolId: input.poolId }), null);
   } finally {
     await pool.end();
   }
