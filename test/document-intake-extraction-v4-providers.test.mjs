@@ -4,6 +4,7 @@ import test from "node:test";
 import { createGemini37RepairPageAdapter } from "../services/document-intake-extraction/providers/gemini37-repair-adapter.mjs";
 import { createMistralOcr41PageAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-adapter.mjs";
 import { createMistralOcr41RangeAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
+import { fetchProviderJson } from "../services/document-intake-extraction/providers/provider-http.mjs";
 
 const PAGE_PDF = Buffer.from("%PDF-1.4 isolated page bytes");
 
@@ -141,6 +142,26 @@ test("provider adapters preserve billable invalid-response evidence and redact p
       throw error;
     }
   }, { code: "provider.http_503" });
+});
+
+test("provider HTTP boundary bounds response bytes and preserves Retry-After for adaptive admission", async () => {
+  await assert.rejects(async () => {
+    try {
+      await fetchProviderJson({
+        url: "https://provider.invalid", provider: "Provider", timeoutMs: 1000, maximumResponseBytes: 16,
+        fetchImpl: async () => new Response("rate limited", { status: 429, headers: { "Retry-After": "7" } }),
+      });
+    } catch (error) {
+      assert.equal(error.code, "provider.http_429");
+      assert.equal(error.retryAfterMs, 7000);
+      throw error;
+    }
+  }, { code: "provider.http_429" });
+
+  await assert.rejects(() => fetchProviderJson({
+    url: "https://provider.invalid", provider: "Provider", timeoutMs: 1000, maximumResponseBytes: 8,
+    fetchImpl: async () => new Response(JSON.stringify({ text: "response is too large" }), { status: 200 }),
+  }), { code: "provider.response_too_large" });
 });
 
 function jsonResponse(value, { status = 200, headers = {} } = {}) {
