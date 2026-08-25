@@ -61,7 +61,7 @@ The current filesystem adapters and in-memory calibration model are deliberately
 
 ## Publication and integration
 
-A versioned result contains every logical document in manifest order and every page in source order. Page outcomes carry text when available, review reasons, source hash, computation fingerprint, provider/model provenance, and validation version. The service emits an idempotent versioned `extraction.result.ready` outbox event. Matter Workbench receives events and reads normalized results only through the public service API.
+A versioned result contains every logical document in manifest order and every page in source order. Page outcomes carry text when available, review reasons, source hash, computation fingerprint, provider/model provenance, and validation version. The service emits a versioned `extraction.result.ready` outbox event. Tenant-scoped dispatchers claim with `SKIP LOCKED`, fence completion by lease token, send the event ID as receiver idempotency key, use bounded exponential retry for transient failures, and dead-letter permanent schema/auth rejection for operator action. Matter Workbench receives events and reads normalized results only through the public service API.
 
 ## Migration
 

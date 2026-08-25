@@ -123,6 +123,13 @@
       "evidence": ["test/document-intake-extraction-v4-scheduling.test.mjs"]
     },
     {
+      "id": "V4-OUTBOX-001",
+      "category": "integration",
+      "status": "automated",
+      "requirement": "Ready events use tenant-scoped durable claims, lease-token fencing, receiver idempotency keys, bounded exponential retry, and dead-letter outcomes for permanent rejection.",
+      "evidence": ["test/document-intake-extraction-v4-events.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
+    },
+    {
       "id": "V4-ETA-001",
       "category": "performance",
       "status": "automated",

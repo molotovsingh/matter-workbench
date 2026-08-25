@@ -5,12 +5,13 @@ import test from "node:test";
 import pg from "pg";
 
 import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
+import { PostgresOutboxStore } from "../services/document-intake-extraction/postgres/postgres-outbox-store.mjs";
 import { PostgresUploadAuthorizationStore } from "../services/document-intake-extraction/postgres/postgres-upload-authorization-store.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../services/document-intake-extraction/postgres/runtime-role-sql.mjs";
 
 const adminUrl = String(process.env.MWB_POSTGRES_TEST_ADMIN_URL || "").trim();
 
-// V4-DB-001 real-database evidence
+// V4-DB-001 and V4-OUTBOX-001 real-database evidence
 test("V4 PostgreSQL control plane enforces migration immutability, tenant isolation, and concurrent fenced claims", {
   timeout: 120_000,
 }, async () => {
@@ -41,6 +42,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       await verifyTenantIsolation(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
+      await verifyOutboxDelivery(runtimeUrl);
     } finally {
       await adminPool.end();
     }
@@ -83,6 +85,64 @@ async function verifyTenantIsolation(runtimeUrl) {
     });
   } finally {
     await client.end();
+  }
+}
+
+async function verifyOutboxDelivery(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const intakeId = randomUUID();
+  const resultId = randomUUID();
+  const eventId = randomUUID();
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 3 });
+  const seed = await pool.connect();
+  try {
+    await seed.query("begin");
+    await seed.query("select set_config('document_intake_extraction.tenant_id', $1, true)", [tenantId]);
+    await insertIntake(seed, { tenantId, intakeId, idempotencyKey: "outbox" });
+    await seed.query([
+      "insert into document_intake_extraction.extraction_results",
+      "  (result_id, tenant_id, matter_id, intake_id, version, status, assembler_version, document_count, page_count, review_page_count, payload_json)",
+      "values ($1, $2, 'matter-1', $3, 1, 'ready', 'assembler/v1', 1, 1, 0, $4::jsonb)",
+    ].join("\n"), [resultId, tenantId, intakeId, JSON.stringify({ resultId, intakeId })]);
+    await seed.query("update document_intake_extraction.intakes set result_id = $3, status = 'ready' where tenant_id = $1 and intake_id = $2", [tenantId, intakeId, resultId]);
+    await seed.query([
+      "insert into document_intake_extraction.outbox_events",
+      "  (event_id, tenant_id, matter_id, intake_id, result_id, event_type, schema_version, payload_json)",
+      "values ($1, $2, 'matter-1', $3, $4, 'extraction.result.ready', 'document-intake-extraction.event/v1', $5::jsonb)",
+    ].join("\n"), [eventId, tenantId, intakeId, resultId, JSON.stringify({ eventId, intakeId, resultId })]);
+    await seed.query("commit");
+  } finally {
+    seed.release();
+  }
+  try {
+    const store = new PostgresOutboxStore({ pool, idFactory: () => randomUUID() });
+    assert.deepEqual(await store.claim({ tenantId: `other-${tenantId}`, workerId: "other" }), []);
+    const first = await store.claim({ tenantId, workerId: "dispatcher-a", maximumEvents: 10, leaseMs: 60_000 });
+    assert.equal(first.length, 1);
+    assert.equal(first[0].eventId, eventId);
+    await assert.rejects(() => store.markDelivered({ tenantId, eventId, leaseToken: randomUUID() }), { code: "outbox.lease_lost" });
+    const failed = await store.markFailed({
+      tenantId,
+      eventId,
+      leaseToken: first[0].leaseToken,
+      errorCode: "outbox.http_503",
+      errorMessage: "receiver unavailable",
+      retryAfterMs: 1_000,
+    });
+    assert.equal(failed.status, "failed");
+    const reset = await pool.connect();
+    try {
+      await reset.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      await reset.query("update document_intake_extraction.outbox_events set next_attempt_at = now() where tenant_id = $1 and event_id = $2", [tenantId, eventId]);
+    } finally {
+      reset.release();
+    }
+    const second = await store.claim({ tenantId, workerId: "dispatcher-b" });
+    assert.equal(second[0].attemptCount, 2);
+    assert.equal((await store.markDelivered({ tenantId, eventId, leaseToken: second[0].leaseToken })).status, "delivered");
+    assert.deepEqual(await store.claim({ tenantId, workerId: "dispatcher-c" }), []);
+  } finally {
+    await pool.end();
   }
 }
 
