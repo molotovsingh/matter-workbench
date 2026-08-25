@@ -4,6 +4,7 @@ import { PredictiveBurstCapacityManager } from "../capacity/predictive-burst-cap
 import { IntakeProgressService } from "../progress/intake-progress-service.mjs";
 import { OutboxDispatcher } from "../events/outbox-dispatcher.mjs";
 import { createDocumentIntakeExtractionHttpHandler } from "../http/document-intake-extraction-http.mjs";
+import { PostgresAuditStore } from "../postgres/postgres-audit-store.mjs";
 import { PostgresDocumentIntakeExtractionService } from "../postgres/postgres-document-intake-extraction-service.mjs";
 import { PostgresWorkerCapacityStore } from "../postgres/postgres-worker-capacity-store.mjs";
 import {
@@ -48,6 +49,7 @@ export function createDocumentIntakeExtractionV4Composition({
   const workRepository = new PostgresWorkRepository({ pool, clock });
   const outboxStore = new PostgresOutboxStore({ pool, clock });
   const uploadAuthorizationStore = new PostgresUploadAuthorizationStore({ pool, clock });
+  const auditStore = new PostgresAuditStore({ pool, clock });
   const capacityRepository = new PostgresCapacityCalibrationRepository({ pool, clock });
   const workerCapacityStore = new PostgresWorkerCapacityStore({ pool, clock });
   const capacityCalibration = calibration || new TenantCapacityCalibrationRegistry({ repository: capacityRepository });
@@ -73,12 +75,13 @@ export function createDocumentIntakeExtractionV4Composition({
     capabilityRouter,
     progressService,
     capacityCalibration,
+    auditStore,
     clock,
   });
 
   return Object.freeze({
     service,
-    repositories: Object.freeze({ intakeRepository, resultRepository, workRepository, outboxStore, uploadAuthorizationStore, capacityRepository, workerCapacityStore }),
+    repositories: Object.freeze({ intakeRepository, resultRepository, workRepository, outboxStore, uploadAuthorizationStore, auditStore, capacityRepository, workerCapacityStore }),
     objectStore,
     calibration: capacityCalibration,
     validator,

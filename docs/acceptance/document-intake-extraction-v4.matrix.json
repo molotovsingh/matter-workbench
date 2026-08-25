@@ -105,7 +105,7 @@
       "id": "V4-DB-001",
       "category": "resilience",
       "status": "automated",
-      "requirement": "An independently migrated PostgreSQL schema owns tenant-isolated custody references, single-flight page work, fenced leases, provider/cost evidence, result versions, and an idempotent outbox without changing legacy tables.",
+      "requirement": "An independently migrated PostgreSQL schema owns tenant-isolated custody references, single-flight page work, fenced leases, provider/cost evidence, append-only audit, result versions, capacity requests, and an idempotent outbox without changing legacy tables.",
       "evidence": ["test/document-intake-extraction-v4-postgres.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {

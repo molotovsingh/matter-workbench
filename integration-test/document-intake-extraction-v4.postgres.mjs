@@ -5,6 +5,7 @@ import test from "node:test";
 import pg from "pg";
 
 import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
+import { PostgresAuditStore } from "../services/document-intake-extraction/postgres/postgres-audit-store.mjs";
 import { PostgresCapacityCalibrationRepository } from "../services/document-intake-extraction/postgres/postgres-capacity-calibration-repository.mjs";
 import { PostgresIntakeRepository } from "../services/document-intake-extraction/postgres/postgres-intake-repository.mjs";
 import { PostgresOutboxStore } from "../services/document-intake-extraction/postgres/postgres-outbox-store.mjs";
@@ -47,6 +48,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
 
       const runtimeUrl = runtimeDatabaseUrlFor(databaseAdminUrl, roleName, rolePassword);
       await verifyTenantIsolation(runtimeUrl);
+      await verifyAppendOnlyAudit(runtimeUrl);
       await verifyDurableCapacityCalibration(runtimeUrl);
       await verifyWorkerCapacityRequests(runtimeUrl);
       await verifyConcurrentClaims(runtimeUrl);
@@ -97,6 +99,41 @@ async function verifyTenantIsolation(runtimeUrl) {
     });
   } finally {
     await client.end();
+  }
+}
+
+async function verifyAppendOnlyAudit(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const otherTenantId = `tenant-${randomUUID()}`;
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 3 });
+  try {
+    const store = new PostgresAuditStore({ pool });
+    const input = {
+      tenantId, eventType: "custody.file_committed", resourceType: "intake", resourceId: "intake-a",
+      idempotencyKey: "file-a:committed", details: { fileId: "file-a", sha256: "a".repeat(64), bytes: 100 },
+    };
+    const created = await store.append(input);
+    assert.equal(created.idempotent, false);
+    const replay = await store.append(input);
+    assert.equal(replay.auditEventId, created.auditEventId);
+    assert.equal(replay.idempotent, true);
+    await assert.rejects(() => store.append({ ...input, details: { ...input.details, bytes: 101 } }), { code: "audit.idempotency_conflict" });
+    await assert.rejects(() => store.append({ ...input, idempotencyKey: "forbidden", details: { originalFilename: "secret.pdf" } }), { code: "audit.detail_forbidden" });
+    assert.equal((await store.listForResource({ tenantId, resourceType: "intake", resourceId: "intake-a" })).length, 1);
+    assert.equal((await store.listForResource({ tenantId: otherTenantId, resourceType: "intake", resourceId: "intake-a" })).length, 0);
+
+    const client = new pg.Client({ connectionString: runtimeUrl });
+    await client.connect();
+    try {
+      await client.query("begin");
+      await client.query("select set_config('document_intake_extraction.tenant_id', $1, true)", [tenantId]);
+      await assert.rejects(() => client.query("update document_intake_extraction.audit_events set actor_id = 'tampered' where tenant_id = $1", [tenantId]), /permission denied/i);
+      await client.query("rollback");
+    } finally {
+      await client.end();
+    }
+  } finally {
+    await pool.end();
   }
 }
 

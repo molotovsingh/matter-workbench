@@ -5,7 +5,7 @@ import { PostgresDocumentIntakeExtractionService } from "../services/document-in
 
 // V4-API-001 PostgreSQL composition evidence
 test("PostgreSQL service composes durable intake, direct custody, routed work, batch commit, and result publication behind the same API", async () => {
-  const calls = { authorization: [], custody: [], inspected: [], publish: [] };
+  const calls = { authorization: [], custody: [], inspected: [], publish: [], audit: [] };
   const intake = {
     intakeId: "11111111-1111-4111-8111-111111111111",
     tenantId: "tenant-1",
@@ -59,6 +59,7 @@ test("PostgreSQL service composes durable intake, direct custody, routed work, b
     progressService: {
       async getProgress(input) { return { schemaVersion: "document-intake-extraction.progress/v1", ...input, status: "processing" }; },
     },
+    auditStore: { async append(input) { calls.audit.push(input); return input; } },
     clock: () => new Date("2026-08-24T12:00:00.000Z"),
   });
 
@@ -82,4 +83,6 @@ test("PostgreSQL service composes durable intake, direct custody, routed work, b
   published = true;
   assert.equal((await service.commitBatchCustody({ tenantId: "tenant-1", intakeId: intake.intakeId })).status, "ready");
   assert.equal((await service.getResult({ tenantId: "tenant-1", resultId: "result-1" })).resultId, "result-1");
+  assert.deepEqual(calls.audit.map((event) => event.eventType), ["intake.created", "custody.file_committed", "custody.batch_committed", "custody.batch_committed"]);
+  assert.doesNotMatch(JSON.stringify(calls.audit), /agreement\.pdf|document text/i);
 });

@@ -12,6 +12,7 @@ export class PostgresDocumentIntakeExtractionService {
     capabilityRouter,
     progressService = null,
     capacityCalibration = null,
+    auditStore = null,
     clock = () => new Date(),
     uploadAuthorizationTtlMs = 15 * 60 * 1000,
   } = {}) {
@@ -24,6 +25,7 @@ export class PostgresDocumentIntakeExtractionService {
     if (!capabilityRouter?.select || !capabilityRouter?.version) throw new Error("PostgreSQL service requires a versioned capability router");
     if (progressService && !progressService.getProgress) throw new Error("progressService.getProgress is required");
     if (capacityCalibration && !capacityCalibration.recordCorpus) throw new Error("capacityCalibration.recordCorpus is required");
+    if (auditStore && !auditStore.append) throw new Error("auditStore.append is required");
     this.intakeRepository = intakeRepository;
     this.resultRepository = resultRepository;
     this.objectStore = objectStore;
@@ -31,6 +33,7 @@ export class PostgresDocumentIntakeExtractionService {
     this.capabilityRouter = capabilityRouter;
     this.progressService = progressService;
     this.capacityCalibration = capacityCalibration;
+    this.auditStore = auditStore;
     this.clock = clock;
     this.uploadAuthorizationTtlMs = uploadAuthorizationTtlMs;
   }
@@ -59,6 +62,19 @@ export class PostgresDocumentIntakeExtractionService {
       });
       files.push({ ...file, uploadAuthorization });
     }
+    await this.auditStore?.append({
+      tenantId: intake.tenantId,
+      eventType: "intake.created",
+      resourceType: "intake",
+      resourceId: intake.intakeId,
+      idempotencyKey: `${intake.intakeId}:created`,
+      details: {
+        matterId: intake.matterId,
+        expectedFileCount: intake.expectedFileCount,
+        expectedBytes: intake.expectedBytes,
+        workloadClass: intake.workloadClass,
+      },
+    });
     return { ...intake, files };
   }
 
@@ -122,6 +138,21 @@ export class PostgresDocumentIntakeExtractionService {
         repairPages: 0,
       }).catch(() => null);
     }
+    await this.auditStore?.append({
+      tenantId,
+      eventType: "custody.file_committed",
+      resourceType: "intake",
+      resourceId: intakeId,
+      idempotencyKey: `${fileId}:${receipt.sha256}:committed`,
+      details: {
+        fileId,
+        sha256: receipt.sha256,
+        bytes: receipt.bytes,
+        pageCount: inspection.pageCount,
+        dataRegion: receipt.dataRegion || "",
+        objectReused: Boolean(receipt.objectReused),
+      },
+    });
     return {
       ...receipt,
       pageCount: inspection.pageCount,
@@ -131,6 +162,18 @@ export class PostgresDocumentIntakeExtractionService {
 
   async commitBatchCustody({ tenantId, intakeId } = {}) {
     const committed = await this.intakeRepository.commitBatchCustody({ tenantId, intakeId });
+    await this.auditStore?.append({
+      tenantId,
+      eventType: "custody.batch_committed",
+      resourceType: "intake",
+      resourceId: intakeId,
+      idempotencyKey: `${intakeId}:batch-committed`,
+      details: {
+        committedFileCount: committed.committedFileCount,
+        committedBytes: committed.committedBytes,
+        observedPageCount: committed.observedPageCount,
+      },
+    });
     const publication = await this.resultRepository.publishReadyIntake({ tenantId, intakeId });
     if (publication?.result) return this.intakeRepository.readIntake({ tenantId, intakeId });
     return committed;
