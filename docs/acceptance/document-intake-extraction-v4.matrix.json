@@ -1,7 +1,10 @@
 {
   "schemaVersion": "document-intake-extraction.acceptance-matrix/v1",
   "asOf": "2026-08-24",
-  "evidenceCommand": "node --test test/document-intake-extraction-v4*.test.mjs",
+  "evidenceCommands": {
+    "isolated": "node --test test/document-intake-extraction-v4*.test.mjs",
+    "postgres": "MWB_POSTGRES_TEST_ADMIN_URL=<disposable-admin-url> node --test integration-test/document-intake-extraction-v4.postgres.mjs"
+  },
   "statusDefinitions": {
     "automated": "Implemented in the isolated vertical slice and covered by executable evidence.",
     "pending_evidence": "Required before production cutover but not yet claimed or satisfied."
@@ -90,6 +93,13 @@
       "status": "automated",
       "requirement": "Publication emits one versioned extraction.result.ready event only after batch custody commit.",
       "evidence": ["test/document-intake-extraction-v4.test.mjs"]
+    },
+    {
+      "id": "V4-DB-001",
+      "category": "resilience",
+      "status": "automated",
+      "requirement": "An independently migrated PostgreSQL schema owns tenant-isolated custody references, single-flight page work, fenced leases, provider/cost evidence, result versions, and an idempotent outbox without changing legacy tables.",
+      "evidence": ["test/document-intake-extraction-v4-postgres.test.mjs", "integration-test/document-intake-extraction-v4.postgres.mjs"]
     },
     {
       "id": "V4-ETA-001",

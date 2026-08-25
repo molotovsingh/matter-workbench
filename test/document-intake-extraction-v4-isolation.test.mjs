@@ -23,7 +23,10 @@ test("V4-ISO-001 keeps production callers and legacy dependencies outside the is
     const source = await readFile(absolutePath, "utf8");
     const imports = Array.from(source.matchAll(IMPORT_SPECIFIER), (match) => match[1]);
     const isV4 = V4_ROOTS.some((prefix) => relativePath.startsWith(prefix));
-    const isEvidence = relativePath.startsWith("test/") || relativePath.startsWith("docs/") || relativePath === "Alignment Interview.md";
+    const isEvidence = relativePath.startsWith("test/")
+      || relativePath.startsWith("docs/")
+      || relativePath.startsWith("integration-test/document-intake-extraction-v4")
+      || relativePath === "Alignment Interview.md";
     if (!isV4 && !isEvidence) {
       for (const specifier of imports) {
         if (specifier.includes("extraction-contracts") || specifier.includes("document-intake-extraction") || specifier.includes("document-processing")) {

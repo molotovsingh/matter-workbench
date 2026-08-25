@@ -55,7 +55,9 @@ The production control plane will use owned PostgreSQL state and leased/fenced p
 
 The isolated capacity planner combines upload progress, corpus page density/route mix, queue depth, rolling provider throughput/throttling, local worker throughput, scratch capacity, and boot latency. It emits ranges and named exception reasons rather than a false precise countdown, and uses the remaining upload window to request burst workers. Its rolling calibrator keeps workload classes separate so PDFEval-like and large mixed legal corpora do not share one misleading density assumption.
 
-The current filesystem adapters and in-memory calibration model are deliberately isolated vertical-slice references. They prove state transitions, restart semantics, and capacity decisions but are not multi-process production substitutes for PostgreSQL, S3-compatible storage, and durable telemetry.
+The independent PostgreSQL migration chain now defines the durable ownership model: forced tenant RLS, intake/file manifests, global immutable blobs plus tenant references, logical documents, tenant-scoped fingerprinted page computations, weighted demands, fenced `SKIP LOCKED` leases, provider attempts, complete cost events, extraction result versions, idempotent outbox delivery, and capacity observations. The migration never touches legacy Matter Workbench tables. A disposable-real-PostgreSQL integration test verifies migration replay/checksums, fail-closed tenant context, cross-tenant denial, concurrent work stealing, and lease-token renewal.
+
+The current filesystem adapters and in-memory calibration model are deliberately isolated vertical-slice references. They prove state transitions, restart semantics, and capacity decisions but are not multi-process production substitutes for the new PostgreSQL schema, S3-compatible storage, and durable telemetry. Moving the runtime service onto dedicated PostgreSQL repositories remains a later milestone.
 
 ## Publication and integration
 
