@@ -87,7 +87,12 @@ export function startWatchDashboard({ port = 4499, service, tenantId, getIntakeI
   return {
     url: `http://127.0.0.1:${port}`,
     pushEvent,
-    close: () => new Promise((resolve) => server.close(resolve)),
+    // server.close() alone waits for keep-alive sockets, and the page polls
+    // every second — sever open connections so shutdown actually completes.
+    close: () => new Promise((resolve) => {
+      server.closeAllConnections?.();
+      server.close(resolve);
+    }),
   };
 }
 
