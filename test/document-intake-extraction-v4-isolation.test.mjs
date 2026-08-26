@@ -35,6 +35,11 @@ test("V4-ISO-001 keeps production callers and legacy dependencies outside the is
       || relativePath === "Alignment Interview.md";
     if (!isV4 && !isEvidence) {
       for (const specifier of imports) {
+        // The single sanctioned integration point: server.mjs may import the
+        // flag-gated app mount (dynamically, behind MWB_V4_INTAKE=1) — the
+        // deliberate "integrated but disabled" milestone. Everything else in
+        // production stays outside the V4 boundary.
+        if (relativePath === "server.mjs" && specifier === "./services/document-intake-extraction/integration/app-mount.mjs") continue;
         if (specifier.includes("extraction-contracts") || specifier.includes("document-intake-extraction") || specifier.includes("document-processing")) {
           productionViolations.push(`${relativePath} -> ${specifier}`);
         }
@@ -51,6 +56,14 @@ test("V4-ISO-001 keeps production callers and legacy dependencies outside the is
   }
   assert.deepEqual(productionViolations, [], `production must not import V4:\n${productionViolations.join("\n")}`);
   assert.deepEqual(v4Violations, [], `V4 must not import legacy runtime internals:\n${v4Violations.join("\n")}`);
+
+  // The sanctioned integration point must stay flag-gated: the app entry may
+  // only load the mount dynamically when MWB_V4_INTAKE=1, and the mount
+  // itself must refuse to build without the flag.
+  const serverSource = await readFile(path.join(ROOT, "server.mjs"), "utf8");
+  assert.match(serverSource, /env\.MWB_V4_INTAKE === "1"\s*\?\s*await\s*\(await import\("\.\/services\/document-intake-extraction\/integration\/app-mount\.mjs"\)\)/, "server.mjs must import the V4 mount dynamically behind MWB_V4_INTAKE=1");
+  const mountSource = await readFile(path.join(ROOT, "services/document-intake-extraction/integration/app-mount.mjs"), "utf8");
+  assert.match(mountSource, /if \(String\(env\[V4_INTAKE_FLAG\] \|\| ""\) !== "1"\) return null;/, "the app mount must return null unless the flag is set");
 });
 
 // V4-DEPLOY-001

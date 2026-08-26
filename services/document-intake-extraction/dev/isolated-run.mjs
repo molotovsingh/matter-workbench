@@ -53,91 +53,17 @@ import {
 import { createGemini37RangeAdapter } from "../providers/gemini37-range-adapter.mjs";
 import { AdaptiveProviderAdmissionController } from "../capacity/adaptive-provider-admission.mjs";
 import { startWatchDashboard } from "./watch-dashboard.mjs";
-import { createGpt54RepairPageAdapter } from "../providers/gpt54-repair-adapter.mjs";
-import { execFile as execFileCallback } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFilePromise = promisify(execFileCallback);
-
-async function rasterizePageToPng(source) {
-  const outPrefix = `${source.filePath}.apex`;
-  await execFilePromise("pdftoppm", ["-f", "1", "-l", "1", "-r", "150", "-png", "-singlefile", source.filePath, outPrefix], { timeout: 60_000 });
-  return readFile(`${outPrefix}.png`);
-}
+import {
+  buildAdmissionController,
+  buildProviderSuite,
+  createLocalDiskS3,
+  startWorkerFleet,
+  suiteProviderStages,
+} from "../integration/local-composition.mjs";
 import { CONTRACT_VERSIONS } from "../../../packages/extraction-contracts/index.mjs";
 
 const TERMINAL_INTAKE_STATUSES = new Set(["ready", "ready_with_review"]);
 
-// Local-disk stand-ins for the S3 presigner and client, so the runner exercises
-// the REAL production S3CompatibleObjectStore custody path (versioned staging,
-// streamed hash verification, content-addressed promotion, Postgres custody
-// bookkeeping) with bytes on the local filesystem instead of a bucket.
-function createLocalDiskS3({ root }) {
-  const objectPath = (bucket, key) => {
-    const resolved = path.resolve(root, bucket, key);
-    if (!resolved.startsWith(path.resolve(root) + path.sep)) throw new Error("object key escaped local store root");
-    return resolved;
-  };
-  const metaPath = (target) => `${target}.s3meta.json`;
-  async function readMeta(target) {
-    try {
-      return JSON.parse(await readFile(metaPath(target), "utf8"));
-    } catch {
-      return {};
-    }
-  }
-  const presigner = {
-    async presignPut({ bucket, key }) {
-      const target = objectPath(bucket, key);
-      await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-      return { url: `file://${target}` };
-    },
-  };
-  const client = {
-    async headBucket({ bucket }) {
-      await mkdir(path.resolve(root, bucket), { recursive: true, mode: 0o700 });
-      return {};
-    },
-    async headObject({ bucket, key }) {
-      const target = objectPath(bucket, key);
-      const details = await stat(target);
-      const meta = await readMeta(target);
-      return { contentLength: details.size, versionId: meta.versionId || "", metadata: meta.metadata || {} };
-    },
-    async getObject({ bucket, key }) {
-      const target = objectPath(bucket, key);
-      await stat(target);
-      return { body: createReadStream(target) };
-    },
-    async copyObject({ sourceBucket, sourceKey, destinationBucket, destinationKey, metadata }) {
-      const source = objectPath(sourceBucket, sourceKey);
-      const destination = objectPath(destinationBucket, destinationKey);
-      await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 });
-      try {
-        await copyFile(source, destination, fsConstants.COPYFILE_EXCL);
-      } catch (error) {
-        if (error?.code !== "EEXIST") throw error;
-      }
-      await writeFile(metaPath(destination), `${JSON.stringify({ versionId: randomUUID(), metadata: metadata || {} }, null, 2)}\n`, { mode: 0o600 });
-      return {};
-    },
-    async deleteObject({ bucket, key }) {
-      const target = objectPath(bucket, key);
-      await rm(target, { force: true });
-      await rm(metaPath(target), { force: true });
-      return {};
-    },
-  };
-  // The runner plays the browser: it performs the presigned PUT by writing the
-  // staged bytes (plus a version marker, as a versioned bucket would assign).
-  async function performPresignedPut(uploadAuthorization, bytes) {
-    const target = fileURLToPath(uploadAuthorization.url);
-    await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, bytes, { mode: 0o600 });
-    await writeFile(metaPath(target), `${JSON.stringify({ versionId: randomUUID(), metadata: {} }, null, 2)}\n`, { mode: 0o600 });
-  }
-  return { presigner, client, performPresignedPut };
-}
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
@@ -172,39 +98,16 @@ async function main() {
     const nativeProvider = options.native ? createNativeTextPageProvider() : null;
     log(`providers: ${providerLabel}${nativeProvider ? " + free native-text lane" : ""}`);
 
-    // Backpressure instead of futile calls: AIMD admission per capability, so
-    // provider throttling halves in-flight work and honors cooldowns rather
-    // than burning page attempt budgets on 429 storms.
-    // Lanes are dynamic: the pool is provisioned at the maximum, but slow
-    // start admits only --min-lanes at first and doubles on sustained health,
-    // so each provider's real ceiling is discovered, not configured.
-    const admissionController = new AdaptiveProviderAdmissionController({
-      capabilities: [
-        {
-          capability: primaryProvider.capability,
-          minimumConcurrent: options.minLanes,
-          startConcurrent: options.minLanes,
-          maximumConcurrent: options.lanes,
-          pageOperationsPerSecond: options.admissionRate,
-          burstPageOperations: Math.max(options.rangePages, options.lanes * options.rangePages),
-        },
-        ...repairLadder.map((rung, index) => ({
-          capability: rung.capability,
-          minimumConcurrent: 1,
-          startConcurrent: 1,
-          maximumConcurrent: index === 0 ? Math.max(2, options.repairLanes) : 2,
-          pageOperationsPerSecond: index === 0 ? Math.max(2, Math.round(options.admissionRate / 4)) : 2,
-          burstPageOperations: index === 0 ? Math.max(4, options.repairLanes * 2) : 4,
-        })),
-        ...(nativeProvider ? [{
-          capability: nativeProvider.capability,
-          minimumConcurrent: 4,
-          startConcurrent: 8,
-          maximumConcurrent: 16,
-          pageOperationsPerSecond: 500,
-          burstPageOperations: 1000,
-        }] : []),
-      ],
+    // Backpressure instead of futile calls, with dynamic slow-start lanes —
+    // the same shared shape the flag-gated app mount uses.
+    const suite = { primaryProvider, repairProvider, repairLadder, nativeProvider, label: providerLabel };
+    const admissionController = buildAdmissionController({
+      suite,
+      lanes: options.lanes,
+      minLanes: options.minLanes,
+      repairLanes: options.repairLanes,
+      rangePages: options.rangePages,
+      admissionRate: options.admissionRate,
     });
 
     const composition = createDocumentIntakeExtractionV4Composition({
@@ -438,43 +341,30 @@ function buildProviders(options) {
       ladder: null,
     };
   }
-  const mistralKey = String(process.env.MISTRAL_API_KEY || "").trim();
   const geminiKey = String(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "").trim();
-  const openaiKey = String(process.env.OPENAI_API_KEY || "").trim();
   if (!geminiKey) fail("GEMINI_API_KEY or GOOGLE_API_KEY is required (or use --mock-providers)");
-  // Apex rung: frontier-LLM page reading after the OCR lanes are exhausted.
-  // Prices default to assumed GPT-5.4 rates; override via env and reconcile
-  // against billing exports — the ledger records what was configured.
-  const apexProvider = options.apex && openaiKey
-    ? createGpt54RepairPageAdapter({
-      apiKey: openaiKey,
-      inputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_INPUT_USD_PER_M || 1.25),
-      outputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_OUTPUT_USD_PER_M || 7.5),
-      rasterize: rasterizePageToPng,
-    })
-    : null;
-  if (options.apex && !openaiKey) log("apex rung disabled: OPENAI_API_KEY is not configured");
-  const geminiRepair = createGemini37RepairPageAdapter({ apiKey: geminiKey });
-  const mistralPage = mistralKey ? createMistralOcr41PageAdapter({ apiKey: mistralKey }) : null;
-  if (options.primary === "gemini") {
-    // Full ladder under a Gemini primary: same-model page mode fixes format
-    // failures, Mistral preserves cross-provider diversity, the frontier LLM
-    // reads what dedicated OCR cannot.
-    const ladder = [geminiRepair, ...(mistralPage ? [mistralPage] : []), ...(apexProvider ? [apexProvider] : [])];
-    return {
-      providerLabel: `Gemini 3.7 Flash range primary + ladder [gemini-page${mistralPage ? ", mistral-page" : ""}${apexProvider ? ", gpt-5.4 apex" : ""}] (paid calls)`,
-      primaryProvider: createGemini37RangeAdapter({ apiKey: geminiKey }),
-      repairProvider: geminiRepair,
-      ladder,
-    };
+  if (options.apex && !String(process.env.OPENAI_API_KEY || "").trim()) log("apex rung disabled: OPENAI_API_KEY is not configured");
+  // The same suite builder the flag-gated app mount uses — one wiring, no twins.
+  let suite;
+  try {
+    suite = buildProviderSuite({
+      geminiKey,
+      mistralKey: process.env.MISTRAL_API_KEY,
+      openaiKey: options.apex ? process.env.OPENAI_API_KEY : "",
+      primary: options.primary,
+      apex: options.apex,
+      native: false,
+      gptInputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_INPUT_USD_PER_M || 1.25),
+      gptOutputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_OUTPUT_USD_PER_M || 7.5),
+    });
+  } catch (error) {
+    fail(`${error.message} (or use --mock-providers)`);
   }
-  if (!mistralKey) fail("MISTRAL_API_KEY is required (or use --mock-providers)");
-  const ladder = [geminiRepair, ...(apexProvider ? [apexProvider] : [])];
   return {
-    providerLabel: `Mistral OCR 4.1 primary + ladder [gemini-page${apexProvider ? ", gpt-5.4 apex" : ""}] (paid calls)`,
-    primaryProvider: createMistralOcr41RangeAdapter({ apiKey: mistralKey }),
-    repairProvider: geminiRepair,
-    ladder,
+    providerLabel: `${suite.label} (paid calls)`,
+    primaryProvider: suite.primaryProvider,
+    repairProvider: suite.repairProvider,
+    ladder: suite.repairLadder,
   };
 }
 

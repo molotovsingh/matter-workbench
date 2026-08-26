@@ -489,6 +489,15 @@ export async function createWorkbenchServer(options = {}) {
     workspaceService,
   };
 
+  // V4 document intake/extraction stays unmounted unless explicitly enabled:
+  // the import itself is gated so deployments that exclude V4 source (and
+  // every default run) never load it. See V4-ISO-001 / V4-DEPLOY-001.
+  const v4IntakeMount = env.MWB_V4_INTAKE === "1"
+    ? await (await import("./services/document-intake-extraction/integration/app-mount.mjs"))
+      .createV4IntakeMount({ env, log: (line) => console.log(line) })
+    : null;
+  services.v4IntakeMount = v4IntakeMount;
+
   const server = createServer(async (request, response) => {
     const startedAt = Date.now();
     let pathname = "/";
@@ -507,6 +516,7 @@ export async function createWorkbenchServer(options = {}) {
       await runWithRequestContext(requestContext, async () => {
         if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
         if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
+        if (v4IntakeMount && await v4IntakeMount.handleRequest({ request, requestUrl, response })) return;
         if (await handleApiRequest({ request, requestUrl, response, services })) return;
 
         if (request.method === "GET") {
@@ -550,6 +560,14 @@ export async function createWorkbenchServer(options = {}) {
   if (runtimeDbProcessingWorkerService.enabled?.()) {
     server.once("listening", () => runtimeDbProcessingWorkerService.start?.());
     server.once("close", () => runtimeDbProcessingWorkerService.stop?.());
+  }
+  if (v4IntakeMount) {
+    server.once("listening", () => {
+      v4IntakeMount.start().catch((error) => console.error("V4 intake mount failed to start:", error?.message || error));
+    });
+    server.once("close", () => {
+      v4IntakeMount.stop().catch(() => {});
+    });
   }
 
   if (hasTelemetrySyncConfig(env)) {
