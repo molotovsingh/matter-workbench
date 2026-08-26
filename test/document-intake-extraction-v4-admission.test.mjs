@@ -117,3 +117,30 @@ test("slow start begins at the floor, doubles on sustained health, and yields to
   assert.equal(afterThrottle.concurrencyLimit, 8, "throttle must halve the discovered limit");
   assert.equal(afterThrottle.slowStart, false, "first throttle ends slow start permanently");
 });
+
+// Demand ceiling: never grow lanes past what the work graph can feed.
+test("demand ceiling caps slow-start growth and clamps an already-grown limit", () => {
+  const controller = new AdaptiveProviderAdmissionController({
+    capabilities: [{
+      capability: CAPABILITY,
+      minimumConcurrent: 2,
+      startConcurrent: 2,
+      maximumConcurrent: 64,
+      pageOperationsPerSecond: 1000,
+      burstPageOperations: 10000,
+    }],
+    slowStartEvery: 1,
+  });
+  const succeed = () => {
+    const admission = controller.acquire(CAPABILITY, { weight: 1 });
+    controller.complete(admission.permit, { outcome: "success" });
+  };
+  controller.setDemandCeiling(CAPABILITY, 6);
+  succeed(); succeed(); succeed(); succeed();
+  assert.equal(controller.snapshot(CAPABILITY).concurrencyLimit, 6, "growth stops at the demand ceiling, not the resource maximum");
+  controller.setDemandCeiling(CAPABILITY, 3);
+  assert.equal(controller.snapshot(CAPABILITY).concurrencyLimit, 3, "a lowered ceiling clamps the live limit");
+  controller.setDemandCeiling(CAPABILITY, null);
+  succeed(); succeed();
+  assert.ok(controller.snapshot(CAPABILITY).concurrencyLimit > 3, "clearing the ceiling resumes growth");
+});

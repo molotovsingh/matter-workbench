@@ -92,3 +92,22 @@ test("composition fails before runtime on non-streaming custody or mutable provi
     }),
   }), /mutable alias/);
 });
+
+test("composition routes trusted native-text pages to the free local lane and everything else to the primary", () => {
+  const nativeProvider = {
+    capability: { provider: "native", model: "poppler-pdftotext", adapterVersion: "native/v1" },
+    extractPage: async () => ({}),
+  };
+  const composition = createDocumentIntakeExtractionV4Composition({
+    pool: { connect: async () => {} },
+    objectStoreFactory: () => ({ createUploadAuthorization: async () => {}, commitAuthorizedUpload: async () => {}, openBlobStream: async () => {} }),
+    documentInspectorFactory: () => ({ inspect: async () => ({ pageCount: 1 }) }),
+    primaryProvider: { capability: { provider: "gemini", model: "gemini-3.7-flash", adapterVersion: "range/v1" }, extractPages: async () => [] },
+    repairProvider: { capability: { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair/v1" }, extractPage: async () => ({}) },
+    nativeProvider,
+  });
+  assert.equal(composition.capabilityRouter.version, "native-first-range-primary/v1");
+  assert.deepEqual(composition.capabilityRouter.select({ page: { nativeText: { trusted: true } } }), nativeProvider.capability);
+  assert.equal(composition.capabilityRouter.select({ page: { nativeText: { trusted: false } } }).provider, "gemini");
+  assert.equal(composition.capabilityRouter.select({}).provider, "gemini", "unknown classification must fall to OCR");
+});

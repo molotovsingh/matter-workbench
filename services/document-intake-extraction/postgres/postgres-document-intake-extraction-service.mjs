@@ -98,6 +98,7 @@ export class PostgresDocumentIntakeExtractionService {
         fileId,
         sourceSha256: receipt.sha256,
         pageNumber,
+        page: inspection.pages?.[pageNumber - 1],
       });
       routedPages.push({
         pageNumber,

@@ -37,6 +37,9 @@ import { runDocumentIntakeExtractionMigrations } from "../postgres/migrate.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../postgres/runtime-role-sql.mjs";
 import { S3CompatibleObjectStore } from "../adapters/s3-compatible-object-store.mjs";
 import { PdfInfoDocumentInspector } from "../../../workers/document-processing/pdfinfo-document-inspector.mjs";
+import { PdfNativeTextInspector } from "../../../workers/document-processing/pdf-native-text-inspector.mjs";
+import { createNativeTextPageProvider } from "../../../workers/document-processing/native-text-page-provider.mjs";
+import { createMistralOcr41PageAdapter } from "../providers/mistral-ocr41-adapter.mjs";
 import { PdfPageMaterializer } from "../../../workers/document-processing/pdf-page-materializer.mjs";
 import { WorkerScratchSpace } from "../../../workers/document-processing/worker-scratch-space.mjs";
 import {
@@ -164,8 +167,10 @@ async function main() {
 
     const localS3 = createLocalDiskS3({ root: path.join(homeRoot, "object-store") });
     const inspectorScratch = new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "inspector") });
-    const { primaryProvider, repairProvider, apexProvider = null, providerLabel } = buildProviders(options);
-    log(`providers: ${providerLabel}`);
+    const { primaryProvider, repairProvider, ladder = null, providerLabel } = buildProviders(options);
+    const repairLadder = ladder && ladder.length ? ladder : [repairProvider];
+    const nativeProvider = options.native ? createNativeTextPageProvider() : null;
+    log(`providers: ${providerLabel}${nativeProvider ? " + free native-text lane" : ""}`);
 
     // Backpressure instead of futile calls: AIMD admission per capability, so
     // provider throttling halves in-flight work and honors cooldowns rather
@@ -183,21 +188,21 @@ async function main() {
           pageOperationsPerSecond: options.admissionRate,
           burstPageOperations: Math.max(options.rangePages, options.lanes * options.rangePages),
         },
-        {
-          capability: repairProvider.capability,
+        ...repairLadder.map((rung, index) => ({
+          capability: rung.capability,
           minimumConcurrent: 1,
           startConcurrent: 1,
-          maximumConcurrent: Math.max(2, options.repairLanes),
-          pageOperationsPerSecond: Math.max(2, Math.round(options.admissionRate / 4)),
-          burstPageOperations: Math.max(4, options.repairLanes * 2),
-        },
-        ...(apexProvider ? [{
-          capability: apexProvider.capability,
-          minimumConcurrent: 1,
-          startConcurrent: 1,
-          maximumConcurrent: 2,
-          pageOperationsPerSecond: 2,
-          burstPageOperations: 4,
+          maximumConcurrent: index === 0 ? Math.max(2, options.repairLanes) : 2,
+          pageOperationsPerSecond: index === 0 ? Math.max(2, Math.round(options.admissionRate / 4)) : 2,
+          burstPageOperations: index === 0 ? Math.max(4, options.repairLanes * 2) : 4,
+        })),
+        ...(nativeProvider ? [{
+          capability: nativeProvider.capability,
+          minimumConcurrent: 4,
+          startConcurrent: 8,
+          maximumConcurrent: 16,
+          pageOperationsPerSecond: 500,
+          burstPageOperations: 1000,
         }] : []),
       ],
     });
@@ -212,11 +217,15 @@ async function main() {
         client: localS3.client,
         authorizationStore,
       }),
-      documentInspectorFactory: ({ objectStore: store }) => new PdfInfoDocumentInspector({ objectStore: store, scratchSpace: inspectorScratch }),
+      documentInspectorFactory: ({ objectStore: store }) => (options.native
+        ? new PdfNativeTextInspector({ objectStore: store, scratchSpace: inspectorScratch })
+        : new PdfInfoDocumentInspector({ objectStore: store, scratchSpace: inspectorScratch })),
       primaryProvider,
       repairProvider,
-      repairProviders: apexProvider ? [repairProvider, apexProvider] : undefined,
+      repairProviders: repairLadder.length > 1 ? repairLadder : undefined,
+      nativeProvider,
       providerStages: [
+        ...(nativeProvider ? [{ stage: "native_text", ...nativeProvider.capability, workShare: 0.4, fallback: { pageOperationsPerSecond: 50 } }] : []),
         { stage: "primary_ocr", ...primaryProvider.capability, workShare: 0.9, fallback: { pageOperationsPerSecond: 4 } },
         { stage: "selective_repair", ...repairProvider.capability, workShare: 0.1, fallback: { pageOperationsPerSecond: 0.5 } },
       ],
@@ -243,7 +252,7 @@ async function main() {
       : null;
     if (dashboard) log(`watch dashboard live at ${dashboard.url}`);
 
-    const workerRuns = startWorkers({ composition, options, homeRoot, signal: abort.signal, dashboard, apexProvider });
+    const workerRuns = startWorkers({ composition, options, homeRoot, signal: abort.signal, dashboard, repairLadder, nativeProvider });
 
     const tenantId = options.tenantId;
     timings.uploadStartedAt = Date.now();
@@ -280,6 +289,7 @@ async function main() {
     const committed = await service.commitBatchCustody({ tenantId, intakeId: intake.intakeId });
     timings.custodyCommittedAt = Date.now();
     const totalPages = Number(committed.observedPageCount || uploaded.reduce((sum, receipt) => sum + receipt.pageCount, 0));
+    admissionController.setDemandCeiling(primaryProvider.capability, Math.ceil(totalPages / options.rangePages));
     log(`batch custody committed: ${committed.committedFileCount ?? files.length} files, ${totalPages} logical pages — processing SLO clock starts now`);
 
     const finalIntake = await pollUntilReady({ service, tenantId, intakeId: intake.intakeId, options, timings });
@@ -318,13 +328,14 @@ function parseArguments(argv) {
     out: "",
     tenantId: "isolated-dev-tenant",
     matterId: "isolated-dev-matter",
-    primary: "mistral",
+    primary: "gemini",
     rangePages: 8,
     admissionRate: 40,
     minLanes: 2,
     watch: false,
     watchPort: 4499,
     apex: true,
+    native: true,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -351,6 +362,7 @@ function parseArguments(argv) {
     else if (flag === "--min-lanes") options.minLanes = requireInteger(next(), "--min-lanes", 1, 128);
     else if (flag === "--watch") options.watch = true;
     else if (flag === "--no-apex") options.apex = false;
+    else if (flag === "--no-native") options.native = false;
     else if (flag === "--watch-port") options.watchPort = requireInteger(next(), "--watch-port", 1024, 65535);
     else fail(`unknown option ${flag}`);
   }
@@ -423,6 +435,7 @@ function buildProviders(options) {
           diagnostics: [],
         }),
       },
+      ladder: null,
     };
   }
   const mistralKey = String(process.env.MISTRAL_API_KEY || "").trim();
@@ -441,21 +454,27 @@ function buildProviders(options) {
     })
     : null;
   if (options.apex && !openaiKey) log("apex rung disabled: OPENAI_API_KEY is not configured");
-  const apexLabel = apexProvider ? " + GPT-5.4 apex repair" : "";
+  const geminiRepair = createGemini37RepairPageAdapter({ apiKey: geminiKey });
+  const mistralPage = mistralKey ? createMistralOcr41PageAdapter({ apiKey: mistralKey }) : null;
   if (options.primary === "gemini") {
+    // Full ladder under a Gemini primary: same-model page mode fixes format
+    // failures, Mistral preserves cross-provider diversity, the frontier LLM
+    // reads what dedicated OCR cannot.
+    const ladder = [geminiRepair, ...(mistralPage ? [mistralPage] : []), ...(apexProvider ? [apexProvider] : [])];
     return {
-      providerLabel: `Gemini 3.7 Flash range primary + Gemini 3.7 selective repair${apexLabel} (paid calls)`,
+      providerLabel: `Gemini 3.7 Flash range primary + ladder [gemini-page${mistralPage ? ", mistral-page" : ""}${apexProvider ? ", gpt-5.4 apex" : ""}] (paid calls)`,
       primaryProvider: createGemini37RangeAdapter({ apiKey: geminiKey }),
-      repairProvider: createGemini37RepairPageAdapter({ apiKey: geminiKey }),
-      apexProvider,
+      repairProvider: geminiRepair,
+      ladder,
     };
   }
   if (!mistralKey) fail("MISTRAL_API_KEY is required (or use --mock-providers)");
+  const ladder = [geminiRepair, ...(apexProvider ? [apexProvider] : [])];
   return {
-    providerLabel: `Mistral OCR 4.1 primary + Gemini 3.7 selective repair${apexLabel} (paid calls)`,
+    providerLabel: `Mistral OCR 4.1 primary + ladder [gemini-page${apexProvider ? ", gpt-5.4 apex" : ""}] (paid calls)`,
     primaryProvider: createMistralOcr41RangeAdapter({ apiKey: mistralKey }),
-    repairProvider: createGemini37RepairPageAdapter({ apiKey: geminiKey }),
-    apexProvider,
+    repairProvider: geminiRepair,
+    ladder,
   };
 }
 
@@ -495,7 +514,7 @@ async function ensureRuntimeRole(adminPool, databaseAdminPool, databaseUrl, home
   return url.toString();
 }
 
-function startWorkers({ composition, options, homeRoot, signal, dashboard = null, apexProvider = null }) {
+function startWorkers({ composition, options, homeRoot, signal, dashboard = null, repairLadder = [], nativeProvider = null }) {
   const pageMaterializer = new PdfPageMaterializer();
   const onOutcome = (label) => async (event) => {
     if (event.type === "completed") {
@@ -523,34 +542,40 @@ function startWorkers({ composition, options, homeRoot, signal, dashboard = null
     idlePollMs: 200,
     onOutcome: onOutcome("range"),
   });
-  const repairLoop = composition.createWorkerLoop({
-    worker: composition.createRepairWorker({
-      scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "repair") }),
-      pageMaterializer,
-    }),
-    tenantId: options.tenantId,
-    workerIdPrefix: "isolated-repair",
-    concurrency: options.repairLanes,
-    idlePollMs: 400,
-    onOutcome: onOutcome("repair"),
-  });
-  const runs = [rangeLoop.run({ signal }), repairLoop.run({ signal })];
-  if (apexProvider) {
-    const apexLoop = composition.createWorkerLoop({
+  const runs = [rangeLoop.run({ signal })];
+  const rungs = repairLadder.length ? repairLadder : [null];
+  rungs.forEach((rung, index) => {
+    const label = index === 0 ? "repair" : `rung${index + 1}:${rung?.capability?.provider || "?"}`;
+    const loop = composition.createWorkerLoop({
       worker: composition.createRepairWorker({
-        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "apex") }),
+        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", `repair-${index}`) }),
         pageMaterializer,
-        provider: apexProvider,
+        ...(rung ? { provider: rung } : {}),
       }),
       tenantId: options.tenantId,
-      workerIdPrefix: "isolated-apex",
-      concurrency: 2,
-      idlePollMs: 500,
-      onOutcome: onOutcome("apex"),
+      workerIdPrefix: `isolated-repair-${index}`,
+      concurrency: index === 0 ? options.repairLanes : 2,
+      idlePollMs: 400,
+      onOutcome: onOutcome(label),
     });
-    runs.push(apexLoop.run({ signal }));
+    runs.push(loop.run({ signal }));
+  });
+  if (nativeProvider) {
+    const nativeLoop = composition.createWorkerLoop({
+      worker: composition.createRepairWorker({
+        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "native") }),
+        pageMaterializer,
+        provider: nativeProvider,
+      }),
+      tenantId: options.tenantId,
+      workerIdPrefix: "isolated-native",
+      concurrency: 8,
+      idlePollMs: 100,
+      onOutcome: onOutcome("native"),
+    });
+    runs.push(nativeLoop.run({ signal }));
   }
-  log(`workers started: ${options.lanes} range lane(s), ${options.repairLanes} repair lane(s)${apexProvider ? ", 2 apex lane(s)" : ""}`);
+  log(`workers started: ${options.lanes} range lane(s), ${rungs.length} repair rung(s)${nativeProvider ? ", 8 native lane(s)" : ""}`);
   return runs;
 }
 

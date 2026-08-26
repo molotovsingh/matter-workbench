@@ -53,6 +53,7 @@ export class AdaptiveProviderAdmissionController {
         minimumConcurrent,
         concurrencyLimit: startConcurrent,
         slowStart: startConcurrent < maximumConcurrent,
+        demandCeiling: Infinity,
         pageOperationsPerSecond,
         burstPageOperations,
         tokens: burstPageOperations,
@@ -110,10 +111,13 @@ export class AdaptiveProviderAdmissionController {
       state.cooldownUntilMs = Math.max(state.cooldownUntilMs, nowMs + Math.max(1_000, nonNegativeNumber(retryAfterMs, "retryAfterMs", 0)));
     } else if (outcome === "success") {
       state.consecutiveSuccesses += 1;
-      if (state.slowStart && state.consecutiveSuccesses >= this.slowStartEvery && state.concurrencyLimit < state.maximumConcurrent) {
-        state.concurrencyLimit = Math.min(state.maximumConcurrent, state.concurrencyLimit * 2);
+      // Growth never exceeds the demand ceiling: there is no value in opening
+      // more lanes than the work graph can feed (pages ÷ range size).
+      const growthCeiling = Math.min(state.maximumConcurrent, state.demandCeiling);
+      if (state.slowStart && state.consecutiveSuccesses >= this.slowStartEvery && state.concurrencyLimit < growthCeiling) {
+        state.concurrencyLimit = Math.min(growthCeiling, state.concurrencyLimit * 2);
         state.consecutiveSuccesses = 0;
-      } else if (!state.slowStart && state.consecutiveSuccesses >= this.additiveIncreaseEvery && state.concurrencyLimit < state.maximumConcurrent) {
+      } else if (!state.slowStart && state.consecutiveSuccesses >= this.additiveIncreaseEvery && state.concurrencyLimit < growthCeiling) {
         state.concurrencyLimit += 1;
         state.consecutiveSuccesses = 0;
       }
@@ -121,6 +125,16 @@ export class AdaptiveProviderAdmissionController {
       state.failures += 1;
       state.consecutiveSuccesses = 0;
     }
+    return this.snapshot(state.capability);
+  }
+
+  setDemandCeiling(capabilityInput, ceiling) {
+    const state = this.requireState(capabilityInput);
+    const number = Number(ceiling);
+    state.demandCeiling = Number.isFinite(number) && number >= 1
+      ? Math.max(state.minimumConcurrent, Math.floor(number))
+      : Infinity;
+    state.concurrencyLimit = Math.min(state.concurrencyLimit, Math.min(state.maximumConcurrent, state.demandCeiling));
     return this.snapshot(state.capability);
   }
 
@@ -165,6 +179,7 @@ function stateSnapshot(state, nowMs) {
     maximumConcurrent: state.maximumConcurrent,
     minimumConcurrent: state.minimumConcurrent,
     slowStart: state.slowStart === true,
+    demandCeiling: state.demandCeiling === Infinity ? null : state.demandCeiling,
     concurrencyLimit: state.concurrencyLimit,
     inflight: state.inflight,
     availablePageOperations: state.tokens,

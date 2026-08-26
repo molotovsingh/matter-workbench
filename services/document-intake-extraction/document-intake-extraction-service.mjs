@@ -120,6 +120,7 @@ export class DocumentIntakeExtractionService {
         fileId,
         sourceSha256: objectReceipt.sha256,
         pageNumber,
+        page: inspection.pages?.[pageNumber - 1],
       }));
     }
     const now = this.clock().toISOString();

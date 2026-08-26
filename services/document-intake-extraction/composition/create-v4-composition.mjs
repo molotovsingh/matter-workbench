@@ -31,6 +31,7 @@ export function createDocumentIntakeExtractionV4Composition({
   primaryProvider,
   repairProvider,
   repairProviders = null,
+  nativeProvider = null,
   calibration = null,
   providerStages = [],
   workerCapacity = {},
@@ -54,6 +55,8 @@ export function createDocumentIntakeExtractionV4Composition({
   }
   const primaryCapability = assertPinnedProviderCapability(primaryProvider.capability);
   assertPinnedProviderCapability(repairProvider.capability);
+  if (nativeProvider && typeof nativeProvider.extractPage !== "function") throw new Error("nativeProvider requires extractPage");
+  const nativeCapability = nativeProvider ? assertPinnedProviderCapability(nativeProvider.capability) : null;
   const intakeRepository = new PostgresIntakeRepository({ pool, clock });
   const resultRepository = new PostgresResultRepository({ pool, clock });
   const workRepository = new PostgresWorkRepository({ pool, clock });
@@ -70,9 +73,11 @@ export function createDocumentIntakeExtractionV4Composition({
   }
   const documentInspector = documentInspectorFactory({ objectStore });
   if (!documentInspector?.inspect) throw new Error("documentInspectorFactory must return inspect");
+  // Pages the inspector classified as trustworthy born-digital text ride the
+  // free local native lane; everything else goes to the primary OCR provider.
   const capabilityRouter = Object.freeze({
-    version: "mistral-ocr41-document-range-primary/v1",
-    select: () => primaryCapability,
+    version: nativeCapability ? "native-first-range-primary/v1" : "mistral-ocr41-document-range-primary/v1",
+    select: ({ page } = {}) => (nativeCapability && page?.nativeText?.trusted === true ? nativeCapability : primaryCapability),
   });
   const repairRouter = createSelectiveRepairRouter({ repairProviders: repairLadder });
   const progressService = new IntakeProgressService({
