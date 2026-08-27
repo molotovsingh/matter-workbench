@@ -27,6 +27,8 @@ export interface V4MountStatus {
   tenantId: string;
   label: string;
   uploadTokenHeader: string;
+  /** True when the server imports finished results into the matter record. */
+  resultImport: boolean;
   limits: {
     maximumFiles: number;
     maximumFileBytes: number;
@@ -108,6 +110,7 @@ export async function probeV4IntakeStatus(): Promise<V4MountStatus | null> {
       tenantId: String(status.tenantId ?? ''),
       label: String(status.label ?? ''),
       uploadTokenHeader: status.uploadTokenHeader,
+      resultImport: status.resultImport === true,
       limits: {
         maximumFiles: Number(status.limits.maximumFiles) || 0,
         maximumFileBytes: Number(status.limits.maximumFileBytes) || 0,
@@ -123,18 +126,30 @@ export async function createV4Intake({
   matterId,
   files,
   idempotencyKey,
+  clientRequestId,
   workloadClass,
 }: {
   matterId: string;
   files: V4FileManifestInput[];
   idempotencyKey: string;
+  /**
+   * The workbench matter FOLDER name, verbatim. V4 treats it as an opaque
+   * client reference; the server-side result bridge uses it to find the
+   * matter folder when importing extracted text into the record.
+   */
+  clientRequestId?: string;
   workloadClass?: string;
 }): Promise<V4Intake> {
+  // Header values must be ByteString-safe; a folder name with characters
+  // outside printable ASCII would make fetch throw. The bridge falls back to
+  // reversing the matterId slug when the reference is trimmed or absent.
+  const safeClientReference = (clientRequestId ?? '').replace(/[^\x20-\x7e]/g, '').trim().slice(0, 200);
   const body = await v4Json(`${V4_PREFIX}/v1/intakes`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Idempotency-Key': idempotencyKey,
+      ...(safeClientReference ? { 'X-Client-Request-Id': safeClientReference } : {}),
     },
     body: JSON.stringify({ matterId, files, ...(workloadClass ? { workloadClass } : {}) }),
   });

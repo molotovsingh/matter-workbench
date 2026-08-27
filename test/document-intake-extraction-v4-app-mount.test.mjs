@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createV4IntakeMount } from "../services/document-intake-extraction/integration/app-mount.mjs";
+import { createExtractionResultDeliver, createV4IntakeMount } from "../services/document-intake-extraction/integration/app-mount.mjs";
 
 const FAKE_KEYS = {
   GEMINI_API_KEY: "gemini-test-key",
@@ -68,6 +68,43 @@ test("app mount refuses to build without the flag and requires a database when e
     () => createV4IntakeMount({ env: { ...FAKE_KEYS, MWB_V4_INTAKE: "1" } }),
     /MWB_V4_DB_URL/,
   );
+});
+
+// The outbox bridge: one ready event becomes one resultConsumer call carrying
+// plain JSON (folder name via clientRequestId, slug fallback, documents);
+// other event types acknowledge without side effects.
+test("extraction result deliver maps ready events onto the result consumer and ignores the rest", async () => {
+  const calls = [];
+  const service = {
+    async getResult({ tenantId, resultId }) {
+      assert.equal(tenantId, "private-beta");
+      assert.equal(resultId, "result-1");
+      return {
+        resultId,
+        intakeId: "intake-1",
+        matterId: "Iyer-v-State",
+        status: "ready",
+        documents: [{ sourceSha256: "a".repeat(64), pages: [] }],
+      };
+    },
+    async getIntake({ intakeId }) {
+      assert.equal(intakeId, "intake-1");
+      return { intakeId, clientRequestId: "Iyer v State" };
+    },
+  };
+  const deliver = createExtractionResultDeliver({ service, resultConsumer: async (input) => calls.push(input) });
+  await deliver({ type: "outbox.something_else", payload: {} });
+  assert.equal(calls.length, 0, "non-ready events are acknowledged without side effects");
+  await deliver({
+    type: "extraction.result.ready",
+    payload: { tenantId: "private-beta", intakeId: "intake-1", resultId: "result-1" },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].matterFolderName, "Iyer v State");
+  assert.equal(calls[0].matterIdSlug, "Iyer-v-State");
+  assert.equal(calls[0].resultId, "result-1");
+  assert.equal(calls[0].resultStatus, "ready");
+  assert.equal(calls[0].documents.length, 1);
 });
 
 // Empty-but-set env vars are configuration-template artifacts; clamping them

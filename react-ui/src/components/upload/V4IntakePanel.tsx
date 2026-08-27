@@ -23,9 +23,10 @@ import {
 // byte-level upload progress, then a live page-completion ratio with an ETA
 // band while extraction runs.
 //
-// Slice boundary (deliberate): results stay in the V4 evidence store. Nothing
-// here writes into the matter workspace — the cutover that feeds V4 results
-// into legacy document records is a separate, gated step.
+// When the server advertises resultImport, finished extractions are filed
+// into the matter record server-side (as cached extract-stage output) so the
+// ordinary preparation pipeline skips its own slow OCR for those files;
+// otherwise results stay in the V4 evidence store and the panel says so.
 
 interface Props {
   matterName: string | null;
@@ -134,6 +135,7 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
     try {
       const intake = await createV4Intake({
         matterId: v4MatterIdFromName(matterName),
+        clientRequestId: matterName,
         idempotencyKey: newV4IdempotencyKey(),
         files: selection.map((item, index) => ({
           clientFileId: `client-${index + 1}`,
@@ -192,10 +194,10 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
       const pages = finalProgress?.processing.observedLogicalPages ?? 0;
       const seconds = Math.max(1, Math.round((Date.now() - startedAtMs) / 1000));
       const reviewNote = finalProgress?.status === 'ready_with_review' ? ' Some pages need review.' : '';
-      setSummary(
-        `Extracted ${pages} page(s) in ${formatDuration(seconds)}.${reviewNote}`
-        + (finished?.resultId ? ` Result ${finished.resultId} is in the V4 evidence store (not yet wired into this matter's workspace).` : ''),
-      );
+      const destination = mount.resultImport
+        ? ' The text is being filed into this matter’s record; files you also added to the matter will skip slow re-reading.'
+        : (finished?.resultId ? ` Result ${finished.resultId} is in the V4 evidence store.` : '');
+      setSummary(`Extracted ${pages} page(s) in ${formatDuration(seconds)}.${reviewNote}${destination}`);
       setPhase('ready');
       appendTerminal([`[v4-intake] extraction complete: ${pages} page(s) in ${formatDuration(seconds)}${reviewNote ? ' (review flagged)' : ''}`]);
     } catch (raised) {
@@ -257,7 +259,9 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
           <h2>Fast extraction (V4)</h2>
           <p>
             New upload-to-OCR pipeline: page-level parallel extraction with live progress.
-            Runs alongside the normal upload; extracted text stays in the V4 store for now.
+            {mount.resultImport
+              ? ' Finished text is filed into this matter’s record, so preparation skips slow re-reading.'
+              : ' Runs alongside the normal upload; extracted text stays in the V4 store for now.'}
           </p>
         </div>
         <span className="v4-intake-chip" title={`Provider ladder: ${mount.label}`}>{mount.label || 'v4'}</span>

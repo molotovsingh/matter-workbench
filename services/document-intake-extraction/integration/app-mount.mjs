@@ -35,6 +35,7 @@ import { createDocumentIntakeExtractionV4Composition } from "../composition/crea
 import { runDocumentIntakeExtractionMigrations } from "../postgres/migrate.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../postgres/runtime-role-sql.mjs";
 import { PostgresUploadAuthorizationStore } from "../postgres/postgres-upload-authorization-store.mjs";
+import { BoundedDocumentWorkerLoop } from "../../../workers/document-processing/bounded-worker-loop.mjs";
 import { PdfNativeTextInspector } from "../../../workers/document-processing/pdf-native-text-inspector.mjs";
 import { WorkerScratchSpace } from "../../../workers/document-processing/worker-scratch-space.mjs";
 import {
@@ -63,6 +64,13 @@ export async function createV4IntakeMount({
   pool = null,
   log = () => {},
   autoMigrate = env.MWB_V4_AUTO_MIGRATE !== "0",
+  // Optional bridge to the host app: called once per ready extraction result
+  // with plain JSON ({matterFolderName, matterIdSlug, intakeId, resultId,
+  // resultStatus, documents}) via the durable outbox — at-least-once, so it
+  // must be idempotent. Throw with error.retryable === false to dead-letter
+  // an event instead of retrying it. The mount never imports host code; the
+  // host injects this at the single sanctioned seam in server.mjs.
+  resultConsumer = null,
 } = {}) {
   if (String(env[V4_INTAKE_FLAG] || "") !== "1") return null;
   const databaseUrl = String(env.MWB_V4_DB_URL || "").trim();
@@ -157,6 +165,7 @@ export async function createV4IntakeMount({
           prefix,
           storePrefix,
           uploadTokenHeader: UPLOAD_TOKEN_HEADER,
+          resultImport: Boolean(resultConsumer),
           limits: {
             maximumFiles: SERVICE_LIMITS.maximumFiles,
             maximumFileBytes: Math.min(SERVICE_LIMITS.maximumFileBytes, maximumUploadBytes),
@@ -247,6 +256,29 @@ export async function createV4IntakeMount({
           if (event.type === "error") log(`V4 intake [${label}] worker error ${event.errorCode}`);
         },
       });
+      if (resultConsumer) {
+        const dispatcher = composition.createOutboxDispatcher({
+          deliver: createExtractionResultDeliver({ service: composition.service, resultConsumer }),
+        });
+        const outboxLoop = new BoundedDocumentWorkerLoop({
+          tenantId,
+          workerIdPrefix: "v4-outbox-consumer",
+          concurrency: 1,
+          idlePollMs: 1_000,
+          worker: {
+            async runOnce({ workerId }) {
+              const outcomes = await dispatcher.drainTenant({ tenantId, workerId });
+              if (!outcomes.length) return null;
+              return { status: "accepted", workUnitIds: outcomes.map((outcome) => outcome.eventId) };
+            },
+          },
+          onOutcome: async (event) => {
+            if (event.type === "error") log(`V4 intake [outbox] consumer error ${event.errorCode}`);
+          },
+        });
+        fleet.push(outboxLoop.run({ signal: abort.signal }));
+        log("V4 intake: extraction results will be imported into the matter record (outbox consumer active)");
+      }
       started = true;
       log(`V4 intake mounted at ${prefix} (${suite.label}; tenant ${tenantId}; ${lanes} max lanes)`);
     },
@@ -255,6 +287,30 @@ export async function createV4IntakeMount({
       await Promise.allSettled(fleet);
       if (!pool) await effectivePool.end().catch(() => {});
     },
+  };
+}
+
+// One outbox event -> one resultConsumer call. Only extraction.result.ready
+// is bridged; other event types acknowledge without side effects. The matter
+// is identified two ways: clientRequestId carries the workbench's exact
+// folder name (set by the upload panel), and matterId carries the V4 slug as
+// a fallback the consumer can reverse by scanning the matters home.
+export function createExtractionResultDeliver({ service, resultConsumer }) {
+  if (!service?.getResult || !service?.getIntake) throw new Error("result deliver requires the V4 service");
+  if (typeof resultConsumer !== "function") throw new Error("result deliver requires a resultConsumer function");
+  return async function deliver(event) {
+    if (event?.type !== "extraction.result.ready") return;
+    const payload = event.payload || {};
+    const result = await service.getResult({ tenantId: payload.tenantId, resultId: payload.resultId });
+    const intake = await service.getIntake({ tenantId: payload.tenantId, intakeId: payload.intakeId });
+    await resultConsumer({
+      matterFolderName: String(intake.clientRequestId || ""),
+      matterIdSlug: String(result.matterId || ""),
+      intakeId: String(result.intakeId || ""),
+      resultId: String(result.resultId || ""),
+      resultStatus: String(result.status || ""),
+      documents: Array.isArray(result.documents) ? result.documents : [],
+    });
   };
 }
 
