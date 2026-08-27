@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { PdfNativeTextInspector } from "../workers/document-processing/pdf-native-text-inspector.mjs";
 import { NATIVE_TEXT_CAPABILITY, createNativeTextPageProvider } from "../workers/document-processing/native-text-page-provider.mjs";
+import { createSelectiveRepairRouter } from "../services/document-intake-extraction/routing/selective-repair-router.mjs";
 
 const LONG_TEXT = "IN THE HIGH COURT OF JUDICATURE. Writ Petition number 4312 of 2026. The petitioner submits that the assessment order dated 12 March 2026 was passed without jurisdiction and in violation of the principles of natural justice, and prays for interim protection. ".repeat(2);
 
@@ -74,4 +75,28 @@ test("native text page provider extracts locally at zero cost under a pinned cap
   assert.equal(output.billedCostUsd, 0);
   assert.deepEqual(output.usage, { inputUnits: 0, outputUnits: 0 });
   assert.ok(output.diagnostics.includes("native_text_extraction"));
+});
+
+// The native lane's local tool IS its provider, so extraction failures must
+// escalate like provider failures instead of dead-ending in review.
+test("native text provider raises provider-coded errors so the repair ladder can escalate", async () => {
+  const provider = createNativeTextPageProvider({
+    execFileImpl: async () => { throw Object.assign(new Error("spawn pdftotext ENOENT"), { code: "ENOENT" }); },
+  });
+  await assert.rejects(
+    () => provider.extractPage({ pageNumber: 3, source: { filePath: "/scratch/pages/page-3.pdf" } }),
+    (error) => {
+      assert.equal(error.code, "provider.native_extraction_failed");
+      assert.equal(error.retryable, false);
+      assert.equal(error.billingKnown, true);
+      assert.equal(error.billedCostUsd, 0);
+      return true;
+    },
+  );
+  const router = createSelectiveRepairRouter({ repairProviders: [{ provider: "gemini", model: "gemini-3.7-flash", adapterVersion: "repair/v1" }] });
+  const route = router.selectForFailure({
+    claim: { capability: NATIVE_TEXT_CAPABILITY, sourceSha256: "a".repeat(64), pageNumber: 3, tenantId: "tenant-1", validatorVersion: "v" },
+    error: { code: "provider.native_extraction_failed" },
+  });
+  assert.equal(route?.capability.provider, "gemini", "a failed native page must climb to real OCR");
 });

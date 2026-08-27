@@ -7,11 +7,12 @@ import { createGemini37RepairPageAdapter } from "../services/document-intake-ext
 import { createMistralOcr41PageAdapter } from "../services/document-intake-extraction/providers/mistral-ocr41-adapter.mjs";
 import { createMistralOcr41RangeAdapter, resolveAttemptTimeoutMs } from "../services/document-intake-extraction/providers/mistral-ocr41-range-adapter.mjs";
 import { fetchProviderJson } from "../services/document-intake-extraction/providers/provider-http.mjs";
+import { createPageValidator } from "../services/document-intake-extraction/page-validator.mjs";
 
 const PAGE_PDF = Buffer.from("%PDF-1.4 isolated page bytes");
 
 // V4-PROVIDER-001 Gemini document-range adapter evidence
-test("pinned Gemini 3.7 range adapter maps ordered pages, splits token cost, and flags label drift", async () => {
+test("pinned Gemini 3.7 range adapter maps labelled pages and splits token cost", async () => {
   let calls = 0;
   const adapter = createGemini37RangeAdapter({
     apiKey: "gemini-secret-test",
@@ -26,7 +27,7 @@ test("pinned Gemini 3.7 range adapter maps ordered pages, splits token cost, and
           content: { parts: [{ text: JSON.stringify({ pages: [
             { page: 11, markdown: "Page eleven text.", warnings: [] },
             { page: 12, markdown: "Page twelve text.", warnings: ["stamp partially illegible"] },
-            { page: 99, markdown: "Page thirteen text.", warnings: [] },
+            { page: 13, markdown: "Page thirteen text.", warnings: [] },
           ] }) }] },
         }],
         usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 500, thoughtsTokenCount: 100 },
@@ -45,7 +46,6 @@ test("pinned Gemini 3.7 range adapter maps ordered pages, splits token cost, and
   const expectedTotal = 900 * 0.75 / 1_000_000 + 600 * 3.75 / 1_000_000;
   assert.ok(Math.abs(outputs.reduce((sum, output) => sum + output.billedCostUsd, 0) - expectedTotal) < 1e-12);
   assert.ok(outputs[1].diagnostics.includes("stamp partially illegible"));
-  assert.ok(outputs[2].diagnostics.some((entry) => entry.includes("provider_page_label_mismatch expected=13 received=99")));
 
   const short = createGemini37RangeAdapter({
     apiKey: "gemini-secret-test",
@@ -263,4 +263,71 @@ test("pinned GPT-5.4 apex repair adapter reads a rasterized page and attributes 
     fetchImpl: async () => jsonResponse({ choices: [{ message: { content: "" }, finish_reason: "stop" }], usage: {} }),
   });
   await assert.rejects(() => empty.extractPage({ pageNumber: 1, source: {} }), (error) => error.code === "provider.invalid_response" && error.billingKnown === true);
+});
+
+// The apex rung is the last chance to catch truncation, so the provider's own
+// stop reason must reach the validator rather than being flattened.
+test("GPT-5.4 apex adapter reports content-filtered truncation instead of claiming completion", async () => {
+  const adapter = createGpt54RepairPageAdapter({
+    apiKey: "openai-secret-test",
+    inputUsdPerMillionTokens: 1.25,
+    outputUsdPerMillionTokens: 7.5,
+    rasterize: async () => Buffer.from("png"),
+    fetchImpl: async () => jsonResponse({
+      choices: [{ message: { content: "Partial transcription before the cut" }, finish_reason: "content_filter" }],
+      usage: { prompt_tokens: 100, completion_tokens: 20 },
+    }),
+  });
+  const output = await adapter.extractPage({ pageNumber: 4, source: {} });
+  assert.equal(output.finishReason, "content_filter");
+  assert.equal(createPageValidator().validate(output).outcome, "review_required", "a truncated apex page must be flagged, never published as final text");
+
+  const clean = createGpt54RepairPageAdapter({
+    apiKey: "openai-secret-test",
+    inputUsdPerMillionTokens: 1.25,
+    outputUsdPerMillionTokens: 7.5,
+    rasterize: async () => Buffer.from("png"),
+    fetchImpl: async () => jsonResponse({
+      choices: [{ message: { content: "Full page transcription of the order." }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 100, completion_tokens: 20 },
+    }),
+  });
+  const ok = await clean.extractPage({ pageNumber: 4, source: {} });
+  assert.equal(ok.finishReason, "complete");
+  assert.equal(createPageValidator().validate(ok).outcome, "accepted");
+});
+
+// Range results must be bound to pages by the provider's labels: position
+// mapping would publish a neighbouring page's text under the wrong number.
+test("Gemini range adapter reorders labelled pages and refuses labels outside the requested range", async () => {
+  const shuffled = createGemini37RangeAdapter({
+    apiKey: "gemini-secret-test",
+    fetchImpl: async () => jsonResponse({
+      candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ pages: [
+        { page: 12, markdown: "Page twelve text.", warnings: [] },
+        { page: 11, markdown: "Page eleven text.", warnings: [] },
+        { page: 13, markdown: "Page thirteen text.", warnings: [] },
+      ] }) }] } }],
+      usageMetadata: { promptTokenCount: 300, candidatesTokenCount: 90 },
+    }),
+  });
+  const outputs = await shuffled.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } });
+  assert.deepEqual(outputs.map((output) => output.pageNumber), [11, 12, 13]);
+  assert.deepEqual(outputs.map((output) => output.text), ["Page eleven text.", "Page twelve text.", "Page thirteen text."]);
+
+  const mislabelled = createGemini37RangeAdapter({
+    apiKey: "gemini-secret-test",
+    fetchImpl: async () => jsonResponse({
+      candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ pages: [
+        { page: 11, markdown: "Page eleven text.", warnings: [] },
+        { page: 99, markdown: "Some other page.", warnings: [] },
+        { page: 13, markdown: "Page thirteen text.", warnings: [] },
+      ] }) }] } }],
+      usageMetadata: { promptTokenCount: 300, candidatesTokenCount: 90 },
+    }),
+  });
+  await assert.rejects(
+    () => mislabelled.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } }),
+    (error) => error.code === "provider.invalid_response" && error.billingKnown === true,
+  );
 });

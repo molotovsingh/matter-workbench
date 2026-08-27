@@ -3,13 +3,16 @@
 // controller shape, and worker fleet. Used by the isolated dev runner and by
 // the flag-gated app mount so both run the same wiring instead of twins.
 
-import { constants as fsConstants, createReadStream } from "node:fs";
-import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { constants as fsConstants, createReadStream, createWriteStream } from "node:fs";
+import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { execFile as execFileCallback } from "node:child_process";
+import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
+
+import { SERVICE_LIMITS } from "../../../packages/extraction-contracts/index.mjs";
 
 import { AdaptiveProviderAdmissionController } from "../capacity/adaptive-provider-admission.mjs";
 import { createGemini37RangeAdapter } from "../providers/gemini37-range-adapter.mjs";
@@ -33,13 +36,25 @@ export async function rasterizePageToPng(source) {
 // S3CompatibleObjectStore custody path (versioned staging, streamed hash
 // verification, content-addressed promotion, Postgres custody bookkeeping)
 // runs with bytes on the local filesystem instead of a bucket.
+// Single containment-checked path resolver for every local-store writer: a
+// key may never escape its bucket root, whichever entry point wrote it.
+export function resolveLocalObjectPath(root, bucket, key) {
+  const resolved = path.resolve(root, bucket, key);
+  if (!resolved.startsWith(path.resolve(root) + path.sep)) {
+    const error = new Error("object key escaped local store root");
+    error.code = "object.key_invalid";
+    throw error;
+  }
+  return resolved;
+}
+
+export function localObjectMetaPath(target) {
+  return `${target}.s3meta.json`;
+}
+
 export function createLocalDiskS3({ root }) {
-  const objectPath = (bucket, key) => {
-    const resolved = path.resolve(root, bucket, key);
-    if (!resolved.startsWith(path.resolve(root) + path.sep)) throw new Error("object key escaped local store root");
-    return resolved;
-  };
-  const metaPath = (target) => `${target}.s3meta.json`;
+  const objectPath = (bucket, key) => resolveLocalObjectPath(root, bucket, key);
+  const metaPath = localObjectMetaPath;
   async function readMeta(target) {
     try {
       return JSON.parse(await readFile(metaPath(target), "utf8"));
@@ -101,14 +116,43 @@ export function createLocalDiskS3({ root }) {
 }
 
 // Writes one staged object (bytes + version marker) under the local store —
-// the server side of an emulated presigned PUT.
-export async function writeLocalObject({ root, bucket, key, bytes }) {
-  const target = path.resolve(root, bucket, key);
-  if (!target.startsWith(path.resolve(root) + path.sep)) throw new Error("object key escaped local store root");
+// the server side of an emulated presigned PUT. Streams to a temporary file
+// under a hard byte cap so an oversized upload can never be buffered whole in
+// the server's heap, then renames into place.
+export async function writeLocalObjectStream({
+  root,
+  bucket,
+  key,
+  stream,
+  maximumBytes = SERVICE_LIMITS.maximumFileBytes,
+}) {
+  const target = resolveLocalObjectPath(root, bucket, key);
   await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-  await writeFile(target, bytes, { mode: 0o600 });
-  await writeFile(`${target}.s3meta.json`, `${JSON.stringify({ versionId: randomUUID(), metadata: {} }, null, 2)}\n`, { mode: 0o600 });
-  return { bytes: bytes.length };
+  const temporary = `${target}.${process.pid}.${randomUUID()}.partial`;
+  let bytes = 0;
+  try {
+    await pipeline(
+      stream,
+      async function* bounded(source) {
+        for await (const chunk of source) {
+          bytes += chunk.length;
+          if (bytes > maximumBytes) {
+            const error = new Error(`staged upload exceeds the ${maximumBytes}-byte object limit`);
+            error.code = "object.too_large";
+            throw error;
+          }
+          yield chunk;
+        }
+      },
+      createWriteStream(temporary, { mode: 0o600 }),
+    );
+    await rename(temporary, target);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+  await writeFile(localObjectMetaPath(target), `${JSON.stringify({ versionId: randomUUID(), metadata: {} }, null, 2)}\n`, { mode: 0o600 });
+  return { bytes };
 }
 
 // Provider suite from configuration: Gemini range primary with the full

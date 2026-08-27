@@ -24,7 +24,9 @@ object storage         PostgreSQL              stateless workers
                                                provider adapters
 ```
 
-Matter Workbench must not call providers or read processing tables. V4 must not import legacy extraction, production routes, React, or runtime-DB processing services. Until explicit integration approval, production must have no V4 caller and the private-beta deploy must exclude V4 executable directories.
+Matter Workbench must not call providers or read processing tables. V4 must not import legacy extraction, production routes, React, or runtime-DB processing services.
+
+Integration status: **integrated but disabled** (2026-08-26). Production has exactly one sanctioned V4 caller — `server.mjs` loads `services/document-intake-extraction/integration/app-mount.mjs` dynamically, only when `MWB_V4_INTAKE=1`, and continues without V4 if that load fails. Every other production import remains forbidden, the flag is off by default, the private-beta deploy still excludes V4 executable directories, and V4-ISO-001 enforces the single gated import site. Enabling the flag on a deployment that excludes V4 source degrades to a logged error rather than a failed boot.
 
 ## Data ownership
 
@@ -36,7 +38,7 @@ Matter Workbench must not call providers or read processing tables. V4 must not 
 ## Custody and computation
 
 1. Matter Workbench requests an intake using the v1 contract.
-2. The service returns short-lived object upload authorizations; bytes do not transit through the application VM.
+2. The service returns short-lived object upload authorizations; bytes do not transit through the application VM. (Local development has no bucket, so the flag-gated mount emulates the presigned PUT on an app route: it proves possession of the upload token against the staged key, refuses every non-staging key, and streams to disk under a byte cap rather than buffering. Production keeps the direct-to-bucket contract — the emulation is replaced by real presigned URLs when regional object storage is configured.)
 3. Each uploaded file is server-verified for expected size and SHA-256, promoted to content-addressed immutable custody, and assigned logical provenance.
 4. Exact-byte duplicates share the blob and fingerprinted computation, but retain separate names, paths, uploader context, and matter audit records.
 5. Pages become durable work units as soon as an individually verified file is available. Speculative processing may overlap the rest of the upload.
@@ -59,7 +61,7 @@ The independent PostgreSQL migration chain now defines the durable ownership mod
 
 PostgreSQL worker/result repositories exercise the durable path through claim, active-attempt fencing, heartbeat, success/failure cost evidence, lease-expiry reconciliation, demand fulfillment, complete ordered assembly, intake/result publication, and outbox creation. The document-range worker turns a contiguous claim into one pinned Mistral OCR 4.1 call, allocates measured request usage/cost across every page attempt, then checkpoints each page under its own fence; publication errors cannot repeat completed provider work. A single-page worker remains available for selective capabilities such as repair.
 
-An isolated composition root now joins durable PostgreSQL repositories, direct S3 custody, streaming `pdfinfo` preflight, Mistral document-range processing, Gemini selective repair, progress/ETA, authenticated HTTP, complete publication, and fenced outbox delivery. All infrastructure, provider, identity, and authorization adapters are injected; it reads no Matter Workbench runtime configuration and remains deliberately unmounted by Matter Workbench.
+An isolated composition root now joins durable PostgreSQL repositories, direct S3 custody, streaming `pdfinfo` preflight, Mistral document-range processing, Gemini selective repair, progress/ETA, authenticated HTTP, complete publication, and fenced outbox delivery. All infrastructure, provider, identity, and authorization adapters are injected; the composition root itself reads no Matter Workbench runtime configuration. It is mounted by Matter Workbench only behind the explicit `MWB_V4_INTAKE` flag described under Isolation.
 
 The filesystem HTTP service and in-memory calibration model remain useful reference paths for fast deterministic tests. Neither composition is a production claim: real S3 credentials/region, provider quota, multi-worker load, security review, expanded human quality, and shadow/soak evidence remain required before integration or cutover.
 

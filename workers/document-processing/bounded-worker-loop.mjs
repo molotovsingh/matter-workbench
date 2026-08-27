@@ -5,7 +5,7 @@ export class BoundedDocumentWorkerLoop {
     workerIdPrefix = "document-worker",
     concurrency = 1,
     idlePollMs = 250,
-    maximumIdlePollMs = 5_000,
+    maximumIdlePollMs = 1_000,
     baseErrorBackoffMs = 1_000,
     maximumErrorBackoffMs = 30_000,
     onOutcome = async () => {},
@@ -61,11 +61,14 @@ export class BoundedDocumentWorkerLoop {
           continue;
         }
         if (outcome.status === "deferred") {
+          // Admission gating is transient: capacity can open at any moment
+          // (slow start doubling, a cooldown ending), so a gated lane keeps
+          // the short poll floor and only waits longer when the controller
+          // says exactly how long. Growing this delay would leave lanes idle
+          // through the capacity they were waiting for.
           stats.deferred += 1;
-          consecutiveQuiet += 1;
           await this.notify({ type: "deferred", workerId, outcome });
-          const gatedDelay = Math.min(this.maximumIdlePollMs, this.idlePollMs * (2 ** Math.min(10, consecutiveQuiet - 1)));
-          await this.sleep(clampDelay(outcome.retryAfterMs, gatedDelay, this.maximumErrorBackoffMs), signal);
+          await this.sleep(clampDelay(outcome.retryAfterMs, this.idlePollMs, this.maximumErrorBackoffMs), signal);
           continue;
         }
         consecutiveQuiet = 0;

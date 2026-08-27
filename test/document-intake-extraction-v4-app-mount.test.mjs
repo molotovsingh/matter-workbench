@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,6 +34,32 @@ test("app mount refuses to build without the flag and requires a database when e
     () => createV4IntakeMount({ env: { ...FAKE_KEYS, MWB_V4_INTAKE: "1" } }),
     /MWB_V4_DB_URL/,
   );
+});
+
+// Empty-but-set env vars are configuration-template artifacts; clamping them
+// to the minimum would silently collapse throughput and range size.
+test("app mount falls back to defaults for empty numeric env vars", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-mount-env-"));
+  const mount = await createV4IntakeMount({
+    env: {
+      ...FAKE_KEYS,
+      MWB_V4_INTAKE: "1",
+      MWB_V4_STORE_ROOT: path.join(root, "store"),
+      MWB_V4_SCRATCH_ROOT: path.join(root, "scratch"),
+      MWB_V4_LANES: "",
+      MWB_V4_RANGE_PAGES: "   ",
+      MWB_V4_REPAIR_LANES: "6",
+    },
+    pool: { connect: async () => { throw new Error("unused"); } },
+  });
+  try {
+    assert.equal(mount.config.lanes, 24);
+    assert.equal(mount.config.rangePages, 8);
+    assert.equal(mount.config.repairLanes, 6, "explicit values still apply");
+  } finally {
+    await mount.stop();
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("app mount serves the V4 API under its prefix and plays the bucket for presigned staging PUTs", async () => {
@@ -77,24 +104,66 @@ test("app mount serves the V4 API under its prefix and plays the bucket for pres
     assert.equal(apiResponse.state.statusCode, 400);
     assert.match(apiResponse.state.body, /idempotency_key_required/);
 
-    // The store endpoint accepts an emulated presigned PUT and persists the
-    // staged bytes with a version marker.
-    const putResponse = fakeResponse();
+    // The store endpoint accepts an emulated presigned PUT only from a caller
+    // holding the upload token that minted the key, and persists the staged
+    // bytes with a version marker.
+    const uploadToken = "upload-token-under-test";
+    const digest = createHash("sha256").update(uploadToken).digest("hex").slice(0, 16);
+    const stagingKey = `document-intake-extraction/v1/staging/intake-1/file-1/${digest}`;
     const staged = Buffer.from("%PDF-1.4 staged bytes");
-    const putHandled = await mount.handleRequest({
+    const stagingPut = (headers, key = stagingKey) => ({
       request: {
         method: "PUT",
-        url: "/api/v4-store/document-intake-extraction/v1/staging/intake-1/file-1/abcd",
-        headers: {},
+        url: `/api/v4-store/${key}`,
+        headers,
         async *[Symbol.asyncIterator]() { yield staged; },
       },
-      requestUrl: new URL("http://localhost/api/v4-store/document-intake-extraction/v1/staging/intake-1/file-1/abcd"),
-      response: putResponse,
+      requestUrl: new URL(`http://localhost/api/v4-store/${key}`),
+      response: fakeResponse(),
     });
-    assert.equal(putHandled, true);
-    assert.equal(putResponse.state.statusCode, 200);
-    const written = await readFile(path.join(root, "store", "mwb-v4-app", "document-intake-extraction/v1/staging/intake-1/file-1/abcd"));
+
+    const authorized = stagingPut({ "x-mwb-upload-token": uploadToken });
+    assert.equal(await mount.handleRequest(authorized), true);
+    assert.equal(authorized.response.state.statusCode, 200);
+    const written = await readFile(path.join(root, "store", "mwb-v4-app", stagingKey));
     assert.deepEqual(written, staged);
+
+    // A missing or mismatched token, and any key outside the staging
+    // namespace, must be refused — the content-addressed blob namespace in
+    // particular is what custody promotion trusts.
+    const noToken = stagingPut({});
+    assert.equal(await mount.handleRequest(noToken), true);
+    assert.equal(noToken.response.state.statusCode, 403);
+    const wrongToken = stagingPut({ "x-mwb-upload-token": "not-the-token" });
+    assert.equal(await mount.handleRequest(wrongToken), true);
+    assert.equal(wrongToken.response.state.statusCode, 403);
+    assert.match(wrongToken.response.state.body, /upload_token_invalid/);
+    const blobKey = "document-intake-extraction/v1/blobs/sha256/ab/" + "a".repeat(64);
+    const blobWrite = stagingPut({ "x-mwb-upload-token": uploadToken }, blobKey);
+    assert.equal(await mount.handleRequest(blobWrite), true);
+    assert.equal(blobWrite.response.state.statusCode, 403);
+    assert.match(blobWrite.response.state.body, /key_not_writable/);
+    await assert.rejects(() => readFile(path.join(root, "store", "mwb-v4-app", blobKey)));
+
+    // Oversized uploads are rejected while streaming instead of buffered.
+    const capped = await createV4IntakeMount({
+      env: {
+        ...FAKE_KEYS,
+        MWB_V4_INTAKE: "1",
+        MWB_V4_STORE_ROOT: path.join(root, "store-capped"),
+        MWB_V4_SCRATCH_ROOT: path.join(root, "scratch"),
+        MWB_V4_MAX_UPLOAD_BYTES: "4",
+      },
+      pool: { connect: async () => { throw new Error("unused"); } },
+    });
+    try {
+      const oversize = stagingPut({ "x-mwb-upload-token": uploadToken });
+      assert.equal(await capped.handleRequest(oversize), true);
+      assert.equal(oversize.response.state.statusCode, 413);
+      assert.match(oversize.response.state.body, /too_large/);
+    } finally {
+      await capped.stop();
+    }
   } finally {
     await mount.stop();
     await rm(root, { recursive: true, force: true });

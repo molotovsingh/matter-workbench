@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { PIPELINE_VERSIONS } from "../packages/extraction-contracts/index.mjs";
 import { createDocumentIntakeExtractionV4Composition } from "../services/document-intake-extraction/composition/create-v4-composition.mjs";
 import { PostgresDocumentIntakeExtractionService } from "../services/document-intake-extraction/postgres/postgres-document-intake-extraction-service.mjs";
 import { PostgresDocumentProcessingWorker } from "../workers/document-processing/postgres-document-processing-worker.mjs";
@@ -106,8 +107,20 @@ test("composition routes trusted native-text pages to the free local lane and ev
     repairProvider: { capability: { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair/v1" }, extractPage: async () => ({}) },
     nativeProvider,
   });
-  assert.equal(composition.capabilityRouter.version, "native-first-range-primary/v1");
   assert.deepEqual(composition.capabilityRouter.select({ page: { nativeText: { trusted: true } } }), nativeProvider.capability);
   assert.equal(composition.capabilityRouter.select({ page: { nativeText: { trusted: false } } }).provider, "gemini");
   assert.equal(composition.capabilityRouter.select({}).provider, "gemini", "unknown classification must fall to OCR");
+
+  // The policy version is stamped into every page fingerprint, so it must not
+  // vary with deployment configuration — otherwise toggling the native lane
+  // fragments the dedup space and re-bills already-extracted corpora.
+  const withoutNative = createDocumentIntakeExtractionV4Composition({
+    pool: { connect: async () => {} },
+    objectStoreFactory: () => ({ createUploadAuthorization: async () => {}, commitAuthorizedUpload: async () => {}, openBlobStream: async () => {} }),
+    documentInspectorFactory: () => ({ inspect: async () => ({ pageCount: 1 }) }),
+    primaryProvider: { capability: { provider: "gemini", model: "gemini-3.7-flash", adapterVersion: "range/v1" }, extractPages: async () => [] },
+    repairProvider: { capability: { provider: "google", model: "gemini-3.7-flash", adapterVersion: "repair/v1" }, extractPage: async () => ({}) },
+  });
+  assert.equal(composition.capabilityRouter.version, PIPELINE_VERSIONS.routingPolicy);
+  assert.equal(withoutNative.capabilityRouter.version, composition.capabilityRouter.version, "the routing policy version must not depend on the native lane being configured");
 });

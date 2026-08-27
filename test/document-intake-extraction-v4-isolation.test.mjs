@@ -60,10 +60,21 @@ test("V4-ISO-001 keeps production callers and legacy dependencies outside the is
   // The sanctioned integration point must stay flag-gated: the app entry may
   // only load the mount dynamically when MWB_V4_INTAKE=1, and the mount
   // itself must refuse to build without the flag.
+  // The integration point must stay singular as well as gated: a second,
+  // ungated import would load V4 in deployments that exclude its source.
   const serverSource = await readFile(path.join(ROOT, "server.mjs"), "utf8");
-  assert.match(serverSource, /env\.MWB_V4_INTAKE === "1"\s*\?\s*await\s*\(await import\("\.\/services\/document-intake-extraction\/integration\/app-mount\.mjs"\)\)/, "server.mjs must import the V4 mount dynamically behind MWB_V4_INTAKE=1");
-  const mountSource = await readFile(path.join(ROOT, "services/document-intake-extraction/integration/app-mount.mjs"), "utf8");
-  assert.match(mountSource, /if \(String\(env\[V4_INTAKE_FLAG\] \|\| ""\) !== "1"\) return null;/, "the app mount must return null unless the flag is set");
+  const mountSpecifier = "./services/document-intake-extraction/integration/app-mount.mjs";
+  assert.equal(serverSource.split(mountSpecifier).length - 1, 1, "server.mjs must contain exactly one V4 mount import site");
+  const gateWindow = serverSource.slice(Math.max(0, serverSource.indexOf(mountSpecifier) - 400), serverSource.indexOf(mountSpecifier));
+  assert.match(gateWindow, /MWB_V4_INTAKE === "1"/, "the V4 mount import must sit inside the MWB_V4_INTAKE gate");
+});
+
+// The mount's refusal to build without the flag is behavior, not source
+// shape — assert the behavior so refactors cannot quietly weaken it.
+test("V4-ISO-001 the app mount refuses to build unless the intake flag is set", async () => {
+  const { createV4IntakeMount } = await import("../services/document-intake-extraction/integration/app-mount.mjs");
+  assert.equal(await createV4IntakeMount({ env: {} }), null);
+  assert.equal(await createV4IntakeMount({ env: { MWB_V4_INTAKE: "0", MWB_V4_DB_URL: "postgres://unused" } }), null);
 });
 
 // V4-DEPLOY-001

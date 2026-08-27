@@ -12,16 +12,25 @@
 //   MWB_V4_SCRATCH_ROOT        worker scratch root (default ~/.mwb-v4-app/scratch)
 //   MWB_V4_PRIMARY             gemini | mistral (default gemini)
 //   MWB_V4_LANES / MWB_V4_MIN_LANES / MWB_V4_REPAIR_LANES / MWB_V4_RANGE_PAGES
+//   MWB_V4_MAX_UPLOAD_BYTES    per-object staging cap (default: service limit)
+//   MWB_V4_RUNTIME_ROLE        re-grant claim privileges to this role on start
 //   GEMINI_API_KEY / GOOGLE_API_KEY, MISTRAL_API_KEY, OPENAI_API_KEY (ladder)
+//
+// Clients uploading through the emulated staging endpoint must send the
+// upload authorization's own token as the `x-mwb-upload-token` header; the
+// endpoint proves possession against the staged key before writing.
 
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
 import pg from "pg";
 
+import { SERVICE_LIMITS } from "../../../packages/extraction-contracts/index.mjs";
 import { S3CompatibleObjectStore } from "../adapters/s3-compatible-object-store.mjs";
 import { createDocumentIntakeExtractionV4Composition } from "../composition/create-v4-composition.mjs";
 import { runDocumentIntakeExtractionMigrations } from "../postgres/migrate.mjs";
+import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../postgres/runtime-role-sql.mjs";
 import { PdfNativeTextInspector } from "../../../workers/document-processing/pdf-native-text-inspector.mjs";
 import { WorkerScratchSpace } from "../../../workers/document-processing/worker-scratch-space.mjs";
 import {
@@ -30,10 +39,17 @@ import {
   createLocalDiskS3,
   startWorkerFleet,
   suiteProviderStages,
-  writeLocalObject,
+  writeLocalObjectStream,
 } from "./local-composition.mjs";
 
 export const V4_INTAKE_FLAG = "MWB_V4_INTAKE";
+const OBJECT_KEY_PREFIX = "document-intake-extraction/v1";
+const UPLOAD_TOKEN_HEADER = "x-mwb-upload-token";
+// Staged keys are minted as `<prefix>/staging/<intakeId>/<fileId>/<first 16 of
+// sha256(uploadToken)>`. Only that namespace is writable through the emulated
+// endpoint — never the content-addressed `blobs/` namespace, whose contents
+// custody promotion trusts.
+const STAGING_KEY = new RegExp(`^${OBJECT_KEY_PREFIX}/staging/[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,239}/[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,239}/([a-f0-9]{16})$`);
 
 export async function createV4IntakeMount({
   env = process.env,
@@ -52,6 +68,8 @@ export async function createV4IntakeMount({
   const minLanes = boundedInteger(env.MWB_V4_MIN_LANES, 2, 1, 128);
   const repairLanes = boundedInteger(env.MWB_V4_REPAIR_LANES, 4, 1, 32);
   const rangePages = boundedInteger(env.MWB_V4_RANGE_PAGES, 8, 1, 32);
+  const maximumUploadBytes = boundedInteger(env.MWB_V4_MAX_UPLOAD_BYTES, SERVICE_LIMITS.maximumFileBytes, 1, SERVICE_LIMITS.maximumFileBytes);
+  const runtimeRoleName = String(env.MWB_V4_RUNTIME_ROLE || "").trim();
 
   const suite = buildProviderSuite({
     geminiKey: env.GEMINI_API_KEY || env.GOOGLE_API_KEY,
@@ -73,6 +91,7 @@ export async function createV4IntakeMount({
     pool: effectivePool,
     objectStoreFactory: ({ authorizationStore }) => new S3CompatibleObjectStore({
       bucket,
+      keyPrefix: OBJECT_KEY_PREFIX,
       region: String(env.MWB_V4_DATA_REGION || "local-disk"),
       // Browsers cannot PUT to file:// — presign to an app-served staging
       // path; handleRequest below plays the bucket for those PUTs.
@@ -108,14 +127,35 @@ export async function createV4IntakeMount({
     tenantId,
     label: suite.label,
     admissionController,
+    config: Object.freeze({ lanes, minLanes, repairLanes, rangePages, maximumUploadBytes }),
     async handleRequest({ request, requestUrl, response }) {
       if (request.method === "PUT" && requestUrl.pathname.startsWith(`${storePrefix}/`)) {
-        const key = decodeURIComponent(requestUrl.pathname.slice(storePrefix.length + 1));
-        const chunks = [];
-        for await (const chunk of request) chunks.push(chunk);
-        await writeLocalObject({ root: storeRoot, bucket, key, bytes: Buffer.concat(chunks) });
-        response.writeHead(200, { "Content-Type": "application/json" });
-        response.end("{\"ok\":true}");
+        // Emulated presigned PUT. A presigned URL is a bearer credential, so
+        // this endpoint must prove the caller holds the upload token that
+        // minted the key: the key's last segment is the token digest prefix.
+        // Without this, any authenticated caller could write any key —
+        // including a content-addressed blob and its metadata sidecar, which
+        // custody promotion trusts without re-hashing.
+        let key;
+        try {
+          key = decodeURIComponent(requestUrl.pathname.slice(storePrefix.length + 1));
+        } catch {
+          return sendStoreError(response, 400, "object.key_invalid", "Malformed staging object key");
+        }
+        const staging = STAGING_KEY.exec(key);
+        if (!staging) return sendStoreError(response, 403, "object.key_not_writable", "Only authorized staging keys accept uploads");
+        const token = headerValue(request.headers[UPLOAD_TOKEN_HEADER]);
+        if (!token || createHash("sha256").update(token).digest("hex").slice(0, 16) !== staging[1]) {
+          return sendStoreError(response, 403, "object.upload_token_invalid", "A matching upload token is required");
+        }
+        try {
+          const written = await writeLocalObjectStream({ root: storeRoot, bucket, key, stream: request, maximumBytes: maximumUploadBytes });
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ ok: true, bytes: written.bytes }));
+        } catch (error) {
+          const code = String(error?.code || "object.write_failed");
+          return sendStoreError(response, code === "object.too_large" ? 413 : 400, code, "Staged upload was rejected");
+        }
         return true;
       }
       if (!requestUrl.pathname.startsWith(`${prefix}/`)) return false;
@@ -127,6 +167,17 @@ export async function createV4IntakeMount({
       if (autoMigrate) {
         const migrated = await runDocumentIntakeExtractionMigrations({ pool: effectivePool });
         log(`V4 intake: ${migrated.migrations.length} migrations verified`);
+        // Recreating a function drops its grants, so a migration that
+        // replaces the claim functions silently strips a restricted runtime
+        // role of EXECUTE. Re-apply the grants when this deployment owns the
+        // role, then refuse to start unless the connected role can actually
+        // claim work — the alternative is every worker failing at runtime
+        // with a bare permission-denied.
+        if (runtimeRoleName) {
+          await effectivePool.query(buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: runtimeRoleName }));
+          log(`V4 intake: runtime role grants re-applied to ${runtimeRoleName}`);
+        }
+        await assertClaimPrivileges(effectivePool, runtimeRoleName);
       }
       abort = new AbortController();
       fleet = startWorkerFleet({
@@ -152,7 +203,40 @@ export async function createV4IntakeMount({
   };
 }
 
+async function assertClaimPrivileges(pool, runtimeRoleName) {
+  const result = await pool.query([
+    "select",
+    "  has_function_privilege(current_user, 'document_intake_extraction.claim_page_work(text, integer, jsonb)', 'execute') as page,",
+    "  has_function_privilege(current_user, 'document_intake_extraction.claim_document_local_page_work(text, integer, integer, jsonb)', 'execute') as batch",
+  ].join("\n"));
+  if (result.rows[0]?.page && result.rows[0]?.batch) return;
+  const error = new Error([
+    "the connected V4 role cannot execute the work-claim functions.",
+    "Migrations that replace those functions drop their grants:",
+    runtimeRoleName
+      ? `re-apply buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: "${runtimeRoleName}" }) with a privileged connection.`
+      : "set MWB_V4_RUNTIME_ROLE so the mount re-grants automatically, or apply the runtime role SQL manually.",
+  ].join(" "));
+  error.code = "v4_intake.claim_privileges_missing";
+  throw error;
+}
+
+function headerValue(value) {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  return String(normalized || "").replace(/[\r\n ]/g, "").trim();
+}
+
+function sendStoreError(response, status, code, message) {
+  response.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+  response.end(JSON.stringify({ ok: false, error: { code, message } }));
+  return true;
+}
+
 function boundedInteger(value, fallback, minimum, maximum) {
+  // An empty-but-set env var (`MWB_V4_LANES=`) is a configuration template
+  // artifact, not a request for the minimum: Number("") is 0 and a safe
+  // integer, so it must fall back rather than clamp.
+  if (value === undefined || value === null || String(value).trim() === "") return fallback;
   const number = Number(value);
   if (!Number.isSafeInteger(number)) return fallback;
   return Math.max(minimum, Math.min(maximum, number));

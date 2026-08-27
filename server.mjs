@@ -492,10 +492,18 @@ export async function createWorkbenchServer(options = {}) {
   // V4 document intake/extraction stays unmounted unless explicitly enabled:
   // the import itself is gated so deployments that exclude V4 source (and
   // every default run) never load it. See V4-ISO-001 / V4-DEPLOY-001.
-  const v4IntakeMount = env.MWB_V4_INTAKE === "1"
-    ? await (await import("./services/document-intake-extraction/integration/app-mount.mjs"))
-      .createV4IntakeMount({ env, log: (line) => console.log(line) })
-    : null;
+  // A deployment that excludes V4 source (V4-DEPLOY-001) but still carries
+  // the flag must lose V4 only — never the whole workbench — so a failed load
+  // degrades loudly instead of failing the server's boot.
+  let v4IntakeMount = null;
+  if (env.MWB_V4_INTAKE === "1") {
+    try {
+      v4IntakeMount = await (await import("./services/document-intake-extraction/integration/app-mount.mjs"))
+        .createV4IntakeMount({ env, log: (line) => console.log(line) });
+    } catch (error) {
+      console.error(`V4 intake is enabled but could not be loaded; continuing without it: ${error?.message || error}`);
+    }
+  }
   services.v4IntakeMount = v4IntakeMount;
 
   const server = createServer(async (request, response) => {

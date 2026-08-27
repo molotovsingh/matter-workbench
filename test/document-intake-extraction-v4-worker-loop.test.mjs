@@ -52,9 +52,9 @@ test("worker loop backs off errors, honors provider deferral, and avoids idle ho
   });
   const stats = await loop.run({ maximumIterationsPerLane: 5 });
   assert.deepEqual(stats, { iterations: 5, completed: 0, deferred: 1, idle: 3, errors: 1 });
-  // Error backoff, provider deferral, then exponentially growing idle polls
-  // (the deferral already counts as one quiet round).
-  assert.deepEqual(sleeps, [100, 500, 20, 40, 80]);
+  // Error backoff, then the provider's own deferral hint (admission gating
+  // never grows past the poll floor), then exponentially growing idle polls.
+  assert.deepEqual(sleeps, [100, 500, 10, 20, 40]);
   assert.deepEqual(events.map((event) => event.type), ["error", "deferred"]);
   assert.doesNotMatch(JSON.stringify(events), /password|secret/);
 });

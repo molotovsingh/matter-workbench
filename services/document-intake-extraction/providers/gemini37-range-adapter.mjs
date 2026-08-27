@@ -103,14 +103,30 @@ export function createGemini37RangeAdapter({
           finishReason,
         });
       }
+      // Bind results to pages by the provider's own page labels, not by array
+      // position: a reordered response with the right count would otherwise
+      // publish each page's text under a neighbouring page number. Labels
+      // that do not form exactly the requested set are unusable, so fail
+      // billably rather than guess.
+      const byLabel = new Map(providerPages.map((providerPage) => [Number(providerPage.page), providerPage]));
+      const labelled = byLabel.size === pagesRequested.length && pagesRequested.every((pageNumber) => byLabel.has(pageNumber));
+      if (!labelled && providerPages.some((providerPage) => Number.isSafeInteger(Number(providerPage.page)))) {
+        throw providerError("Gemini range labelled pages that do not match the requested range", "provider.invalid_response", {
+          retryable: false,
+          billingKnown: true,
+          requestId,
+          usage,
+          billedCostUsd,
+          finishReason,
+        });
+      }
+      const orderedPages = labelled ? pagesRequested.map((pageNumber) => byLabel.get(pageNumber)) : providerPages;
       const perPageCost = billedCostUsd / pagesRequested.length;
       const perPageInput = usage.inputUnits / pagesRequested.length;
       const perPageOutput = usage.outputUnits / pagesRequested.length;
-      return providerPages.map((providerPage, index) => {
+      return orderedPages.map((providerPage, index) => {
         const diagnostics = Array.isArray(providerPage.warnings) ? providerPage.warnings.map((warning) => String(warning).slice(0, 300)) : [];
-        if (Number(providerPage.page) !== pagesRequested[index]) {
-          diagnostics.push(`provider_page_label_mismatch expected=${pagesRequested[index]} received=${providerPage.page}`);
-        }
+        if (!labelled) diagnostics.push("provider_page_labels_absent_position_mapped");
         return normalizeProviderResult({
           schemaVersion: CONTRACT_VERSIONS.providerResult,
           pageNumber: pagesRequested[index],

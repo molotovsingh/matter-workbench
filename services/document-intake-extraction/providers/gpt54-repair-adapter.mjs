@@ -83,11 +83,16 @@ export function createGpt54RepairPageAdapter({
           finishReason: String(choice?.finish_reason || "unknown"),
         });
       }
+      // Report the provider's own stop reason (only OpenAI's "stop" means a
+      // clean finish). Collapsing everything to "complete" would hide
+      // content_filter and other truncations from the page validator, and the
+      // apex rung is the last chance to catch them.
+      const rawFinishReason = String(choice?.finish_reason || "stop").toLowerCase();
       return normalizeProviderResult({
         schemaVersion: CONTRACT_VERSIONS.providerResult,
         pageNumber,
         text,
-        finishReason: String(choice?.finish_reason || "complete").toLowerCase() === "length" ? "length" : "complete",
+        finishReason: rawFinishReason === "stop" ? "complete" : rawFinishReason,
         requestId,
         usage,
         billedCostUsd,

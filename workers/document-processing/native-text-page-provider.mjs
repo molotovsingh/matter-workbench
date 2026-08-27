@@ -25,11 +25,27 @@ export function createNativeTextPageProvider({
     capability,
     async extractPage({ pageNumber, source } = {}) {
       if (!source?.filePath) throw new Error("native text provider requires source.filePath");
-      const { stdout } = await execFileImpl(
-        pdfToTextCommand,
-        ["-enc", "UTF-8", source.filePath, "-"],
-        { encoding: "utf8", timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
-      );
+      let stdout;
+      try {
+        ({ stdout } = await execFileImpl(
+          pdfToTextCommand,
+          ["-enc", "UTF-8", source.filePath, "-"],
+          { encoding: "utf8", timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 },
+        ));
+      } catch (caught) {
+        // This lane's "local" tool IS its provider, so an extraction failure
+        // here must escalate like any other provider failure — the next rung
+        // reads the same page over HTTP and does not share the fault. A bare
+        // execFile error code would be classified as a worker fault and sent
+        // straight to review instead.
+        const error = new Error(`native text extraction failed: ${String(caught?.message || caught).replace(/[\r\n\t]+/g, " ").slice(0, 300)}`);
+        error.code = "provider.native_extraction_failed";
+        error.retryable = false;
+        error.billingKnown = true;
+        error.billedCostUsd = 0;
+        error.usage = { inputUnits: 0, outputUnits: 0 };
+        throw error;
+      }
       return normalizeProviderResult({
         schemaVersion: CONTRACT_VERSIONS.providerResult,
         pageNumber,

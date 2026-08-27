@@ -1,4 +1,4 @@
-import { assertPinnedProviderCapability } from "../../../packages/extraction-contracts/index.mjs";
+import { PIPELINE_VERSIONS, assertPinnedProviderCapability } from "../../../packages/extraction-contracts/index.mjs";
 import { createPageValidator } from "../page-validator.mjs";
 import { PredictiveBurstCapacityManager } from "../capacity/predictive-burst-capacity-manager.mjs";
 import { IntakeProgressService } from "../progress/intake-progress-service.mjs";
@@ -75,8 +75,15 @@ export function createDocumentIntakeExtractionV4Composition({
   if (!documentInspector?.inspect) throw new Error("documentInspectorFactory must return inspect");
   // Pages the inspector classified as trustworthy born-digital text ride the
   // free local native lane; everything else goes to the primary OCR provider.
+  //
+  // The policy version is deliberately stable across provider and native-lane
+  // configuration. It is stamped into every page fingerprint, so letting it
+  // vary with a deployment flag would fragment the dedup space — the same
+  // bytes would be re-extracted and re-billed after any config change — while
+  // the chosen capability already distinguishes the lanes within that
+  // fingerprint.
   const capabilityRouter = Object.freeze({
-    version: nativeCapability ? "native-first-range-primary/v1" : "mistral-ocr41-document-range-primary/v1",
+    version: PIPELINE_VERSIONS.routingPolicy,
     select: ({ page } = {}) => (nativeCapability && page?.nativeText?.trusted === true ? nativeCapability : primaryCapability),
   });
   const repairRouter = createSelectiveRepairRouter({ repairProviders: repairLadder });
