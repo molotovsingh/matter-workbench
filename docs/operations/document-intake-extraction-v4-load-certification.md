@@ -32,6 +32,33 @@ recorded with the run evidence. Latency evidence must come from bytes the
 providers have not previously seen — provider-side caches make repeat
 corpora read unrealistically fast.
 
+## Preliminary evidence runs (not certification)
+
+**2026-08-28 fresh-briefs storm run** — 20 archival scanned briefs, 3,062
+logical pages, 103 MB, previously unseen bytes, 24 lanes, defaults
+(Gemini range 45s/60s ceilings). Outcome: `ready`, 20/20 documents,
+**3,062/3,062 pages accepted, 0 review pages**, $10.47 measured spend
+(1,897 storm-failed attempts quarantined for invoice reconciliation).
+Weather: a ~30-minute Gemini 503 event (1,045 refusals) beginning minutes
+after custody. Resilience verdict: the ladder + admission controller +
+drain recovered 100% of pages (Gemini 2,403 / Mistral 455 / GPT-5.4 apex
+204 page wins); the durable work graph survived the runner's 90-minute cap
+and reached terminal via the repair drain. Latency verdict: SLO breached
+(96% at 90 minutes) — decomposition: (a) the outage itself; (b) the new
+range ceilings clipped legitimate slow calls on this corpus class
+(accepted-call P50 31s / P95 51.7s / P99 58s against a 45s first-attempt
+ceiling; 847 timeout kills) — dense archival scans run several times
+slower per range than the office-document corpus the defaults were sized
+on, so scan-heavy certification runs should set
+`MWB_V4_RANGE_TIMEOUT_MS` / `MWB_V4_RANGE_FIRST_TIMEOUT_MS` upward and the
+default-sizing question should be revisited only with calm-weather data;
+(c) four repair lanes were the drain bottleneck once the primary
+collapsed — repair-lane scaling under primary failure is an open
+improvement. Superseded-computation counts (1,923 review-tagged
+intermediates) are lineage history, not result quality: the published
+result carries zero review pages. 38 briefs (~5,374 pages) of the corpus
+remain provider-unseen, reserved for calm-weather latency evidence.
+
 ## Required run record
 
 Each sanitized record contains only:
