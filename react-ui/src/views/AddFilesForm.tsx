@@ -15,6 +15,7 @@ import { assessUploadBatchSize, describeUploadBatchLimit } from '../lib/uploadBa
 import { browserFileHashSkipReason, hashFilesSha256IfAvailable } from '../lib/browserFileHash';
 import { reportUploadPrecheckSkippedLargeBatch, reportUploadPrecheckUnavailable, reportUploadSubmitFailure } from '../lib/uploadClientTelemetry';
 import { UploadSessionRecoveryCard } from '../components/upload/UploadSessionRecoveryCard';
+import { V4IntakePanel } from '../components/upload/V4IntakePanel';
 import {
   addFilesWithUploadSession,
   cancelUploadSessionDraft,
@@ -351,6 +352,9 @@ export default function AddFilesForm({ onCancel, onDone }: Props) {
           <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
         </div>
       </form>
+
+      {/* Renders nothing unless the server's flag-gated V4 intake mount is live. */}
+      <V4IntakePanel matterName={state.activeMatter?.name ?? null} files={collected} busy={submitting} />
     </div>
   );
 }

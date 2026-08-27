@@ -131,6 +131,24 @@ test("app mount serves the V4 API under its prefix and plays the bucket for pres
     });
     assert.equal(unrelated, false, "non-V4 paths pass through to the legacy API");
 
+    // The mount-owned status route is how the UI discovers V4: it advertises
+    // the upload token header and limits, and reports started=false until the
+    // worker fleet is actually running.
+    const status = fakeResponse();
+    const statusHandled = await mount.handleRequest({
+      request: { method: "GET", url: "/api/v4/status", headers: {} },
+      requestUrl: new URL("http://localhost/api/v4/status"),
+      response: status,
+    });
+    assert.equal(statusHandled, true);
+    assert.equal(status.state.statusCode, 200);
+    const statusBody = JSON.parse(status.state.body);
+    assert.equal(statusBody.enabled, true);
+    assert.equal(statusBody.started, false, "start() has not run in this test");
+    assert.equal(statusBody.uploadTokenHeader, "x-mwb-upload-token");
+    assert.equal(statusBody.storePrefix, "/api/v4-store");
+    assert.ok(statusBody.limits.maximumFileBytes > 0);
+
     // A V4 API request routes into the real handler: a create-intake call
     // without an Idempotency-Key is rejected by the handler's own contract
     // before any database work.

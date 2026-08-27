@@ -19,6 +19,9 @@
 // Clients uploading through the emulated staging endpoint must send the
 // upload authorization's own token as the `x-mwb-upload-token` header; the
 // endpoint proves possession against the staged key before writing.
+// `GET <prefix>/status` is the mount's discovery surface: the workbench UI
+// probes it to decide whether to render the V4 uploader (404 = flag off), and
+// it advertises the upload token header name and service limits.
 
 import { createHash } from "node:crypto";
 import os from "node:os";
@@ -137,6 +140,31 @@ export async function createV4IntakeMount({
     config: Object.freeze({ lanes, minLanes, repairLanes, rangePages, maximumUploadBytes }),
     isStarted: () => started,
     async handleRequest({ request, requestUrl, response }) {
+      if (request.method === "GET" && requestUrl.pathname === `${prefix}/status`) {
+        // Mount-owned discovery surface (outside the versioned service API):
+        // the workbench UI probes this to decide whether to render the V4
+        // uploader at all. When the flag is off the mount never exists, the
+        // probe falls through to the legacy API's 404, and the UI stays
+        // legacy-only — no client build or legacy server change ever needs to
+        // know about the flag.
+        response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+        response.end(JSON.stringify({
+          ok: true,
+          enabled: true,
+          started,
+          tenantId,
+          label: suite.label,
+          prefix,
+          storePrefix,
+          uploadTokenHeader: UPLOAD_TOKEN_HEADER,
+          limits: {
+            maximumFiles: SERVICE_LIMITS.maximumFiles,
+            maximumFileBytes: Math.min(SERVICE_LIMITS.maximumFileBytes, maximumUploadBytes),
+            maximumIntakeBytes: SERVICE_LIMITS.maximumBytes,
+          },
+        }));
+        return true;
+      }
       if (request.method === "PUT" && requestUrl.pathname.startsWith(`${storePrefix}/`)) {
         // Emulated presigned PUT. A presigned URL is a bearer credential, so
         // this endpoint must prove the caller holds the upload token that

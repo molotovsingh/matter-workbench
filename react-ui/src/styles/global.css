@@ -804,6 +804,38 @@ padding: 0 2px;
 .file-list { background: var(--subtle-bg); border: 1px solid var(--border-subtle); border-radius: 5px; display: grid; gap: 4px; margin-top: 12px; padding: 10px 12px; }
 .file-list-summary { color: var(--text); font-size: 12px; font-weight: 700; }
 .file-list-entry { color: var(--muted-strong); font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 11px; overflow-wrap: anywhere; }
+
+/* V4 fast-extraction panel (flag-gated; hidden unless the V4 mount answers). */
+.v4-intake-panel {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  margin-top: 18px; max-width: 620px; padding: 20px 22px;
+}
+.v4-intake-head { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between; }
+.v4-intake-head h2 {
+  color: var(--muted); font-size: var(--font-size-xs); font-weight: 700;
+  letter-spacing: 0.1em; margin: 0 0 6px; text-transform: uppercase;
+}
+.v4-intake-head p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 0; max-width: 420px; }
+.v4-intake-chip {
+  background: var(--chip-bg); border: 1px solid var(--border-subtle); border-radius: 999px;
+  color: var(--muted-strong); flex-shrink: 0; font-family: ui-monospace,"SF Mono",Menlo,monospace;
+  font-size: 10px; max-width: 190px; overflow: hidden; padding: 3px 10px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.v4-intake-body { margin-top: 14px; }
+.v4-intake-hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.v4-intake-problem { color: var(--warning-text); margin-top: 6px; }
+.v4-intake-stage { color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.v4-intake-success { color: var(--success); }
+.v4-intake-bar { background: var(--subtle-bg); border: 1px solid var(--border-subtle); border-radius: 999px; height: 8px; overflow: hidden; }
+.v4-intake-bar-fill { background: var(--success); border-radius: 999px; height: 100%; transition: width 0.35s ease; }
+.v4-intake-files { display: grid; gap: 3px; margin-top: 10px; }
+.v4-intake-file {
+  color: var(--muted-strong); display: flex; font-family: ui-monospace,"SF Mono",Menlo,monospace;
+  font-size: 11px; gap: 10px; justify-content: space-between;
+}
+.v4-intake-file-name { overflow-wrap: anywhere; }
+.v4-intake-file-state { color: var(--muted); flex-shrink: 0; }
 .form-hint { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .upload-limit-hint {
   background: var(--info-bg);
