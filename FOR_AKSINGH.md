@@ -2848,3 +2848,128 @@ experience, not compete with it. For beta, the local ledger is the source of
 truth that the signal was captured. The mothership is the collector. If the
 collector is unavailable, that is an operations problem, not a reason to make a
 lawyer's workflow fail.
+
+## The V4 Rebuild: Upload to OCR, Rebuilt Around the Wait
+
+Everything above describes the legacy pipeline. This worktree exists because
+beta testers kept saying the same thing: the wait between "I dropped my files"
+and "I can see my record" feels endless, and the app tells you nothing while
+it happens. V4 is a ground-up rebuild of exactly that slice — upload through
+OCR extraction — living in `services/document-intake-extraction/`,
+`workers/document-processing/`, and `packages/extraction-contracts/`.
+
+### The shape of it
+
+The legacy path uploads serially, extracts whole documents one at a time, and
+shows a spinner. V4 inverts every one of those decisions:
+
+- **Presigned direct uploads.** The browser asks the server for permission to
+  upload (an *upload authorization* with a bearer token), then PUTs bytes
+  straight toward object storage. The server never proxies document bytes
+  through its own heap. Locally, an emulated endpoint plays the bucket, but it
+  enforces the same trust model: your token must hash-match the staged key
+  AND correspond to an outstanding authorization row in Postgres.
+- **Content-addressed custody.** Every committed file becomes a blob named by
+  its own sha256. Upload the same document twice — even in two different
+  matters — and the bytes are stored once, verified once.
+- **A page-level work graph.** Custody commit inspects the PDF, fans out one
+  *page computation* per page into Postgres, and a fleet of stateless worker
+  lanes claims them with `FOR UPDATE SKIP LOCKED`. Pages of one document
+  extract in parallel; nothing waits for a whole file.
+- **A provider ladder.** Gemini 3.7 Flash reads ranges as the primary; pages
+  that fail validation climb to a Gemini page-repair rung, then Mistral OCR,
+  then a GPT-5.4 apex rung. Born-digital pages skip all of it: a local
+  poppler pass reads them for free in milliseconds (42.6% of the real matters
+  corpus rides this free lane).
+- **An honest progress projection.** The server computes a weighted
+  completion ratio and an ETA *band* (lower and upper bound, with an SLO
+  state) from calibrated provider throughput — not a fake spinner.
+
+The whole thing is flag-gated behind `MWB_V4_INTAKE=1`. Off means off: the
+module is never even imported, deployments can exclude the source tree
+entirely, and the app behaves exactly as before.
+
+### The panel
+
+The React slice (`react-ui/src/components/upload/V4IntakePanel.tsx` plus the
+typed client in `react-ui/src/api/v4Intake.ts`) renders inside the existing
+Add Files view. Discovery is a single probe: `GET /api/v4/status`. When the
+mount is live it answers with its provider ladder, limits, and the upload
+token header name; when the flag is off the probe falls through to a legacy
+404/403 and the panel renders nothing. That one decision means no legacy
+server route, no config field, and no client build flag ever learned V4
+exists — the isolation contract survives the UI.
+
+The panel commits each file's custody *the moment its bytes land*, so page
+fan-out for file one starts while file three is still uploading. Upload
+progress is real bytes (XMLHttpRequest, because `fetch` still cannot report
+request-body progress), then the poll takes over: completion ratio, observed
+pages, ETA band, through to "Extracted 6 page(s) in 1s."
+
+### The duplicate-file races: what the smoke test taught us
+
+The first real browser click on the finished panel failed. Two files with
+identical bytes — the most ordinary thing a lawyer does, uploading two copies
+of the same order — made the second custody commit blow up about half the
+time. Unit tests were green; 1,889 of them. A twelve-round loop against a
+live server failed six times, three different ways. Each failure is a lesson
+worth keeping.
+
+**Lesson one: `ON CONFLICT` guards one constraint, not the table.** The
+`source_blobs` table has two unique constraints — sha256 (the primary key)
+and object_key. The insert said `ON CONFLICT (sha256) DO NOTHING`, which
+reads like "ignore duplicates." It actually means "ignore duplicates *of
+sha256*." When two commits raced, Postgres checked the object_key index
+first and raised error 23505 straight past the arbiter. The fix is almost
+comically small — `ON CONFLICT DO NOTHING`, no target — but only safe
+because the very next query re-reads the row and verifies it matches this
+commit exactly. Idempotence isn't a keyword; it's the read-back check.
+
+**Lesson two: if a reader can see it, it must be complete.** The local
+object store promoted blobs with a plain `copyFile` to the final path. A
+concurrent reader could `stat` the file mid-copy and see half a blob — which
+custody verification correctly refused, killing a perfectly good upload. The
+cure is the oldest trick in Unix: write to a uniquely-named temp file, then
+`rename` into place. Rename is atomic; readers see the old complete thing or
+the new complete thing, never the middle. And when the regression test for
+this landed, it immediately caught the *same bug one file over* — the
+metadata sidecar JSON was also written in place, and the test read it
+half-written. Atomicity is a property of every file a reader trusts, not
+just the big one.
+
+**Lesson three: losing a race can be success.** On real S3 the promotion
+uses `If-None-Match: *` — "create only if absent." When two committers race,
+the loser gets a 412 PreconditionFailed. The old code surfaced that as a
+500. But the loser *has exactly what it wants*: the winner just installed
+the identical bytes at the identical key. The fix catches the refusal,
+re-heads the blob, verifies it, and reports custody with `objectReused:
+true`. Distributed systems constantly hand you this shape — an "error" that
+means someone else already did your work. Recognizing it is the skill.
+
+**Lesson four: a token is not an identifier.** The commit route validated
+the upload token with the same rule used for IDs, which requires an
+alphanumeric first character. Upload tokens are base64url — an alphabet that
+includes `-` and `_` — so roughly one in every thirty-two perfectly valid
+uploads would have been refused with a baffling "identifier invalid." Two
+values that look like strings can live under completely different contracts;
+validate each under its own. (Found because the race loop happened to mint
+an unlucky token. Dice, rolled enough times, are a test tool.)
+
+**The meta-lesson** is why the smoke test existed at all. Every one of these
+bugs sat below fully green unit tests, because unit tests exercise components
+and these bugs lived in the *seams* — two requests, one database, one disk,
+same instant. The loop that caught them cost twelve HTTP calls and about
+twenty cents of Gemini spend. The habit to keep: after the units pass, point
+the real client at the real stack and do the ordinary thing a real user
+does. The ordinary thing was "upload the same file twice." That was enough.
+
+### Where V4 stands
+
+Integration Horizon 2 is complete: engine, flag-gated app mount, and the
+upload panel — built, raced, and verified end to end in the running app.
+What remains before any real cutover is Horizon 3: the five certification
+gates (load, quality, quota, security, cutover), the GCP quota packet, and
+the decision about feeding V4 results into the legacy matter record. Until
+then, extracted results live in the V4 evidence store on purpose — the
+panel says so in its own UI, because a boundary you don't state out loud is
+a boundary someone will assume doesn't exist.
