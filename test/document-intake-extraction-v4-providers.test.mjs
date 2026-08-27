@@ -330,4 +330,51 @@ test("Gemini range adapter reorders labelled pages and refuses labels outside th
     () => mislabelled.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } }),
     (error) => error.code === "provider.invalid_response" && error.billingKnown === true,
   );
+
+  // The worker hands the model a freshly split sub-PDF, so a model that labels
+  // pages by their physical 1..N position (not the requested absolute range)
+  // must still map correctly — NOT hard-fail the whole usable range onto the
+  // paid ladder.
+  const physical = createGemini37RangeAdapter({
+    apiKey: "gemini-secret-test",
+    fetchImpl: async () => jsonResponse({
+      candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ pages: [
+        { page: 2, markdown: "Page twelve text.", warnings: [] },
+        { page: 1, markdown: "Page eleven text.", warnings: [] },
+        { page: 3, markdown: "Page thirteen text.", warnings: [] },
+      ] }) }] } }],
+      usageMetadata: { promptTokenCount: 300, candidatesTokenCount: 90 },
+    }),
+  });
+  const physicalOut = await physical.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } });
+  assert.deepEqual(physicalOut.map((output) => output.pageNumber), [11, 12, 13]);
+  assert.deepEqual(physicalOut.map((output) => output.text), ["Page eleven text.", "Page twelve text.", "Page thirteen text."]);
+
+  // Absent/non-numeric labels are unorderable: keep provider order with a
+  // diagnostic rather than throwing away a full, in-order response.
+  const unlabelled = createGemini37RangeAdapter({
+    apiKey: "gemini-secret-test",
+    fetchImpl: async () => jsonResponse({
+      candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ pages: [
+        { markdown: "Page eleven text.", warnings: [] },
+        { markdown: "Page twelve text.", warnings: [] },
+        { markdown: "Page thirteen text.", warnings: [] },
+      ] }) }] } }],
+      usageMetadata: { promptTokenCount: 300, candidatesTokenCount: 90 },
+    }),
+  });
+  const unlabelledOut = await unlabelled.extractPages({ pageNumbers: [11, 12, 13], source: { readBytes: async () => PAGE_PDF } });
+  assert.deepEqual(unlabelledOut.map((output) => output.pageNumber), [11, 12, 13]);
+  assert.ok(unlabelledOut[0].diagnostics.includes("provider_page_labels_absent_position_mapped"));
+});
+
+// Every provider truncation signal must reach review, including Gemini's
+// safety family (adapters lowercase the raw finishReason).
+test("page validator flags provider-specific truncation stop reasons", () => {
+  const validator = createPageValidator();
+  for (const reason of ["content_filter", "safety", "recitation", "prohibited_content", "max_tokens"]) {
+    const outcome = validator.validate({ text: "A substantial partial legal transcription that is long enough to pass the length gate.", finishReason: reason }).outcome;
+    assert.equal(outcome, "review_required", `${reason} must force review`);
+  }
+  assert.equal(validator.validate({ text: "A clean full transcription of the order.", finishReason: "complete" }).outcome, "accepted");
 });

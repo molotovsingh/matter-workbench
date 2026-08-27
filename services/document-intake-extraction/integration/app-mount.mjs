@@ -31,6 +31,7 @@ import { S3CompatibleObjectStore } from "../adapters/s3-compatible-object-store.
 import { createDocumentIntakeExtractionV4Composition } from "../composition/create-v4-composition.mjs";
 import { runDocumentIntakeExtractionMigrations } from "../postgres/migrate.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../postgres/runtime-role-sql.mjs";
+import { PostgresUploadAuthorizationStore } from "../postgres/postgres-upload-authorization-store.mjs";
 import { PdfNativeTextInspector } from "../../../workers/document-processing/pdf-native-text-inspector.mjs";
 import { WorkerScratchSpace } from "../../../workers/document-processing/worker-scratch-space.mjs";
 import {
@@ -48,8 +49,10 @@ const UPLOAD_TOKEN_HEADER = "x-mwb-upload-token";
 // Staged keys are minted as `<prefix>/staging/<intakeId>/<fileId>/<first 16 of
 // sha256(uploadToken)>`. Only that namespace is writable through the emulated
 // endpoint — never the content-addressed `blobs/` namespace, whose contents
-// custody promotion trusts.
-const STAGING_KEY = new RegExp(`^${OBJECT_KEY_PREFIX}/staging/[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,239}/[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,239}/([a-f0-9]{16})$`);
+// custody promotion trusts. The captured intakeId/fileId/digest are checked
+// against a real outstanding authorization before any write.
+const SEGMENT = "[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,239}";
+const STAGING_KEY = new RegExp(`^${OBJECT_KEY_PREFIX}/staging/(${SEGMENT})/(${SEGMENT})/([a-f0-9]{16})$`);
 
 export async function createV4IntakeMount({
   env = process.env,
@@ -87,6 +90,9 @@ export async function createV4IntakeMount({
   const bucket = "mwb-v4-app";
   const storePrefix = `${prefix}-store`;
   const inspectorScratch = new WorkerScratchSpace({ root: path.join(scratchRoot, "inspector") });
+  // The endpoint below validates staged writes against real authorizations,
+  // matching production's presigned-URL trust model instead of self-consistency.
+  const uploadAuthorizationStore = new PostgresUploadAuthorizationStore({ pool: effectivePool });
   const composition = createDocumentIntakeExtractionV4Composition({
     pool: effectivePool,
     objectStoreFactory: ({ authorizationStore }) => new S3CompatibleObjectStore({
@@ -122,12 +128,14 @@ export async function createV4IntakeMount({
 
   let abort = null;
   let fleet = [];
+  let started = false;
   return {
     prefix,
     tenantId,
     label: suite.label,
     admissionController,
     config: Object.freeze({ lanes, minLanes, repairLanes, rangePages, maximumUploadBytes }),
+    isStarted: () => started,
     async handleRequest({ request, requestUrl, response }) {
       if (request.method === "PUT" && requestUrl.pathname.startsWith(`${storePrefix}/`)) {
         // Emulated presigned PUT. A presigned URL is a bearer credential, so
@@ -144,12 +152,31 @@ export async function createV4IntakeMount({
         }
         const staging = STAGING_KEY.exec(key);
         if (!staging) return sendStoreError(response, 403, "object.key_not_writable", "Only authorized staging keys accept uploads");
+        const [, keyIntakeId, keyFileId, keyDigest] = staging;
         const token = headerValue(request.headers[UPLOAD_TOKEN_HEADER]);
-        if (!token || createHash("sha256").update(token).digest("hex").slice(0, 16) !== staging[1]) {
+        const tokenDigest = token ? createHash("sha256").update(token).digest("hex") : "";
+        if (!token || tokenDigest.slice(0, 16) !== keyDigest) {
           return sendStoreError(response, 403, "object.upload_token_invalid", "A matching upload token is required");
         }
+        // Real authorization, not self-consistency: the token digest must
+        // resolve to an outstanding authorization this tenant created for this
+        // exact intake and file, and the cap is that authorization's own
+        // expected size — a caller cannot mint their own key or overrun it.
+        let authorization;
         try {
-          const written = await writeLocalObjectStream({ root: storeRoot, bucket, key, stream: request, maximumBytes: maximumUploadBytes });
+          authorization = await uploadAuthorizationStore.readByTokenDigest(tokenDigest, { tenantId });
+        } catch {
+          return sendStoreError(response, 503, "object.authorization_unavailable", "Upload authorization could not be checked");
+        }
+        if (!authorization
+          || authorization.intakeId !== keyIntakeId
+          || authorization.fileId !== keyFileId
+          || authorization.status === "committed") {
+          return sendStoreError(response, 403, "object.upload_not_authorized", "No matching outstanding upload authorization");
+        }
+        const cap = Math.max(1, Math.min(maximumUploadBytes, Number(authorization.expectedBytes) || maximumUploadBytes));
+        try {
+          const written = await writeLocalObjectStream({ root: storeRoot, bucket, key, stream: request, maximumBytes: cap });
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ ok: true, bytes: written.bytes }));
         } catch (error) {
@@ -167,18 +194,17 @@ export async function createV4IntakeMount({
       if (autoMigrate) {
         const migrated = await runDocumentIntakeExtractionMigrations({ pool: effectivePool });
         log(`V4 intake: ${migrated.migrations.length} migrations verified`);
-        // Recreating a function drops its grants, so a migration that
-        // replaces the claim functions silently strips a restricted runtime
-        // role of EXECUTE. Re-apply the grants when this deployment owns the
-        // role, then refuse to start unless the connected role can actually
-        // claim work — the alternative is every worker failing at runtime
-        // with a bare permission-denied.
-        if (runtimeRoleName) {
-          await effectivePool.query(buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: runtimeRoleName }));
-          log(`V4 intake: runtime role grants re-applied to ${runtimeRoleName}`);
-        }
-        await assertClaimPrivileges(effectivePool, runtimeRoleName);
       }
+      // Recreating a function drops its grants, so a migration that replaces
+      // the claim functions strips a restricted runtime role of EXECUTE. Both
+      // steps run regardless of autoMigrate: the out-of-band-migration
+      // deployment (admin applies migrations, app connects as a restricted
+      // role) is exactly the shape that loses grants and must be re-checked.
+      if (runtimeRoleName) {
+        await effectivePool.query(buildDocumentIntakeExtractionRuntimeRoleSql({ roleName: runtimeRoleName }));
+        log(`V4 intake: runtime role grants re-applied to ${runtimeRoleName}`);
+      }
+      await assertClaimPrivileges(effectivePool, runtimeRoleName);
       abort = new AbortController();
       fleet = startWorkerFleet({
         composition,
@@ -193,6 +219,7 @@ export async function createV4IntakeMount({
           if (event.type === "error") log(`V4 intake [${label}] worker error ${event.errorCode}`);
         },
       });
+      started = true;
       log(`V4 intake mounted at ${prefix} (${suite.label}; tenant ${tenantId}; ${lanes} max lanes)`);
     },
     async stop() {

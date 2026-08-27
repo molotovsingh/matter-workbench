@@ -45,17 +45,22 @@ test("worker loop backs off errors, honors provider deferral, and avoids idle ho
       async runOnce() {
         call += 1;
         if (call === 1) throw Object.assign(new Error("database password=secret"), { code: "worker.db_failed" });
-        if (call === 2) return { status: "deferred", retryAfterMs: 500 };
+        // The admission controller defers a concurrency-exhausted lane with
+        // retryAfterMs 0 — the case the fix targets. The lane must fall back to
+        // the poll FLOOR, not the grown idle backoff, so it notices capacity
+        // opening promptly. call 3 supplies a positive hint that is honored.
+        if (call === 2) return { status: "deferred", retryAfterMs: 0 };
+        if (call === 3) return { status: "deferred", retryAfterMs: 700 };
         return null;
       },
     },
   });
   const stats = await loop.run({ maximumIterationsPerLane: 5 });
-  assert.deepEqual(stats, { iterations: 5, completed: 0, deferred: 1, idle: 3, errors: 1 });
-  // Error backoff, then the provider's own deferral hint (admission gating
-  // never grows past the poll floor), then exponentially growing idle polls.
-  assert.deepEqual(sleeps, [100, 500, 10, 20, 40]);
-  assert.deepEqual(events.map((event) => event.type), ["error", "deferred"]);
+  assert.deepEqual(stats, { iterations: 5, completed: 0, deferred: 2, idle: 2, errors: 1 });
+  // Error backoff; admission deferral with no hint -> poll floor (10);
+  // deferral with a hint -> that hint (700); then growing idle polls.
+  assert.deepEqual(sleeps, [100, 10, 700, 10, 20]);
+  assert.deepEqual(events.map((event) => event.type), ["error", "deferred", "deferred"]);
   assert.doesNotMatch(JSON.stringify(events), /password|secret/);
 });
 

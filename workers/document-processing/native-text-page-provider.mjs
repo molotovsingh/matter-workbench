@@ -38,9 +38,17 @@ export function createNativeTextPageProvider({
         // reads the same page over HTTP and does not share the fault. A bare
         // execFile error code would be classified as a worker fault and sent
         // straight to review instead.
+        // A transient host fault (fork/heap/descriptor exhaustion under load, a
+        // timed-out child) should retry on the free lane before spending a
+        // paid provider call; a deterministic fault (missing poppler, an
+        // unreadable page) should escalate. Retryable keeps the page on the
+        // native lane for another attempt; non-retryable routes it up the
+        // ladder to real OCR.
+        const transient = new Set(["EAGAIN", "ENOMEM", "EMFILE", "ENFILE", "ETIMEDOUT"]);
+        const retryable = transient.has(String(caught?.code || "")) || caught?.killed === true;
         const error = new Error(`native text extraction failed: ${String(caught?.message || caught).replace(/[\r\n\t]+/g, " ").slice(0, 300)}`);
         error.code = "provider.native_extraction_failed";
-        error.retryable = false;
+        error.retryable = retryable;
         error.billingKnown = true;
         error.billedCostUsd = 0;
         error.usage = { inputUnits: 0, outputUnits: 0 };

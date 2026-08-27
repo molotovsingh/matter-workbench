@@ -104,14 +104,34 @@ export function createGemini37RangeAdapter({
         });
       }
       // Bind results to pages by the provider's own page labels, not by array
-      // position: a reordered response with the right count would otherwise
-      // publish each page's text under a neighbouring page number. Labels
-      // that do not form exactly the requested set are unusable, so fail
-      // billably rather than guess.
-      const byLabel = new Map(providerPages.map((providerPage) => [Number(providerPage.page), providerPage]));
-      const labelled = byLabel.size === pagesRequested.length && pagesRequested.every((pageNumber) => byLabel.has(pageNumber));
-      if (!labelled && providerPages.some((providerPage) => Number.isSafeInteger(Number(providerPage.page)))) {
-        throw providerError("Gemini range labelled pages that do not match the requested range", "provider.invalid_response", {
+      // position, so a reordered response cannot publish one page's text under
+      // a neighbour's number. The worker hands the model a freshly split
+      // sub-PDF, so two labellings are both legitimate: the absolute range the
+      // prompt asks for (first..last) or the physical 1..N of the sub-PDF.
+      // Reorder by whichever set the labels form; keep provider order for
+      // absent/non-numeric labels (unorderable, and in order in practice); and
+      // only fail billably when every label is an integer yet matches neither
+      // set — the genuine "mislabelled and unmappable" corruption.
+      const physicalPages = pagesRequested.map((_unused, index) => index + 1);
+      const labels = providerPages.map((providerPage) => providerPage.page);
+      const allInteger = labels.every((label) => typeof label === "number" && Number.isSafeInteger(label));
+      const isExactSet = (target) => {
+        if (!allInteger) return false;
+        const seen = new Set(labels);
+        return seen.size === target.length && target.every((value) => seen.has(value));
+      };
+      let orderedPages;
+      let labelBinding;
+      if (isExactSet(pagesRequested)) {
+        const byLabel = new Map(providerPages.map((providerPage) => [providerPage.page, providerPage]));
+        orderedPages = pagesRequested.map((pageNumber) => byLabel.get(pageNumber));
+        labelBinding = "absolute";
+      } else if (isExactSet(physicalPages)) {
+        const byLabel = new Map(providerPages.map((providerPage) => [providerPage.page, providerPage]));
+        orderedPages = physicalPages.map((pageNumber) => byLabel.get(pageNumber));
+        labelBinding = "physical";
+      } else if (allInteger) {
+        throw providerError("Gemini range labelled pages that match neither the requested nor the physical range", "provider.invalid_response", {
           retryable: false,
           billingKnown: true,
           requestId,
@@ -119,14 +139,16 @@ export function createGemini37RangeAdapter({
           billedCostUsd,
           finishReason,
         });
+      } else {
+        orderedPages = providerPages;
+        labelBinding = "position";
       }
-      const orderedPages = labelled ? pagesRequested.map((pageNumber) => byLabel.get(pageNumber)) : providerPages;
       const perPageCost = billedCostUsd / pagesRequested.length;
       const perPageInput = usage.inputUnits / pagesRequested.length;
       const perPageOutput = usage.outputUnits / pagesRequested.length;
       return orderedPages.map((providerPage, index) => {
         const diagnostics = Array.isArray(providerPage.warnings) ? providerPage.warnings.map((warning) => String(warning).slice(0, 300)) : [];
-        if (!labelled) diagnostics.push("provider_page_labels_absent_position_mapped");
+        if (labelBinding === "position") diagnostics.push("provider_page_labels_absent_position_mapped");
         return normalizeProviderResult({
           schemaVersion: CONTRACT_VERSIONS.providerResult,
           pageNumber: pagesRequested[index],

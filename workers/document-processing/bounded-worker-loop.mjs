@@ -5,7 +5,7 @@ export class BoundedDocumentWorkerLoop {
     workerIdPrefix = "document-worker",
     concurrency = 1,
     idlePollMs = 250,
-    maximumIdlePollMs = 1_000,
+    maximumIdlePollMs = 2_000,
     baseErrorBackoffMs = 1_000,
     maximumErrorBackoffMs = 30_000,
     onOutcome = async () => {},

@@ -25,6 +25,40 @@ function fakeResponse() {
   };
 }
 
+// A pool that answers the upload-authorization lookup for one known token
+// digest and throws for anything else — so intake work still fails fast while
+// the staging endpoint's real authorization check can be exercised.
+function authorizationPool({ tenantId, tokenDigest, intakeId, fileId, expectedBytes, stagedKey }) {
+  const row = {
+    tenant_id: tenantId,
+    intake_id: intakeId,
+    file_id: fileId,
+    expected_bytes: String(expectedBytes),
+    status: "awaiting_upload",
+    upload_token_digest: tokenDigest,
+    staged_object_key: stagedKey,
+    upload_authorization_expires_at: "2999-01-01T00:00:00.000Z",
+    upload_authorization_json: null,
+    source_sha256: null,
+    custody_receipt_json: null,
+    committed_at: null,
+  };
+  return {
+    async connect() {
+      return {
+        async query(sql, params) {
+          if (/^begin$|set_config|^commit$|^rollback$/i.test(String(sql).trim())) return { rows: [] };
+          if (/from document_intake_extraction\.intake_files/i.test(String(sql)) && /upload_token_digest/i.test(String(sql))) {
+            return { rows: params && params[1] === tokenDigest ? [row] : [] };
+          }
+          throw new Error(`unexpected query in authorizationPool: ${String(sql).slice(0, 60)}`);
+        },
+        release() {},
+      };
+    },
+  };
+}
+
 // V4-ISO-001: the mount is the single sanctioned integration point and must
 // stay disabled by default.
 test("app mount refuses to build without the flag and requires a database when enabled", async () => {
@@ -64,6 +98,11 @@ test("app mount falls back to defaults for empty numeric env vars", async () => 
 
 test("app mount serves the V4 API under its prefix and plays the bucket for presigned staging PUTs", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-mount-"));
+  const uploadToken = "upload-token-under-test";
+  const tokenDigest = createHash("sha256").update(uploadToken).digest("hex");
+  const digest = tokenDigest.slice(0, 16);
+  const stagingKey = `document-intake-extraction/v1/staging/intake-1/file-1/${digest}`;
+  const staged = Buffer.from("%PDF-1.4 staged bytes");
   const mount = await createV4IntakeMount({
     env: {
       ...FAKE_KEYS,
@@ -72,7 +111,14 @@ test("app mount serves the V4 API under its prefix and plays the bucket for pres
       MWB_V4_SCRATCH_ROOT: path.join(root, "scratch"),
       MWB_V4_TENANT_ID: "tenant-test",
     },
-    pool: { connect: async () => { throw new Error("database must not be touched by these requests"); } },
+    pool: authorizationPool({
+      tenantId: "tenant-test",
+      tokenDigest,
+      intakeId: "intake-1",
+      fileId: "file-1",
+      expectedBytes: staged.length,
+      stagedKey: stagingKey,
+    }),
   });
   try {
     assert.equal(mount.prefix, "/api/v4");
@@ -105,12 +151,8 @@ test("app mount serves the V4 API under its prefix and plays the bucket for pres
     assert.match(apiResponse.state.body, /idempotency_key_required/);
 
     // The store endpoint accepts an emulated presigned PUT only from a caller
-    // holding the upload token that minted the key, and persists the staged
-    // bytes with a version marker.
-    const uploadToken = "upload-token-under-test";
-    const digest = createHash("sha256").update(uploadToken).digest("hex").slice(0, 16);
-    const stagingKey = `document-intake-extraction/v1/staging/intake-1/file-1/${digest}`;
-    const staged = Buffer.from("%PDF-1.4 staged bytes");
+    // holding the upload token that minted the key AND matching an outstanding
+    // authorization, then persists the staged bytes with a version marker.
     const stagingPut = (headers, key = stagingKey) => ({
       request: {
         method: "PUT",
@@ -145,6 +187,16 @@ test("app mount serves the V4 API under its prefix and plays the bucket for pres
     assert.match(blobWrite.response.state.body, /key_not_writable/);
     await assert.rejects(() => readFile(path.join(root, "store", "mwb-v4-app", blobKey)));
 
+    // A self-consistent key+token with NO outstanding authorization is refused:
+    // the digest is not enough, the endpoint consults the authorization store.
+    const forgedToken = "self-minted-token";
+    const forgedKey = `document-intake-extraction/v1/staging/intake-x/file-x/${createHash("sha256").update(forgedToken).digest("hex").slice(0, 16)}`;
+    const forged = stagingPut({ "x-mwb-upload-token": forgedToken }, forgedKey);
+    assert.equal(await mount.handleRequest(forged), true);
+    assert.equal(forged.response.state.statusCode, 403);
+    assert.match(forged.response.state.body, /upload_not_authorized/);
+    await assert.rejects(() => readFile(path.join(root, "store", "mwb-v4-app", forgedKey)));
+
     // Oversized uploads are rejected while streaming instead of buffered.
     const capped = await createV4IntakeMount({
       env: {
@@ -154,7 +206,14 @@ test("app mount serves the V4 API under its prefix and plays the bucket for pres
         MWB_V4_SCRATCH_ROOT: path.join(root, "scratch"),
         MWB_V4_MAX_UPLOAD_BYTES: "4",
       },
-      pool: { connect: async () => { throw new Error("unused"); } },
+      pool: authorizationPool({
+        tenantId: "private-beta",
+        tokenDigest,
+        intakeId: "intake-1",
+        fileId: "file-1",
+        expectedBytes: 1_000_000,
+        stagedKey: stagingKey,
+      }),
     });
     try {
       const oversize = stagingPut({ "x-mwb-upload-token": uploadToken });

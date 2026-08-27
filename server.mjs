@@ -501,7 +501,14 @@ export async function createWorkbenchServer(options = {}) {
       v4IntakeMount = await (await import("./services/document-intake-extraction/integration/app-mount.mjs"))
         .createV4IntakeMount({ env, log: (line) => console.log(line) });
     } catch (error) {
-      console.error(`V4 intake is enabled but could not be loaded; continuing without it: ${error?.message || error}`);
+      // Only a missing V4 source tree (the excluded-deploy case) degrades
+      // silently; a real misconfiguration — bad DB URL, bad flag combo —
+      // stays a loud, unmissable boot failure as it was before the mount.
+      if (error?.code === "ERR_MODULE_NOT_FOUND") {
+        console.error(`V4 intake is flagged on but its source is not deployed; continuing without it: ${error.message}`);
+      } else {
+        throw error;
+      }
     }
   }
   services.v4IntakeMount = v4IntakeMount;
@@ -571,10 +578,20 @@ export async function createWorkbenchServer(options = {}) {
   }
   if (v4IntakeMount) {
     server.once("listening", () => {
-      v4IntakeMount.start().catch((error) => console.error("V4 intake mount failed to start:", error?.message || error));
+      v4IntakeMount.start().catch(async (error) => {
+        // A mount that could not start (failed migration, missing claim
+        // privileges) must not keep serving /api/v4: unregister it so intakes
+        // are refused (404 through to legacy) rather than accepted to sit
+        // forever with no workers.
+        console.error("V4 intake mount failed to start; disabling it:", error?.message || error);
+        const failed = v4IntakeMount;
+        v4IntakeMount = null;
+        services.v4IntakeMount = null;
+        await failed.stop().catch(() => {});
+      });
     });
     server.once("close", () => {
-      v4IntakeMount.stop().catch(() => {});
+      v4IntakeMount?.stop().catch(() => {});
     });
   }
 

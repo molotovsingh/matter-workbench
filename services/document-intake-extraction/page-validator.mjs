@@ -1,6 +1,15 @@
 import { PIPELINE_VERSIONS } from "../../packages/extraction-contracts/index.mjs";
 
-const INCOMPLETE_FINISH_REASONS = new Set(["length", "max_tokens", "content_filter", "truncated", "incomplete"]);
+// Any provider stop reason that means the transcription was cut short, across
+// all pinned providers (adapters lowercase the raw reason). OpenAI: length,
+// content_filter. Gemini: max_tokens plus its safety family (safety,
+// recitation, prohibited_content, blocklist, spii, image_safety, language,
+// other) — any of which returns a partial page that must be reviewed, not
+// published as final legal text.
+const INCOMPLETE_FINISH_REASONS = new Set([
+  "length", "max_tokens", "content_filter", "truncated", "incomplete",
+  "safety", "recitation", "prohibited_content", "blocklist", "spii", "image_safety", "language", "other",
+]);
 
 export function createPageValidator({ version = PIPELINE_VERSIONS.validator, minimumCharacters = 3 } = {}) {
   return Object.freeze({
