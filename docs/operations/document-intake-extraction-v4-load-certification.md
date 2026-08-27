@@ -17,6 +17,21 @@ Status: **not certified**. The evaluator exists; production-shaped evidence does
 
 The default planning strata `[1, 2, 4]` are placeholders for tooling tests, **not the final representative distribution**. Capacity owners must approve the real distribution before evidence collection.
 
+## Provider timeout budget
+
+The recurring latency-tail failure mode across evidence runs was a single
+hung provider call consuming its whole timeout, with the retry landing past
+the P99 clock. Provider ceilings are therefore hang detection sized from
+observed worst successful calls (Gemini range 40.4s, Mistral 75.5s), not
+patience: Gemini range 45s first attempt / 60s retries, Gemini page repair
+60s, Mistral page 90s, GPT-5.4 apex 60s/120s. Certification runs may tune
+the primary range rung per run via `MWB_V4_RANGE_TIMEOUT_MS` /
+`MWB_V4_RANGE_FIRST_TIMEOUT_MS` (mount) or `buildProviderSuite`'s
+`rangeTimeoutMs` / `rangeFirstAttemptTimeoutMs`; the tuned values must be
+recorded with the run evidence. Latency evidence must come from bytes the
+providers have not previously seen — provider-side caches make repeat
+corpora read unrealistically fast.
+
 ## Required run record
 
 Each sanitized record contains only:
