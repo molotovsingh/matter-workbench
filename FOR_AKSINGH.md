@@ -2963,13 +2963,51 @@ twenty cents of Gemini spend. The habit to keep: after the units pass, point
 the real client at the real stack and do the ordinary thing a real user
 does. The ordinary thing was "upload the same file twice." That was enough.
 
+### The cutover bridge: V4 text becomes legacy record
+
+The last construction piece closes the loop. When the mount is live (and
+storage is in filesystem mode), a consumer drains V4's durable outbox: each
+ready result is matched against the matter's File Register **by sha256** and
+written into `_extracted/FILE-NNNN.json` in exactly the legacy extract
+engine's own format — then the intake's Extraction Log is merged, not
+clobbered. The next time preparation runs its extract stage, it finds those
+records, judges them by its own cache-reuse rules, and reports them
+`cached`: the slow OCR never runs for files V4 already read.
+
+The design choices worth remembering:
+
+- **The bridge never allocates FILE-NNNN numbers.** That assignment is an
+  unguarded read-then-write in filesystem mode — a second writer would
+  eventually mint colliding ids. Matching existing registrations by content
+  hash sidesteps the race entirely, and files never registered through Add
+  Files are simply skipped, not invented.
+- **The record must pass the real gates, so the test calls the real gates.**
+  The extract engine has strict rules for when a cached record is
+  trustworthy (ocr-first strategy, non-placeholder pages, confidence
+  thresholds, a "very thin text" heuristic). The bridge's test imports the
+  actual gate function and asserts the synthesized record survives it —
+  twice that assertion caught records the engine would have silently
+  re-extracted and overwritten.
+- **Blank or review-flagged pages keep the whole document on the legacy
+  path.** Legacy's own convention marks blank pages needs_review and
+  retries them next run; importing around that would poison it, and
+  inventing placeholder text into a legal record is not an option.
+- **Ties go to the incumbent.** An existing valid record is never
+  overwritten, so `FILE-NNNN pX.bY` citations stay stable no matter which
+  engine got there first.
+
+Live proof, same fixture as everything else: a legacy-registered file,
+V4-extracted in 5.9 seconds, filed by the consumer, and a subsequent legacy
+`/extract` run reported it `cached` — with the V4 engine string still on
+the record.
+
 ### Where V4 stands
 
-Integration Horizon 2 is complete: engine, flag-gated app mount, and the
-upload panel — built, raced, and verified end to end in the running app.
-What remains before any real cutover is Horizon 3: the five certification
-gates (load, quality, quota, security, cutover), the GCP quota packet, and
-the decision about feeding V4 results into the legacy matter record. Until
-then, extracted results live in the V4 evidence store on purpose — the
-panel says so in its own UI, because a boundary you don't state out loud is
-a boundary someone will assume doesn't exist.
+Horizon 2 is complete and the cutover mechanism exists: engine, flag-gated
+mount, upload panel, and the result bridge — built, raced, and verified end
+to end in the running app. What remains is Horizon 3: the five
+certification gates (load, quality, quota, security, cutover), the Google
+Cloud quota/billing setup, and postgres-storage-mode support for the bridge
+(today it imports in filesystem mode only; in postgres mode results wait in
+the V4 evidence store, and the panel says so — because a boundary you don't
+state out loud is a boundary someone will assume doesn't exist).
