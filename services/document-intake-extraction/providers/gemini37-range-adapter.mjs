@@ -30,8 +30,15 @@ export function createGemini37RangeAdapter({
   apiKey,
   endpointBase = "https://generativelanguage.googleapis.com/v1beta",
   fetchImpl = fetch,
-  timeoutMs = 180_000,
-  firstAttemptTimeoutMs = 60_000,
+  // SLO budget, not patience: every successful range call across the Gold30,
+  // GST, and full-corpus runs finished under 41s (median ~9-12s), while the
+  // observed latency-tail failure mode is a single hung call consuming the
+  // whole timeout and pushing its retry past the 120s post-custody P99. With
+  // maximum_attempts=3, these ceilings bound the rung at 45+60+60=165s worst
+  // case (single hang ~55s) instead of 60+180+180=420s. Overridable per run
+  // via the suite (MWB_V4_RANGE_TIMEOUT_MS / MWB_V4_RANGE_FIRST_TIMEOUT_MS).
+  timeoutMs = 60_000,
+  firstAttemptTimeoutMs = 45_000,
   thinkingLevel = "LOW",
   inputUsdPerMillionTokens = 0.75,
   outputUsdPerMillionTokens = 3.75,

@@ -11,7 +11,9 @@ export function createMistralOcr41PageAdapter({
   apiKey,
   endpoint = "https://api.mistral.ai/v1/ocr",
   fetchImpl = fetch,
-  timeoutMs = 120_000,
+  // Mistral's observed per-call worst is 75.5s; 90s is hang detection, not a
+  // working ceiling.
+  timeoutMs = 90_000,
   usdPerThousandPages = 4,
 } = {}) {
   const secret = requiredSecret(apiKey, "Mistral API key");

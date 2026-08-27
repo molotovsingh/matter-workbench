@@ -21,7 +21,9 @@ export function createGemini37RepairPageAdapter({
   apiKey,
   endpointBase = "https://generativelanguage.googleapis.com/v1beta",
   fetchImpl = fetch,
-  timeoutMs = 180_000,
+  // Single-page repair reads run in seconds; a longer ceiling only lets a
+  // hung call eat the intake's post-custody SLO budget before escalating.
+  timeoutMs = 60_000,
   thinkingLevel = "LOW",
   inputUsdPerMillionTokens = 0.75,
   outputUsdPerMillionTokens = 3.75,

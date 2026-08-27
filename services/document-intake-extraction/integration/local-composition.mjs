@@ -182,6 +182,11 @@ export function buildProviderSuite({
   native = true,
   gptInputUsdPerMillionTokens = 1.25,
   gptOutputUsdPerMillionTokens = 7.5,
+  // Optional per-run overrides of the primary range rung's timeout budget
+  // (load certification tunes these against the post-custody SLO without a
+  // code change). Undefined keeps each adapter's evidence-based default.
+  rangeTimeoutMs = undefined,
+  rangeFirstAttemptTimeoutMs = undefined,
 } = {}) {
   if (!String(geminiKey || "").trim()) throw new Error("provider suite requires a Gemini API key");
   const geminiRepair = createGemini37RepairPageAdapter({ apiKey: geminiKey });
@@ -195,11 +200,15 @@ export function buildProviderSuite({
     })
     : null;
   const nativeProvider = native ? createNativeTextPageProvider() : null;
+  const rangeTimeouts = {
+    ...(rangeTimeoutMs !== undefined ? { timeoutMs: rangeTimeoutMs } : {}),
+    ...(rangeFirstAttemptTimeoutMs !== undefined ? { firstAttemptTimeoutMs: rangeFirstAttemptTimeoutMs } : {}),
+  };
   if (primary === "mistral") {
     if (!mistralPage) throw new Error("mistral primary requires MISTRAL_API_KEY");
     return {
       label: `Mistral OCR 4.1 range primary + ladder [gemini-page${apexProvider ? ", gpt-5.4 apex" : ""}]`,
-      primaryProvider: createMistralOcr41RangeAdapter({ apiKey: mistralKey }),
+      primaryProvider: createMistralOcr41RangeAdapter({ apiKey: mistralKey, ...rangeTimeouts }),
       repairProvider: geminiRepair,
       repairLadder: [geminiRepair, ...(apexProvider ? [apexProvider] : [])],
       nativeProvider,
@@ -207,7 +216,7 @@ export function buildProviderSuite({
   }
   return {
     label: `Gemini 3.7 Flash range primary + ladder [gemini-page${mistralPage ? ", mistral-page" : ""}${apexProvider ? ", gpt-5.4 apex" : ""}]`,
-    primaryProvider: createGemini37RangeAdapter({ apiKey: geminiKey }),
+    primaryProvider: createGemini37RangeAdapter({ apiKey: geminiKey, ...rangeTimeouts }),
     repairProvider: geminiRepair,
     repairLadder: [geminiRepair, ...(mistralPage ? [mistralPage] : []), ...(apexProvider ? [apexProvider] : [])],
     nativeProvider,

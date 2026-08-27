@@ -24,8 +24,11 @@ export function createGpt54RepairPageAdapter({
   apiKey,
   endpoint = "https://api.openai.com/v1/chat/completions",
   fetchImpl = fetch,
-  timeoutMs = 180_000,
-  firstAttemptTimeoutMs = 90_000,
+  // The apex rung reads rasterized page images — heavier than the other
+  // rungs, so it keeps more headroom — but it is also the LAST rung before
+  // review, so a hung call here directly delays the intake's terminal state.
+  timeoutMs = 120_000,
+  firstAttemptTimeoutMs = 60_000,
   inputUsdPerMillionTokens,
   outputUsdPerMillionTokens,
   maximumOutputTokens = 4_000,

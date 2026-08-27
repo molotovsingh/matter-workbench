@@ -12,6 +12,8 @@
 //   MWB_V4_SCRATCH_ROOT        worker scratch root (default ~/.mwb-v4-app/scratch)
 //   MWB_V4_PRIMARY             gemini | mistral (default gemini)
 //   MWB_V4_LANES / MWB_V4_MIN_LANES / MWB_V4_REPAIR_LANES / MWB_V4_RANGE_PAGES
+//   MWB_V4_RANGE_TIMEOUT_MS / MWB_V4_RANGE_FIRST_TIMEOUT_MS  primary range
+//     per-attempt timeout budget (defaults are evidence-based hang detection)
 //   MWB_V4_MAX_UPLOAD_BYTES    per-object staging cap (default: service limit)
 //   MWB_V4_RUNTIME_ROLE        re-grant claim privileges to this role on start
 //   GEMINI_API_KEY / GOOGLE_API_KEY, MISTRAL_API_KEY, OPENAI_API_KEY (ladder)
@@ -94,6 +96,8 @@ export async function createV4IntakeMount({
     native: env.MWB_V4_NATIVE !== "0",
     gptInputUsdPerMillionTokens: Number(env.GPT54_REPAIR_INPUT_USD_PER_M || 1.25),
     gptOutputUsdPerMillionTokens: Number(env.GPT54_REPAIR_OUTPUT_USD_PER_M || 7.5),
+    rangeTimeoutMs: optionalBoundedInteger(env.MWB_V4_RANGE_TIMEOUT_MS, 5_000, 10 * 60_000),
+    rangeFirstAttemptTimeoutMs: optionalBoundedInteger(env.MWB_V4_RANGE_FIRST_TIMEOUT_MS, 5_000, 10 * 60_000),
   });
   const admissionController = buildAdmissionController({ suite, lanes, minLanes, repairLanes, rangePages });
   const effectivePool = pool || new pg.Pool({ connectionString: databaseUrl, max: lanes + repairLanes + 8 });
@@ -341,6 +345,15 @@ function sendStoreError(response, status, code, message) {
   response.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
   response.end(JSON.stringify({ ok: false, error: { code, message } }));
   return true;
+}
+
+// Unset (or empty) stays undefined so the provider adapters keep their own
+// evidence-based defaults; only an explicit value overrides.
+function optionalBoundedInteger(value, minimum, maximum) {
+  if (value === undefined || value === null || String(value).trim() === "") return undefined;
+  const number = Number(value);
+  if (!Number.isSafeInteger(number)) return undefined;
+  return Math.max(minimum, Math.min(maximum, number));
 }
 
 function boundedInteger(value, fallback, minimum, maximum) {
