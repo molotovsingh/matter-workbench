@@ -59,6 +59,7 @@ test("V4 PostgreSQL control plane enforces migration immutability, tenant isolat
       await verifyRepairLineageReuse(runtimeUrl);
       await verifyLeaseExpirationEvidence(runtimeUrl);
       await verifyDurableUploadAuthorization(runtimeUrl);
+      await verifyConcurrentDuplicateCustody(runtimeUrl);
       await verifyIntakeRepository(runtimeUrl);
       await verifyOutboxDelivery(runtimeUrl);
     } finally {
@@ -612,6 +613,90 @@ async function verifyDurableUploadAuthorization(runtimeUrl) {
         "where i.tenant_id = $1 and i.intake_id = $2",
       ].join("\n"), [tenantId, intakeId]);
       assert.deepEqual(state.rows[0], { committed_file_count: 1, committed_bytes: "100", status: "committed", logical_reference_count: 1 });
+    } finally {
+      check.release();
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+// Two files with identical bytes in one batch commit custody concurrently,
+// racing to create the same NEW source_blobs row. source_blobs has two unique
+// constraints (sha256 and object_key); a single-arbiter ON CONFLICT (sha256)
+// let the loser raise 23505 on object_key — a real duplicate-upload 500.
+// Both commits must succeed, converging on one blob with two references.
+async function verifyConcurrentDuplicateCustody(runtimeUrl) {
+  const tenantId = `tenant-${randomUUID()}`;
+  const intakeId = randomUUID();
+  const fileIds = [randomUUID(), randomUUID()];
+  const documentIds = [randomUUID(), randomUUID()];
+  const tokenDigests = [randomBytes(32).toString("hex"), randomBytes(32).toString("hex")];
+  const sourceSha = randomBytes(32).toString("hex");
+  const blobObjectKey = `blobs/sha256/${sourceSha.slice(0, 2)}/${sourceSha}`;
+  const pool = new pg.Pool({ connectionString: runtimeUrl, max: 4 });
+  const seed = await pool.connect();
+  try {
+    await seed.query("begin");
+    await seed.query("select set_config('document_intake_extraction.tenant_id', $1, true)", [tenantId]);
+    // Not insertIntake: this intake expects TWO files, and the store's
+    // committed_file_count guard is expected_file_count-bounded.
+    await seed.query([
+      "insert into document_intake_extraction.intakes",
+      "  (intake_id, tenant_id, matter_id, idempotency_key, request_fingerprint, status, expected_file_count, expected_bytes)",
+      "values ($1, $2, 'matter-1', 'duplicate-custody', repeat('d', 64), 'awaiting_upload', 2, 200)",
+    ].join("\n"), [intakeId, tenantId]);
+    for (let index = 0; index < 2; index += 1) {
+      await seed.query([
+        "insert into document_intake_extraction.intake_files",
+        "  (file_id, tenant_id, intake_id, document_id, ordinal, original_name, relative_path, mime_type, expected_bytes, status)",
+        "values ($1, $2, $3, $4, $5, 'duplicate.pdf', $6, 'application/pdf', 100, 'awaiting_upload')",
+      ].join("\n"), [fileIds[index], tenantId, intakeId, documentIds[index], index, `copy-${index}.pdf`]);
+    }
+    await seed.query("commit");
+  } finally {
+    seed.release();
+  }
+  try {
+    const store = new PostgresUploadAuthorizationStore({ pool });
+    for (let index = 0; index < 2; index += 1) {
+      await store.create({
+        schemaVersion: "document-intake-extraction.s3-upload-authorization-record/v1",
+        tokenDigest: tokenDigests[index],
+        tenantId,
+        intakeId,
+        fileId: fileIds[index],
+        expectedBytes: 100,
+        stagedObjectKey: `staging/${intakeId}/${fileIds[index]}`,
+        status: "authorized",
+        dataRegion: "ap-south-1",
+        expiresAt: "2026-08-24T12:15:00.000Z",
+        createdAt: "2026-08-24T12:00:00.000Z",
+        updatedAt: "2026-08-24T12:00:00.000Z",
+      });
+    }
+    const commits = await Promise.all(tokenDigests.map((tokenDigest) => store.updateByTokenDigest(tokenDigest, {
+      tenantId,
+      expectedStatuses: ["authorized", "uploaded"],
+      patch: {
+        status: "committed",
+        sha256: sourceSha,
+        bytes: 100,
+        blobObjectKey,
+        objectReused: false,
+        committedAt: "2026-08-24T12:05:00.000Z",
+      },
+    })));
+    assert.ok(commits.every((committed) => committed?.status === "committed"), "both duplicate-content commits succeed");
+    const check = await pool.connect();
+    try {
+      await check.query("select set_config('document_intake_extraction.tenant_id', $1, false)", [tenantId]);
+      const state = await check.query([
+        "select (select count(*)::int from document_intake_extraction.source_blobs where sha256 = $2) as blob_rows,",
+        "       (select logical_reference_count from document_intake_extraction.blob_tenant_references where tenant_id = $1 and source_sha256 = $2) as reference_count,",
+        "       (select committed_file_count from document_intake_extraction.intakes where tenant_id = $1 and intake_id = $3) as committed_files",
+      ].join("\n"), [tenantId, sourceSha, intakeId]);
+      assert.deepEqual(state.rows[0], { blob_rows: 1, reference_count: 2, committed_files: 2 });
     } finally {
       check.release();
     }

@@ -3,7 +3,7 @@
 // controller shape, and worker fleet. Used by the isolated dev runner and by
 // the flag-gated app mount so both run the same wiring instead of twins.
 
-import { constants as fsConstants, createReadStream, createWriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -89,12 +89,27 @@ export function createLocalDiskS3({ root }) {
       const source = objectPath(sourceBucket, sourceKey);
       const destination = objectPath(destinationBucket, destinationKey);
       await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 });
+      // Atomic promotion: copy to a unique temp file and rename into place, so
+      // a concurrent reader can never observe a partially copied blob. The
+      // metadata sidecar lands BEFORE the blob so blob-present implies
+      // meta-present. Concurrent committers of the same content-addressed key
+      // carry identical bytes and identical metadata, so last-rename-wins is
+      // convergent, not lossy.
+      const temporary = `${destination}.${process.pid}.${randomUUID()}.partial`;
+      const metaTemporary = `${metaPath(destination)}.${process.pid}.${randomUUID()}.partial`;
       try {
-        await copyFile(source, destination, fsConstants.COPYFILE_EXCL);
+        await copyFile(source, temporary);
+        // The sidecar must be atomic too: concurrent committers rewrite the
+        // same sidecar path, and a reader that catches a half-written JSON
+        // file fails custody verification exactly like a half-copied blob.
+        await writeFile(metaTemporary, `${JSON.stringify({ versionId: randomUUID(), metadata: metadata || {} }, null, 2)}\n`, { mode: 0o600 });
+        await rename(metaTemporary, metaPath(destination));
+        await rename(temporary, destination);
       } catch (error) {
-        if (error?.code !== "EEXIST") throw error;
+        await rm(temporary, { force: true });
+        await rm(metaTemporary, { force: true });
+        throw error;
       }
-      await writeFile(metaPath(destination), `${JSON.stringify({ versionId: randomUUID(), metadata: metadata || {} }, null, 2)}\n`, { mode: 0o600 });
       return {};
     },
     async deleteObject({ bucket, key }) {

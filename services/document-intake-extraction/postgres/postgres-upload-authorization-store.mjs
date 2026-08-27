@@ -78,11 +78,17 @@ export class PostgresUploadAuthorizationStore {
       if (!current || current.status === "committed") return null;
       if (!expectedStatuses.includes(current.status) || current.expectedBytes !== bytes) return null;
 
+      // No conflict target: source_blobs has TWO unique constraints (sha256
+      // primary key and object_key), and a single-arbiter ON CONFLICT only
+      // absorbs its own — two concurrent commits of the same new content raise
+      // 23505 on object_key before the sha256 arbiter can swallow it. Any
+      // unique collision falls through to the read-back below, which verifies
+      // the surviving row matches this commit exactly or refuses custody.
       await client.query([
         "insert into document_intake_extraction.source_blobs",
         "  (sha256, object_key, bytes, verified_at, integrity_status)",
         "values ($1, $2, $3::bigint, $4::timestamptz, 'verified')",
-        "on conflict (sha256) do nothing",
+        "on conflict do nothing",
       ].join("\n"), [sha256, blobObjectKey, bytes, patch.committedAt]);
       const blob = await client.query([
         "select object_key, bytes::text, integrity_status",

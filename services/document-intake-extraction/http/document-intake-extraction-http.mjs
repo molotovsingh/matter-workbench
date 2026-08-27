@@ -46,7 +46,7 @@ export function createDocumentIntakeExtractionHttpHandler({
           tenantId: principal.tenantId,
           intakeId: intake.intakeId,
           fileId: fileCommit.fileId,
-          uploadToken: cleanId(body.uploadToken, "uploadToken"),
+          uploadToken: cleanUploadToken(body.uploadToken),
         });
         return sendJson(response, 200, "intake.file.custody_committed", { receipt });
       }
@@ -87,6 +87,7 @@ export function createDocumentIntakeExtractionHttpHandler({
 
       throw httpError("V4 endpoint not found", "api.not_found", 404);
     } catch (error) {
+      if (process.env.MWB_V4_DEBUG_ERRORS === "1") console.error("[v4-debug]", error);
       const normalized = normalizeHttpError(error);
       return sendJson(response, normalized.status, "error", {
         error: { code: normalized.code, message: normalized.message },
@@ -169,6 +170,19 @@ function cleanId(value, field) {
   const normalized = String(value || "").trim();
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,239}$/.test(normalized)) {
     throw httpError(`${field} is invalid`, "api.identifier_invalid", 400);
+  }
+  return normalized;
+}
+
+// An upload token is a bearer secret, not an identifier: the object store
+// mints base64url tokens, whose alphabet includes leading "-"/"_" that the
+// identifier rule rejects — which would refuse custody for ~1 in 32 perfectly
+// valid uploads. The boundary enforces the token's charset and a size cap;
+// entropy policy belongs to the minting store, not here.
+function cleanUploadToken(value) {
+  const normalized = String(value || "").trim();
+  if (!/^[A-Za-z0-9_-]{1,512}$/.test(normalized)) {
+    throw httpError("uploadToken is invalid", "api.upload_token_invalid", 400);
   }
   return normalized;
 }

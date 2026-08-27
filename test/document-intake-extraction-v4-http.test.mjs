@@ -119,6 +119,48 @@ test("V4-API-001 exposes an authenticated versioned API without proxying upload 
   }
 });
 
+// An upload token is a bearer secret, not an identifier: the store mints
+// base64url tokens, and ~1 in 32 begins with "-" or "_", which the identifier
+// rule rejects. The commit route must accept those under the token's own
+// contract and still refuse tokens outside the base64url alphabet.
+test("custody commit accepts leading URL-safe base64url tokens and rejects foreign charsets", async () => {
+  const passedTokens = [];
+  const service = {
+    createIntake: async () => ({}),
+    commitBatchCustody: async () => ({}),
+    getIntake: async () => ({ intakeId: "intake-1", tenantId: "tenant-1", matterId: "matter-1" }),
+    commitFileCustody: async ({ uploadToken }) => {
+      passedTokens.push(uploadToken);
+      return { sha256: "a".repeat(64), bytes: 1 };
+    },
+  };
+  const handler = createDocumentIntakeExtractionHttpHandler({
+    service,
+    authenticate: async () => ({ subject: "user-1", tenantId: "tenant-1" }),
+  });
+  const server = http.createServer(handler);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  try {
+    for (const token of [`-${"a".repeat(42)}`, `_${"b".repeat(42)}`]) {
+      const commit = await api(baseUrl, "/v1/intakes/intake-1/files/file-1/custody-commit", {
+        method: "POST",
+        body: { uploadToken: token },
+      });
+      assert.equal(commit.response.status, 200, `token ${token.slice(0, 2)}… must be accepted`);
+    }
+    assert.deepEqual(passedTokens, [`-${"a".repeat(42)}`, `_${"b".repeat(42)}`], "tokens reach the service verbatim");
+    const foreign = await api(baseUrl, "/v1/intakes/intake-1/files/file-1/custody-commit", {
+      method: "POST",
+      body: { uploadToken: `bad!token${"a".repeat(40)}` },
+    });
+    assert.equal(foreign.response.status, 400);
+    assert.equal(foreign.body.error.code, "api.upload_token_invalid");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 async function api(baseUrl, pathname, { method = "GET", token = "", headers = {}, body, rawBody } = {}) {
   const requestHeaders = { ...headers };
   if (token) requestHeaders.Authorization = `Bearer ${token}`;

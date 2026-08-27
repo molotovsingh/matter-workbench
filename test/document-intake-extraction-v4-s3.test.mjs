@@ -159,6 +159,69 @@ test("S3 custody fails closed on wrong scope, size drift, corrupt existing blob 
   }), { code: "object.staging_version_missing" });
 });
 
+// Two files with identical bytes committed concurrently race to promote the
+// same content-addressed blob: the loser's conditional copy is rejected by the
+// bucket (PreconditionFailed under If-None-Match). Custody must treat that as
+// reuse of the winner's verified blob — the exact race a user hits by
+// uploading duplicate copies of one document in a single batch.
+test("custody survives losing the concurrent blob-promotion race and fails closed when the copy failure left no blob", async () => {
+  const objects = new Map();
+  let tokenSequence = 0;
+  const payload = Buffer.from("identical duplicate bytes");
+  const digest = sha256(payload);
+  const blobKey = `v4/blobs/sha256/${digest.slice(0, 2)}/${digest}`;
+  const base = fakeS3Client(objects, []);
+  let concurrentWinnerDeposits = false;
+  const racingClient = {
+    ...base,
+    async copyObject(input) {
+      // The winner completed between this committer's head (miss) and its
+      // conditional copy: the bucket refuses the copy, and the blob exists.
+      if (concurrentWinnerDeposits) {
+        objects.set(blobKey, { body: Buffer.from(payload), metadata: { sha256: digest }, versionId: "winner-v1" });
+      }
+      throw Object.assign(new Error("At least one of the pre-conditions you specified did not hold"), {
+        code: "PreconditionFailed",
+        statusCode: 412,
+      });
+    },
+  };
+  const store = new S3CompatibleObjectStore({
+    bucket: "private",
+    keyPrefix: "v4",
+    region: "ap-south-1",
+    client: racingClient,
+    presigner: { presignPut: async ({ key }) => ({ url: `https://upload.invalid/${key}`, requiredHeaders: {} }) },
+    authorizationStore: new MemoryUploadAuthorizationStore(),
+    clock: () => new Date("2026-08-24T12:00:00.000Z"),
+    tokenFactory: () => `secret-${String(++tokenSequence).padStart(58, "x")}`,
+  });
+
+  // A copy failure that left no blob behind is a real promotion failure.
+  const failed = await store.createUploadAuthorization({
+    tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-1", expectedBytes: payload.length,
+    expiresAt: new Date("2026-08-24T12:05:00.000Z"),
+  });
+  objects.set(failed.stagedObjectKey, { body: payload, metadata: {}, versionId: "staged-v1" });
+  await assert.rejects(() => store.commitAuthorizedUpload({
+    token: failed.token, tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-1",
+  }), { code: "PreconditionFailed" });
+
+  // Losing to a concurrent winner is custody success with the winner's blob.
+  concurrentWinnerDeposits = true;
+  const loser = await store.createUploadAuthorization({
+    tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-2", expectedBytes: payload.length,
+    expiresAt: new Date("2026-08-24T12:05:00.000Z"),
+  });
+  objects.set(loser.stagedObjectKey, { body: payload, metadata: {}, versionId: "staged-v2" });
+  const committed = await store.commitAuthorizedUpload({
+    token: loser.token, tenantId: "tenant-1", intakeId: "intake-1", fileId: "file-2",
+  });
+  assert.equal(committed.sha256, digest);
+  assert.equal(committed.objectReused, true, "the loser reuses the winner's verified blob");
+  assert.equal(objects.has(loser.stagedObjectKey), false, "staging is still cleaned up");
+});
+
 function fakeS3Client(objects, calls) {
   return {
     async headBucket(input) { calls.push({ method: "headBucket", ...input }); return {}; },

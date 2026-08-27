@@ -130,21 +130,32 @@ export class S3CompatibleObjectStore {
       await verifyCommittedBlob(existing, { expectedBytes: streamed.bytes, expectedSha256: streamed.sha256 });
       objectReused = true;
     } else {
-      await this.client.copyObject({
-        sourceBucket: this.bucket,
-        sourceKey: record.stagedObjectKey,
-        sourceVersionId,
-        destinationBucket: this.bucket,
-        destinationKey: blobObjectKey,
-        metadata: {
-          sha256: streamed.sha256,
-          custody: "verified",
-          source_bytes: String(streamed.bytes),
-        },
-        metadataDirective: "REPLACE",
-        serverSideEncryption: this.serverSideEncryption,
-        destinationIfNoneMatch: "*",
-      });
+      try {
+        await this.client.copyObject({
+          sourceBucket: this.bucket,
+          sourceKey: record.stagedObjectKey,
+          sourceVersionId,
+          destinationBucket: this.bucket,
+          destinationKey: blobObjectKey,
+          metadata: {
+            sha256: streamed.sha256,
+            custody: "verified",
+            source_bytes: String(streamed.bytes),
+          },
+          metadataDirective: "REPLACE",
+          serverSideEncryption: this.serverSideEncryption,
+          destinationIfNoneMatch: "*",
+        });
+      } catch (error) {
+        // Two files with identical bytes committed concurrently race to
+        // promote the same content-addressed key; the loser's conditional
+        // copy is rejected (S3 PreconditionFailed under IfNoneMatch). That is
+        // custody success, not failure — the winner's blob is verified below
+        // exactly as a pre-existing one would be. Anything that left no blob
+        // behind is a real promotion failure and is rethrown.
+        if (!(await this.headOptional(blobObjectKey))) throw error;
+        objectReused = true;
+      }
       const committed = await this.headRequired(blobObjectKey, "object.blob_promotion_failed");
       await verifyCommittedBlob(committed, { expectedBytes: streamed.bytes, expectedSha256: streamed.sha256 });
     }
