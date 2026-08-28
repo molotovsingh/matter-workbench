@@ -24,7 +24,17 @@ export function createBlobCache({
 } = {}) {
   if (!root) throw new Error("blob cache requires a root");
   const cacheRoot = path.resolve(root);
-  const entryPath = (sha256) => path.join(cacheRoot, sha256.slice(0, 2), sha256);
+  // The key is the whole path: validate it here rather than trusting every
+  // caller, so a malformed digest can never address a file outside the cache.
+  const entryPath = (sha256) => {
+    const digest = String(sha256 || "");
+    if (!/^[a-f0-9]{64}$/.test(digest)) {
+      const error = new Error("blob cache keys must be lowercase sha256 digests");
+      error.code = "blob_cache.key_invalid";
+      throw error;
+    }
+    return path.join(cacheRoot, digest.slice(0, 2), digest);
+  };
   const limit = Number(maximumBytes) > 0 ? Number(maximumBytes) : 0;
   // Single-flight publish: many lanes finish the same first download at once.
   const publishing = new Map();
@@ -37,8 +47,9 @@ export function createBlobCache({
      * null. Any error (missing, unreadable, racing eviction) is a plain miss.
      */
     async open(sha256) {
-      const file = entryPath(sha256);
+      let file;
       try {
+        file = entryPath(sha256);
         const details = await stat(file);
         if (!details.isFile() || details.size === 0) return null;
         // Touch for recency-ordered eviction; failure to touch is harmless.
@@ -51,6 +62,7 @@ export function createBlobCache({
 
     /** Copy an already-verified file into the cache, atomically. */
     async publish(sha256, verifiedPath) {
+      try { entryPath(sha256); } catch { return; }
       if (publishing.has(sha256)) return publishing.get(sha256);
       const task = (async () => {
         const file = entryPath(sha256);
@@ -68,6 +80,28 @@ export function createBlobCache({
       })().finally(() => publishing.delete(sha256));
       publishing.set(sha256, task);
       return task;
+    },
+
+    /**
+     * Give disk back to real work. The cache shares a filesystem with the
+     * scratch space, and its size limit knows nothing about actual disk
+     * pressure — so when a work unit cannot reserve space, the cache must
+     * yield rather than let purely optional data starve the pipeline.
+     * Returns the bytes actually freed.
+     */
+    async reclaim(bytesNeeded = 0) {
+      const wanted = Number(bytesNeeded) > 0 ? Number(bytesNeeded) : Infinity;
+      const entries = await listEntries();
+      entries.sort((a, b) => a.usedAtMs - b.usedAtMs);
+      let freed = 0;
+      for (const entry of entries) {
+        if (freed >= wanted) break;
+        try {
+          await rm(entry.file, { force: true });
+          freed += entry.bytes;
+        } catch { /* another worker got there first */ }
+      }
+      return freed;
     },
 
     async usage() {
