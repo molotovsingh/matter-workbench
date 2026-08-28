@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { PIPELINE_VERSIONS } from "../packages/extraction-contracts/index.mjs";
 import { createDocumentIntakeExtractionV4Composition } from "../services/document-intake-extraction/composition/create-v4-composition.mjs";
+import { buildAdmissionController, buildProviderSuite } from "../services/document-intake-extraction/integration/local-composition.mjs";
 import { PostgresDocumentIntakeExtractionService } from "../services/document-intake-extraction/postgres/postgres-document-intake-extraction-service.mjs";
 import { PostgresDocumentProcessingWorker } from "../workers/document-processing/postgres-document-processing-worker.mjs";
 import { PostgresDocumentRangeWorker } from "../workers/document-processing/postgres-document-range-worker.mjs";
@@ -123,4 +124,26 @@ test("composition routes trusted native-text pages to the free local lane and ev
   });
   assert.equal(composition.capabilityRouter.version, PIPELINE_VERSIONS.routingPolicy);
   assert.equal(withoutNative.capabilityRouter.version, composition.capabilityRouter.version, "the routing policy version must not depend on the native lane being configured");
+});
+
+// Both load-evidence runs pinned the drain bottleneck on the middle repair
+// rung's hard cap (2 concurrent / 2 ops/s) once heavy spill arrived. OCR
+// rungs now share the repair-lane budget — slow-start/AIMD keeps them
+// near-idle until spill actually happens — while the apex rung keeps a
+// deliberate cost cap: it is the most expensive read in the system.
+test("repair-rung admission scales OCR rungs with the repair-lane budget and cost-caps the apex", () => {
+  const suite = buildProviderSuite({
+    geminiKey: "g".repeat(24),
+    mistralKey: "m".repeat(24),
+    openaiKey: "o".repeat(24),
+  });
+  const controller = buildAdmissionController({ suite, lanes: 24, minLanes: 2, repairLanes: 8, rangePages: 8, admissionRate: 40 });
+  const snap = (provider) => controller.snapshot(
+    suite.repairLadder.find((rung) => rung.capability.provider === provider).capability,
+  );
+  assert.equal(snap("gemini").maximumConcurrent, 8, "first rung keeps the repair-lane budget");
+  assert.equal(snap("mistral").maximumConcurrent, 8, "middle OCR rung is no longer pinned to 2");
+  assert.equal(snap("mistral").pageOperationsPerSecond, 10, "middle rung shares the admission-rate quarter");
+  assert.equal(snap("openai").maximumConcurrent, 3, "apex rung stays cost-capped");
+  assert.equal(snap("mistral").concurrencyLimit, 1, "rungs still START near-idle; growth is earned");
 });

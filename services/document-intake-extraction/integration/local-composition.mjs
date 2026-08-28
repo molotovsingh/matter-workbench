@@ -211,6 +211,7 @@ export function buildProviderSuite({
       primaryProvider: createMistralOcr41RangeAdapter({ apiKey: mistralKey, ...rangeTimeouts }),
       repairProvider: geminiRepair,
       repairLadder: [geminiRepair, ...(apexProvider ? [apexProvider] : [])],
+      apexProvider,
       nativeProvider,
     };
   }
@@ -219,6 +220,7 @@ export function buildProviderSuite({
     primaryProvider: createGemini37RangeAdapter({ apiKey: geminiKey, ...rangeTimeouts }),
     repairProvider: geminiRepair,
     repairLadder: [geminiRepair, ...(mistralPage ? [mistralPage] : []), ...(apexProvider ? [apexProvider] : [])],
+    apexProvider,
     nativeProvider,
   };
 }
@@ -234,14 +236,27 @@ export function buildAdmissionController({ suite, lanes = 24, minLanes = 2, repa
         pageOperationsPerSecond: admissionRate,
         burstPageOperations: Math.max(rangePages, lanes * rangePages),
       },
-      ...suite.repairLadder.map((rung, index) => ({
-        capability: rung.capability,
-        minimumConcurrent: 1,
-        startConcurrent: 1,
-        maximumConcurrent: index === 0 ? Math.max(2, repairLanes) : 2,
-        pageOperationsPerSecond: index === 0 ? Math.max(2, Math.round(admissionRate / 4)) : 2,
-        burstPageOperations: index === 0 ? Math.max(4, repairLanes * 2) : 4,
-      })),
+      // Repair rungs start near-idle and only grow under sustained spill —
+      // slow-start/AIMD is the dynamic part; these are CEILINGS. Both load
+      // evidence runs showed the middle (Mistral) rung pinned at 2
+      // concurrent / 2 ops/s becoming the drain bottleneck when a
+      // validation-hostile corpus or a primary outage spilled hundreds of
+      // pages (82 admission deferrals on the calm run alone), so OCR rungs
+      // now share the repair-lane budget; throttling is AIMD's job, not a
+      // hard pin's. The apex rung stays deliberately small: it is the most
+      // expensive read in the system and only ever sees pages two OCR rungs
+      // already failed.
+      ...suite.repairLadder.map((rung, index) => {
+        const apex = suite.apexProvider && rung === suite.apexProvider;
+        return {
+          capability: rung.capability,
+          minimumConcurrent: 1,
+          startConcurrent: 1,
+          maximumConcurrent: apex ? 3 : Math.max(index === 0 ? 2 : 4, repairLanes),
+          pageOperationsPerSecond: apex ? 3 : Math.max(index === 0 ? 2 : 4, Math.round(admissionRate / 4)),
+          burstPageOperations: apex ? 6 : Math.max(index === 0 ? 4 : 8, repairLanes * 2),
+        };
+      }),
       ...(suite.nativeProvider ? [{
         capability: suite.nativeProvider.capability,
         minimumConcurrent: 4,
@@ -280,6 +295,10 @@ export function startWorkerFleet({ composition, suite, tenantId, scratchRoot, la
     onOutcome: onOutcome("range"),
   }).run({ signal }));
   suite.repairLadder.forEach((rung, index) => {
+    // Worker lanes must be able to exploit the admission ceilings above:
+    // OCR rungs get the repair-lane budget (idle lanes cost ~nothing — they
+    // park on the idle-poll backoff), the apex rung keeps its cost cap.
+    const apex = suite.apexProvider && rung === suite.apexProvider;
     runs.push(composition.createWorkerLoop({
       worker: composition.createRepairWorker({
         scratchSpace: new WorkerScratchSpace({ root: path.join(scratchRoot, `repair-${index}`) }),
@@ -288,7 +307,7 @@ export function startWorkerFleet({ composition, suite, tenantId, scratchRoot, la
       }),
       tenantId,
       workerIdPrefix: `v4-repair-${index}`,
-      concurrency: index === 0 ? repairLanes : 2,
+      concurrency: apex ? 3 : Math.max(index === 0 ? 2 : 4, repairLanes),
       idlePollMs: 400,
       onOutcome: onOutcome(index === 0 ? "repair" : `rung${index + 1}:${rung.capability.provider}`),
     }).run({ signal }));
