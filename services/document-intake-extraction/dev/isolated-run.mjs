@@ -41,6 +41,7 @@ import { PdfNativeTextInspector } from "../../../workers/document-processing/pdf
 import { createNativeTextPageProvider } from "../../../workers/document-processing/native-text-page-provider.mjs";
 import { createMistralOcr41PageAdapter } from "../providers/mistral-ocr41-adapter.mjs";
 import { PdfPageMaterializer } from "../../../workers/document-processing/pdf-page-materializer.mjs";
+import { createBlobCache } from "../../../workers/document-processing/blob-cache.mjs";
 import { WorkerScratchSpace } from "../../../workers/document-processing/worker-scratch-space.mjs";
 import {
   MISTRAL_OCR41_RANGE_CAPABILITY,
@@ -73,6 +74,9 @@ async function main() {
   log(`found ${files.length} PDF file(s), ${formatBytes(files.reduce((sum, file) => sum + file.expectedBytes, 0))} total`);
 
   const homeRoot = path.join(os.homedir(), ".mwb-v4-isolated");
+  // Shared across the inspector and every worker: each range work unit
+  // otherwise re-fetches the whole source blob (32x measured amplification).
+  const blobCache = createBlobCache({ root: path.join(homeRoot, "scratch", "blob-cache") });
   const adminPool = new pg.Pool({ connectionString: options.dbAdminUrl, max: 3 });
   let runtimePool = null;
   const abort = new AbortController();
@@ -92,7 +96,7 @@ async function main() {
     runtimePool = new pg.Pool({ connectionString: runtimeUrl, max: Math.max(8, options.lanes + options.repairLanes + 4) });
 
     const localS3 = createLocalDiskS3({ root: path.join(homeRoot, "object-store") });
-    const inspectorScratch = new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "inspector") });
+    const inspectorScratch = new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "inspector"), blobCache });
     const { primaryProvider, repairProvider, ladder = null, providerLabel } = buildProviders(options);
     const repairLadder = ladder && ladder.length ? ladder : [repairProvider];
     const nativeProvider = options.native ? createNativeTextPageProvider() : null;
@@ -428,7 +432,7 @@ function startWorkers({ composition, options, homeRoot, signal, dashboard = null
   };
   const rangeLoop = composition.createWorkerLoop({
     worker: composition.createRangeWorker({
-      scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "range") }),
+      scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "range"), blobCache }),
       pageMaterializer,
       maximumPages: options.rangePages,
     }),
@@ -444,7 +448,7 @@ function startWorkers({ composition, options, homeRoot, signal, dashboard = null
     const label = index === 0 ? "repair" : `rung${index + 1}:${rung?.capability?.provider || "?"}`;
     const loop = composition.createWorkerLoop({
       worker: composition.createRepairWorker({
-        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", `repair-${index}`) }),
+        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", `repair-${index}`), blobCache }),
         pageMaterializer,
         ...(rung ? { provider: rung } : {}),
       }),
@@ -459,7 +463,7 @@ function startWorkers({ composition, options, homeRoot, signal, dashboard = null
   if (nativeProvider) {
     const nativeLoop = composition.createWorkerLoop({
       worker: composition.createRepairWorker({
-        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "native") }),
+        scratchSpace: new WorkerScratchSpace({ root: path.join(homeRoot, "scratch", "native"), blobCache }),
         pageMaterializer,
         provider: nativeProvider,
       }),
