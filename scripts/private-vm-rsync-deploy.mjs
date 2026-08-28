@@ -13,10 +13,11 @@ const RSYNC_EXCLUDES = [
   "react-dist/",
   ".local/",
   "codex_review/",
-  "packages/extraction-contracts/",
-  "services/document-intake-extraction/",
-  "workers/document-processing/",
   "Alignment Interview.md",
+  // V4 executable source ships so MWB_V4_INTAKE=1 can mount it; its internal
+  // architecture/acceptance/operations docs do not, because they carry
+  // infrastructure detail the beta VM has no reason to hold. Isolation is now
+  // runtime-only (V4-ISO-001): flag off, nothing loads.
   "docs/architecture/document-intake-extraction-v4*",
   "docs/acceptance/document-intake-extraction-v4*",
   "docs/operations/document-intake-extraction-v4*",
