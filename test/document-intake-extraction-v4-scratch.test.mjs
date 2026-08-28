@@ -185,3 +185,107 @@ test("blob cache evicts least-recently-used entries once over its size limit", a
     await rm(root, { recursive: true, force: true });
   }
 });
+
+// Between opening the source and consuming it, materializeBlob can throw on
+// size ceilings, disk capacity, mkdir or exclusive create — and by then the
+// source is an open handle (a local fd for a cache hit, a socket for a
+// download). Leaking it on every failure exhausts descriptors, and the
+// failure that repeats most is disk pressure, which is caused by the cache.
+test("materializeBlob releases the source handle when it fails before consuming it", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-fd-"));
+  try {
+    const payload = Buffer.from("%PDF-1.4 oversized for this allocation");
+    const sha256 = createHash("sha256").update(payload).digest("hex");
+    let destroyed = 0;
+    const trackedBody = () => {
+      const iterator = (async function* () { yield payload; })();
+      return { ...iterator, [Symbol.asyncIterator]: () => iterator, destroy() { destroyed += 1; } };
+    };
+    const objectStore = {
+      async openBlobStream() { return { body: trackedBody(), contentLength: payload.length, sha256 }; },
+    };
+
+    // Fails the scratch ceiling, after the source is already open.
+    const tiny = new WorkerScratchSpace({ root: path.join(root, "tiny"), maximumTaskBytes: 4 });
+    await assert.rejects(
+      () => tiny.withTaskScratch({ taskId: "too-big" }, (allocation) =>
+        tiny.materializeBlob({ allocation, objectStore, blobReference: { sha256 } })),
+      (error) => error.code === "scratch.task_limit_exceeded",
+    );
+    assert.equal(destroyed, 1, "the unconsumed source was released, not leaked");
+
+    // Fails the disk-capacity reservation, the failure disk pressure repeats.
+    const starved = new WorkerScratchSpace({
+      root: path.join(root, "starved"),
+      // Enough free space for the allocation itself, not for the blob — so the
+      // failure lands inside materializeBlob, after the source is open.
+      statfsImpl: async () => ({ bavail: 5, bsize: 1 }),
+      minimumFreeBytes: 0,
+    });
+    await assert.rejects(
+      () => starved.withTaskScratch({ taskId: "no-disk" }, (allocation) =>
+        starved.materializeBlob({ allocation, objectStore, blobReference: { sha256 } })),
+      (error) => error.code === "scratch.capacity_exhausted",
+    );
+    assert.equal(destroyed, 2, "capacity failures release the source too");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// The cache lives on the filesystem the scratch space must keep free, and its
+// byte limit knows nothing about real disk pressure. Without reclaim, a full
+// cache starves the very work units it exists to accelerate.
+test("a full blob cache yields disk back instead of starving work units", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-reclaim-"));
+  try {
+    const blobCache = createBlobCache({ root: path.join(root, "cache") });
+    const staleDigests = [];
+    // Seed the cache with entries the pipeline no longer needs.
+    for (let index = 0; index < 3; index += 1) {
+      const stale = Buffer.alloc(64, 65 + index);
+      const staleSha = createHash("sha256").update(stale).digest("hex");
+      staleDigests.push(staleSha);
+      const seeding = new WorkerScratchSpace({ root: path.join(root, "seed"), blobCache });
+      await seeding.withTaskScratch({ taskId: `seed-${index}` }, (allocation) =>
+        seeding.materializeBlob({
+          allocation,
+          objectStore: { async openBlobStream() { return { body: (async function* () { yield stale; })(), contentLength: stale.length, sha256: staleSha }; } },
+          blobReference: { sha256: staleSha },
+        }));
+    }
+    assert.equal((await blobCache.usage()).entries, 3);
+
+    // Disk is exhausted until the cache gives space back.
+    let freeBytes = 0;
+    const scratch = new WorkerScratchSpace({
+      root: path.join(root, "work"),
+      blobCache,
+      minimumFreeBytes: 0,
+      statfsImpl: async () => ({ bavail: freeBytes, bsize: 1 }),
+    });
+    const payload = Buffer.from("%PDF-1.4 the work that must not be starved");
+    const sha256 = createHash("sha256").update(payload).digest("hex");
+    const objectStore = {
+      async openBlobStream() { return { body: (async function* () { yield payload; })(), contentLength: payload.length, sha256 }; },
+    };
+    // Reclaiming frees the seeded entries, which the fake statfs then reflects.
+    const originalReclaim = blobCache.reclaim;
+    let reclaimCalls = 0;
+    const reclaiming = async (bytes) => {
+      reclaimCalls += 1;
+      const freed = await originalReclaim(bytes);
+      freeBytes += freed;
+      return freed;
+    };
+    scratch.blobCache = { ...blobCache, reclaim: reclaiming, open: blobCache.open, publish: blobCache.publish };
+
+    const materialized = await scratch.withTaskScratch({ taskId: "starved-work" }, (allocation) =>
+      scratch.materializeBlob({ allocation, objectStore, blobReference: { sha256 } }));
+    assert.equal(materialized.sha256, sha256, "work proceeds after the cache yields disk");
+    assert.equal(reclaimCalls, 1, "the capacity failure asked the cache to yield");
+    assert.equal(await blobCache.open(staleDigests[0]), null, "the least-recently-used entry was surrendered");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

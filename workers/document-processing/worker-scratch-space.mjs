@@ -79,15 +79,30 @@ export class WorkerScratchSpace {
     // fresh download: the digest is recomputed from the bytes actually used.
     const cached = this.blobCache ? await this.blobCache.open(expectedSha256) : null;
     const opened = cached || await objectStore.openBlobStream(blobReference);
-    const contentLength = positiveInteger(opened.contentLength, "blob contentLength");
-    if (contentLength > allocation.maximumBytes || contentLength > this.maximumTaskBytes) {
-      throw scratchError("blob exceeds configured scratch limit", "scratch.task_limit_exceeded");
+    // Everything between opening the source and the consuming loop can throw
+    // (size ceilings, disk capacity, mkdir, exclusive create). The source is an
+    // open handle by then — a local file descriptor for a cache hit, a socket
+    // for a download — so any early exit must release it explicitly or the
+    // descriptor survives until process exit. That matters most under disk
+    // pressure, where the same throw repeats for every work unit.
+    let target;
+    let temporary;
+    let handle;
+    try {
+      const contentLength = positiveInteger(opened.contentLength, "blob contentLength");
+      if (contentLength > allocation.maximumBytes || contentLength > this.maximumTaskBytes) {
+        throw scratchError("blob exceeds configured scratch limit", "scratch.task_limit_exceeded");
+      }
+      await this.assertScratchCapacity(contentLength);
+      target = allocation.pathFor(fileName);
+      temporary = allocation.pathFor(`${fileName}.${randomUUID()}.partial`);
+      await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+      handle = await open(temporary, "wx", 0o600);
+    } catch (error) {
+      releaseStream(opened.body);
+      throw error;
     }
-    await this.assertCapacity(contentLength);
-    const target = allocation.pathFor(fileName);
-    const temporary = allocation.pathFor(`${fileName}.${randomUUID()}.partial`);
-    await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-    const handle = await open(temporary, "wx", 0o600);
+    const contentLength = positiveInteger(opened.contentLength, "blob contentLength");
     const hash = createHash("sha256");
     let bytes = 0;
     try {
@@ -133,6 +148,25 @@ export class WorkerScratchSpace {
       removed += 1;
     }
     return removed;
+  }
+
+  /**
+   * Disk capacity for real work, with the cache treated as reclaimable rather
+   * than sacred. The cache lives on the same filesystem the scratch space must
+   * keep free, and its byte limit is independent of actual disk pressure — so
+   * without this, a full cache can starve the very work units it exists to
+   * speed up, and every one of them fails with capacity_exhausted while
+   * gigabytes of purely optional data sit on disk.
+   */
+  async assertScratchCapacity(requestedBytes) {
+    try {
+      return await this.assertCapacity(requestedBytes);
+    } catch (error) {
+      if (error?.code !== "scratch.capacity_exhausted" || !this.blobCache?.reclaim) throw error;
+      const freed = await this.blobCache.reclaim(requestedBytes + this.minimumFreeBytes);
+      if (!freed) throw error;
+      return this.assertCapacity(requestedBytes);
+    }
   }
 
   async assertCapacity(requestedBytes) {
@@ -204,6 +238,16 @@ function nonNegativeInteger(value, field) {
   const number = Number(value);
   if (!Number.isSafeInteger(number) || number < 0) throw scratchError(`${field} must be a non-negative integer`, "scratch.integer_invalid");
   return number;
+}
+
+// Release a source handle that will never be consumed: a local read stream or
+// a response body. Best-effort by design — this runs on an error path.
+function releaseStream(body) {
+  try {
+    if (typeof body?.destroy === "function") body.destroy();
+    else if (typeof body?.cancel === "function") body.cancel().catch(() => {});
+    else if (typeof body?.return === "function") body.return();
+  } catch { /* the caller is already failing; disposal must not mask it */ }
 }
 
 function scratchError(message, code) {
