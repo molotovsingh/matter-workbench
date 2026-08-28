@@ -267,6 +267,8 @@ function parseArguments(argv) {
     else if (flag === "--no-apex") options.apex = false;
     else if (flag === "--no-native") options.native = false;
     else if (flag === "--watch-port") options.watchPort = requireInteger(next(), "--watch-port", 1024, 65535);
+    else if (flag === "--range-timeout-ms") options.rangeTimeoutMs = requireInteger(next(), "--range-timeout-ms", 5_000, 600_000);
+    else if (flag === "--range-first-timeout-ms") options.rangeFirstAttemptTimeoutMs = requireInteger(next(), "--range-first-timeout-ms", 5_000, 600_000);
     else fail(`unknown option ${flag}`);
   }
   if (options.minLanes > options.lanes) fail("--min-lanes must not exceed --lanes (the maximum lane pool)");
@@ -356,6 +358,10 @@ function buildProviders(options) {
       native: false,
       gptInputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_INPUT_USD_PER_M || 1.25),
       gptOutputUsdPerMillionTokens: Number(process.env.GPT54_REPAIR_OUTPUT_USD_PER_M || 7.5),
+      // Per-corpus ceiling: dense archival scans need more than the office-doc
+      // sized defaults (see the load-certification doc's storm-run findings).
+      rangeTimeoutMs: options.rangeTimeoutMs,
+      rangeFirstAttemptTimeoutMs: options.rangeFirstAttemptTimeoutMs,
     });
   } catch (error) {
     fail(`${error.message} (or use --mock-providers)`);
