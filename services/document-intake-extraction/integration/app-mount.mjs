@@ -42,6 +42,7 @@ import { runDocumentIntakeExtractionMigrations } from "../postgres/migrate.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../postgres/runtime-role-sql.mjs";
 import { PostgresUploadAuthorizationStore } from "../postgres/postgres-upload-authorization-store.mjs";
 import { BoundedDocumentWorkerLoop } from "../../../workers/document-processing/bounded-worker-loop.mjs";
+import { createBlobCache } from "../../../workers/document-processing/blob-cache.mjs";
 import { PdfNativeTextInspector } from "../../../workers/document-processing/pdf-native-text-inspector.mjs";
 import { WorkerScratchSpace } from "../../../workers/document-processing/worker-scratch-space.mjs";
 import {
@@ -124,7 +125,11 @@ export async function createV4IntakeMount({
   const objectStoreMode = spaces ? "s3" : "local-disk";
   const dataRegion = String(env.MWB_V4_DATA_REGION || (spaces ? env.MWB_V4_S3_REGION : "local-disk"));
   const storePrefix = `${prefix}-store`;
-  const inspectorScratch = new WorkerScratchSpace({ root: path.join(scratchRoot, "inspector") });
+  // Same cache directory the worker fleet uses: the inspector materializes
+  // each blob first during custody commit, so it primes the cache that every
+  // subsequent range work unit for that document then reads from.
+  const blobCache = createBlobCache({ root: path.join(scratchRoot, "blob-cache") });
+  const inspectorScratch = new WorkerScratchSpace({ root: path.join(scratchRoot, "inspector"), blobCache });
   // The endpoint below validates staged writes against real authorizations,
   // matching production's presigned-URL trust model instead of self-consistency.
   const uploadAuthorizationStore = new PostgresUploadAuthorizationStore({ pool: effectivePool });
@@ -364,7 +369,7 @@ async function assertClaimPrivileges(pool, runtimeRoleName) {
 
 function headerValue(value) {
   const normalized = Array.isArray(value) ? value[0] : value;
-  return String(normalized || "").replace(/[\r\n ]/g, "").trim();
+  return String(normalized || "").replace(/[\r\n\u0000]/g, "").trim();
 }
 
 function sendStoreError(response, status, code, message) {

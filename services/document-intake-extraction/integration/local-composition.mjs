@@ -22,6 +22,7 @@ import { createMistralOcr41PageAdapter } from "../providers/mistral-ocr41-adapte
 import { createMistralOcr41RangeAdapter } from "../providers/mistral-ocr41-range-adapter.mjs";
 import { createNativeTextPageProvider } from "../../../workers/document-processing/native-text-page-provider.mjs";
 import { PdfPageMaterializer } from "../../../workers/document-processing/pdf-page-materializer.mjs";
+import { createBlobCache } from "../../../workers/document-processing/blob-cache.mjs";
 import { WorkerScratchSpace } from "../../../workers/document-processing/worker-scratch-space.mjs";
 
 const execFilePromise = promisify(execFileCallback);
@@ -281,10 +282,14 @@ export function suiteProviderStages(suite) {
 // free native lane. Returns the run promises; abort the signal to stop.
 export function startWorkerFleet({ composition, suite, tenantId, scratchRoot, lanes = 24, repairLanes = 4, rangePages = 8, signal, onOutcome = () => () => {} }) {
   const pageMaterializer = new PdfPageMaterializer();
+  // One cache for the whole fleet: a document fans out into many work units
+  // that all need the same source blob, and against real object storage
+  // re-fetching it per unit is 32x byte amplification.
+  const blobCache = createBlobCache({ root: path.join(scratchRoot, "blob-cache") });
   const runs = [];
   runs.push(composition.createWorkerLoop({
     worker: composition.createRangeWorker({
-      scratchSpace: new WorkerScratchSpace({ root: path.join(scratchRoot, "range") }),
+      scratchSpace: new WorkerScratchSpace({ root: path.join(scratchRoot, "range"), blobCache }),
       pageMaterializer,
       maximumPages: rangePages,
     }),
@@ -301,7 +306,7 @@ export function startWorkerFleet({ composition, suite, tenantId, scratchRoot, la
     const apex = suite.apexProvider && rung === suite.apexProvider;
     runs.push(composition.createWorkerLoop({
       worker: composition.createRepairWorker({
-        scratchSpace: new WorkerScratchSpace({ root: path.join(scratchRoot, `repair-${index}`) }),
+        scratchSpace: new WorkerScratchSpace({ root: path.join(scratchRoot, `repair-${index}`), blobCache }),
         pageMaterializer,
         provider: rung,
       }),
@@ -315,7 +320,7 @@ export function startWorkerFleet({ composition, suite, tenantId, scratchRoot, la
   if (suite.nativeProvider) {
     runs.push(composition.createWorkerLoop({
       worker: composition.createRepairWorker({
-        scratchSpace: new WorkerScratchSpace({ root: path.join(scratchRoot, "native") }),
+        scratchSpace: new WorkerScratchSpace({ root: path.join(scratchRoot, "native"), blobCache }),
         pageMaterializer,
         provider: suite.nativeProvider,
       }),
