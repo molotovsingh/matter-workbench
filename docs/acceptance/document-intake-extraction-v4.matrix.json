@@ -1,0 +1,262 @@
+{
+  "schemaVersion": "document-intake-extraction.acceptance-matrix/v1",
+  "asOf": "2026-08-24",
+  "evidenceCommands": {
+    "isolated": "node --test test/document-intake-extraction-v4*.test.mjs",
+    "postgres": "MWB_POSTGRES_TEST_ADMIN_URL=<disposable-admin-url> node --test integration-test/document-intake-extraction-v4.postgres.mjs"
+  },
+  "statusDefinitions": {
+    "automated": "Implemented in the isolated vertical slice and covered by executable evidence.",
+    "pending_evidence": "Required before production cutover but not yet claimed or satisfied."
+  },
+  "gates": [
+    {
+      "id": "V4-ISO-001",
+      "category": "isolation",
+      "status": "automated",
+      "requirement": "V4 source has no dependency on production routes, legacy extraction, React, or runtime processing services; production has exactly one sanctioned V4 caller (server.mjs importing integration/app-mount.mjs dynamically behind MWB_V4_INTAKE=1, off by default), and the mount refuses to build without that flag.",
+      "evidence": [
+        "test/document-intake-extraction-v4-isolation.test.mjs",
+        "test/document-intake-extraction-v4-composition.test.mjs",
+        "test/document-intake-extraction-v4-app-mount.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-DEPLOY-001",
+      "category": "isolation",
+      "status": "automated",
+      "requirement": "Private beta rsync deployment explicitly excludes all V4 executable directories.",
+      "evidence": [
+        "test/document-intake-extraction-v4-isolation.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-CONTRACT-001",
+      "category": "contracts",
+      "status": "automated",
+      "requirement": "Commands, results, events, work units, costs, and provider outputs use explicit v1 schema versions.",
+      "evidence": [
+        "test/document-intake-extraction-v4-contracts.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-API-001",
+      "category": "integration",
+      "status": "automated",
+      "requirement": "An authenticated versioned HTTP boundary creates and reads intakes/results, rejects document-byte proxy uploads, and fails closed across tenants.",
+      "evidence": [
+        "test/document-intake-extraction-v4-http.test.mjs",
+        "test/document-intake-extraction-v4-server.test.mjs",
+        "test/document-intake-extraction-v4-service-readiness.test.mjs",
+        "test/document-intake-extraction-v4-postgres-service.test.mjs",
+        "test/document-intake-extraction-v4-composition.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-OBJECT-001",
+      "category": "custody",
+      "status": "automated",
+      "requirement": "The S3-compatible boundary issues short-lived regional direct-upload authorization, hashes an exact staging version, promotes it with create-only intent, checkpoints before cleanup, suppresses duplicate storage, and bounds in-memory reads.",
+      "evidence": [
+        "test/document-intake-extraction-v4-s3.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-CUSTODY-001",
+      "category": "custody",
+      "status": "automated",
+      "requirement": "Document bytes transfer directly to an immutable object-store adapter and are committed only after server-side size and SHA-256 verification.",
+      "evidence": [
+        "test/document-intake-extraction-v4.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-DEDUP-001",
+      "category": "custody",
+      "status": "automated",
+      "requirement": "Exact duplicate bytes reuse one content-addressed blob and one single-flight page computation while preserving each logical document.",
+      "evidence": [
+        "test/document-intake-extraction-v4.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-WORK-001",
+      "category": "resilience",
+      "status": "automated",
+      "requirement": "Page work is durable, leased, ownership-fenced, restartable, and does not repeat completed provider work.",
+      "evidence": [
+        "test/document-intake-extraction-v4.test.mjs",
+        "test/document-intake-extraction-v4-worker.test.mjs",
+        "test/document-intake-extraction-v4-range-worker.test.mjs",
+        "test/document-intake-extraction-v4-worker-loop.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-PROVIDER-001",
+      "category": "routing",
+      "status": "automated",
+      "requirement": "Provider capability is replaceable, model-pinned, and included in the computation fingerprint.",
+      "evidence": [
+        "test/document-intake-extraction-v4-contracts.test.mjs",
+        "test/document-intake-extraction-v4-providers.test.mjs",
+        "test/document-intake-extraction-v4.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-VALIDATE-001",
+      "category": "quality",
+      "status": "automated",
+      "requirement": "Suspicious provider output atomically queues a fingerprinted selective repair when available and otherwise remains review_required; it is never silently accepted or omitted.",
+      "evidence": [
+        "test/document-intake-extraction-v4.test.mjs",
+        "test/document-intake-extraction-v4-range-worker.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-ASSEMBLY-001",
+      "category": "completeness",
+      "status": "automated",
+      "requirement": "Published versioned extraction results preserve document order and contain one explicit outcome for every source page.",
+      "evidence": [
+        "test/document-intake-extraction-v4.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-EVIDENCE-001",
+      "category": "observability",
+      "status": "automated",
+      "requirement": "Every provider attempt records model, fingerprint, latency, usage, billed cost, and outcome; unknown lease/failure billing remains explicit and can only be reconciled once against a referenced billing record.",
+      "evidence": [
+        "test/document-intake-extraction-v4.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-EVENT-001",
+      "category": "integration",
+      "status": "automated",
+      "requirement": "Publication emits one versioned extraction.result.ready event only after batch custody commit.",
+      "evidence": [
+        "test/document-intake-extraction-v4.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-DB-001",
+      "category": "resilience",
+      "status": "automated",
+      "requirement": "An independently migrated PostgreSQL schema owns tenant-isolated custody references, single-flight page work, fenced leases, provider/cost evidence, append-only audit, result versions, capacity requests, and an idempotent outbox without changing legacy tables.",
+      "evidence": [
+        "test/document-intake-extraction-v4-postgres.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-SCRATCH-001",
+      "category": "resilience",
+      "status": "automated",
+      "requirement": "Workers stream custody-verified blobs into private bounded scratch, reserve free disk, prevent path escape, verify SHA-256 again, and clean allocations after success, failure, or abandonment.",
+      "evidence": [
+        "test/document-intake-extraction-v4-scratch.test.mjs"
+      ]
+    },
+    {
+      "id": "V4-SCHEDULE-001",
+      "category": "capacity",
+      "status": "automated",
+      "requirement": "Provider tasks preserve contiguous same-document locality and pinned capabilities, remain bounded by pages/bytes/time, use hierarchical weighted fairness with a bounded small-job lane, and respect provider admission budgets.",
+      "evidence": [
+        "test/document-intake-extraction-v4-scheduling.test.mjs",
+        "test/document-intake-extraction-v4-admission.test.mjs",
+        "test/document-intake-extraction-v4-range-worker.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-OUTBOX-001",
+      "category": "integration",
+      "status": "automated",
+      "requirement": "Ready events use tenant-scoped durable claims, lease-token fencing, receiver idempotency keys, rotatable keyed signatures or bearer auth, bounded exponential retry, and dead-letter outcomes for permanent rejection.",
+      "evidence": [
+        "test/document-intake-extraction-v4-events.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-ETA-001",
+      "category": "performance",
+      "status": "automated",
+      "requirement": "The planner predicts corpus-sensitive work, returns ETA ranges and exceptions, persists live calibration, and creates fenced idempotent worker-capacity requests inside the remaining upload window.",
+      "evidence": [
+        "test/document-intake-extraction-v4-capacity.test.mjs",
+        "test/document-intake-extraction-v4-capacity-persistence.test.mjs",
+        "test/document-intake-extraction-v4-capacity-manager.test.mjs",
+        "test/document-intake-extraction-v4-progress.test.mjs",
+        "integration-test/document-intake-extraction-v4.postgres.mjs"
+      ]
+    },
+    {
+      "id": "V4-LOAD-001",
+      "category": "performance",
+      "status": "pending_evidence",
+      "requirement": "At 500 PDFs, 10,000 pages, and 2 GB under representative concurrent load, post-custody P95 is at most 60 seconds and P99 at most 120 seconds.",
+      "owner": "V4 performance certification",
+      "blocker": "Production-like object storage, PostgreSQL, workers, provider quotas, and agreed concurrent-load distribution are not yet available.",
+      "tooling": [
+        "test/document-intake-extraction-v4-load-certification.test.mjs",
+        "docs/operations/document-intake-extraction-v4-load-certification.md"
+      ]
+    },
+    {
+      "id": "V4-QUALITY-001",
+      "category": "quality",
+      "status": "pending_evidence",
+      "requirement": "The expanded human-adjudicated golden set retains every required legal-critical field and meets the final WER/CER non-inferiority thresholds.",
+      "owner": "V4 quality certification",
+      "blocker": "Final thresholds and the expanded repair/native/difficult-page golden set remain open.",
+      "tooling": [
+        "test/document-intake-extraction-v4-quality-certification.test.mjs",
+        "docs/operations/document-intake-extraction-v4-quality-certification.md"
+      ]
+    },
+    {
+      "id": "V4-QUOTA-001",
+      "category": "capacity",
+      "status": "pending_evidence",
+      "requirement": "Every provider counted toward the SLO demonstrates sustained quota, throttling behavior, and outage recovery at the required workload.",
+      "owner": "Provider capacity certification",
+      "blocker": "Production Mistral workspace and Google billed project/quota ownership are not yet identified.",
+      "tooling": [
+        "test/document-intake-extraction-v4-quota.test.mjs",
+        "docs/operations/document-intake-extraction-v4-provider-capacity.md"
+      ]
+    },
+    {
+      "id": "V4-SECURITY-001",
+      "category": "security",
+      "status": "pending_evidence",
+      "requirement": "Custody, tenant isolation, short-lived upload authorization, encryption, retention, scratch cleanup, event authorization, and audit controls pass review.",
+      "owner": "V4 security review",
+      "blocker": "Production infrastructure and regional/data-retention choices remain open.",
+      "tooling": [
+        "test/document-intake-extraction-v4-security-certification.test.mjs",
+        "docs/operations/document-intake-extraction-v4-security-certification.md"
+      ]
+    },
+    {
+      "id": "V4-CUTOVER-001",
+      "category": "cutover",
+      "status": "pending_evidence",
+      "requirement": "Finite shadow evidence and soak volume pass an explicit go/no-go gate before legacy drain, one-way cutover, and legacy runtime removal.",
+      "owner": "Cutover authority",
+      "blocker": "Minimum shadow/soak volume and all preceding certification evidence remain open.",
+      "tooling": [
+        "test/document-intake-extraction-v4-cutover.test.mjs",
+        "docs/operations/document-intake-extraction-v4-cutover.md"
+      ]
+    }
+  ]
+}

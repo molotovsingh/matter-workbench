@@ -71,6 +71,8 @@ import { createMwListOfDatesRunner } from "./skills/builtins/create_mw_listofdat
 import { createDescribeSourcesRunner } from "./skills/builtins/describe_sources/runner.mjs";
 import { createProceduralPostureDiagnosisRunner } from "./skills/builtins/procedural_posture_diagnosis/runner.mjs";
 import { createMatterStoryRunner } from "./skills/builtins/the_story/runner.mjs";
+import { usesRuntimeDbStorage } from "./routes/route-utils.mjs";
+import { createV4ExtractionImportService } from "./services/v4-extraction-import-service.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
 import {
@@ -489,6 +491,49 @@ export async function createWorkbenchServer(options = {}) {
     workspaceService,
   };
 
+  // V4 document intake/extraction stays unmounted unless explicitly enabled:
+  // the import itself is gated so deployments that exclude V4 source (and
+  // every default run) never load it. See V4-ISO-001 / V4-DEPLOY-001.
+  // A deployment that excludes V4 source (V4-DEPLOY-001) but still carries
+  // the flag must lose V4 only — never the whole workbench — so a failed load
+  // degrades loudly instead of failing the server's boot.
+  let v4IntakeMount = null;
+  if (env.MWB_V4_INTAKE === "1") {
+    try {
+      const { createV4IntakeMount } = await import("./services/document-intake-extraction/integration/app-mount.mjs");
+      // Bridge V4 extraction results into the legacy matter record: ready
+      // results land as cached extract-stage output, so preparation skips its
+      // own slow OCR for those files. Plain JSON crosses this seam — the
+      // import service never touches V4 code and the mount never touches
+      // legacy code. Filesystem storage mode only for now; in postgres mode
+      // results stay in the V4 evidence store.
+      let v4ResultConsumer = null;
+      const mattersHome = configService.getMattersHome();
+      if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
+        console.log("V4 intake: postgres storage mode — extraction results stay in the V4 store (import bridge is filesystem-mode only)");
+      } else if (!mattersHome) {
+        console.log("V4 intake: no matters home configured — extraction results stay in the V4 store");
+      } else {
+        const v4ImportService = createV4ExtractionImportService({
+          mattersHome,
+          log: (line) => console.log(line),
+        });
+        v4ResultConsumer = (input) => v4ImportService.importExtractionResult(input);
+      }
+      v4IntakeMount = await createV4IntakeMount({ env, log: (line) => console.log(line), resultConsumer: v4ResultConsumer });
+    } catch (error) {
+      // Only a missing V4 source tree (the excluded-deploy case) degrades
+      // silently; a real misconfiguration — bad DB URL, bad flag combo —
+      // stays a loud, unmissable boot failure as it was before the mount.
+      if (error?.code === "ERR_MODULE_NOT_FOUND") {
+        console.error(`V4 intake is flagged on but its source is not deployed; continuing without it: ${error.message}`);
+      } else {
+        throw error;
+      }
+    }
+  }
+  services.v4IntakeMount = v4IntakeMount;
+
   const server = createServer(async (request, response) => {
     const startedAt = Date.now();
     let pathname = "/";
@@ -507,6 +552,7 @@ export async function createWorkbenchServer(options = {}) {
       await runWithRequestContext(requestContext, async () => {
         if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
         if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
+        if (v4IntakeMount && await v4IntakeMount.handleRequest({ request, requestUrl, response })) return;
         if (await handleApiRequest({ request, requestUrl, response, services })) return;
 
         if (request.method === "GET") {
@@ -550,6 +596,24 @@ export async function createWorkbenchServer(options = {}) {
   if (runtimeDbProcessingWorkerService.enabled?.()) {
     server.once("listening", () => runtimeDbProcessingWorkerService.start?.());
     server.once("close", () => runtimeDbProcessingWorkerService.stop?.());
+  }
+  if (v4IntakeMount) {
+    server.once("listening", () => {
+      v4IntakeMount.start().catch(async (error) => {
+        // A mount that could not start (failed migration, missing claim
+        // privileges) must not keep serving /api/v4: unregister it so intakes
+        // are refused (404 through to legacy) rather than accepted to sit
+        // forever with no workers.
+        console.error("V4 intake mount failed to start; disabling it:", error?.message || error);
+        const failed = v4IntakeMount;
+        v4IntakeMount = null;
+        services.v4IntakeMount = null;
+        await failed.stop().catch(() => {});
+      });
+    });
+    server.once("close", () => {
+      v4IntakeMount?.stop().catch(() => {});
+    });
   }
 
   if (hasTelemetrySyncConfig(env)) {

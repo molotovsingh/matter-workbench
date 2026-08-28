@@ -1,0 +1,28 @@
+# Document Intake & Extraction Service (V4)
+
+Clean-sheet, isolated service implementation. As of 2026-08-26 it is **integrated but disabled**: Matter Workbench has exactly one sanctioned caller — `server.mjs` dynamically imports `integration/app-mount.mjs` only when `MWB_V4_INTAKE=1` — and that flag is off by default. It is still excluded from production builds and from the private-beta deploy, so a deployed beta cannot load it at all; V4-ISO-001 enforces the single gated import site and the mount's refusal to build without the flag.
+
+The first vertical slice uses filesystem adapters to prove contracts, immutable custody, server hashing, tenant-scoped single-flight deduplication, durable page work, fencing, provider evidence, validation, complete assembly, and ready-event semantics. Its isolated `/v1` HTTP handler requires injected authentication/matter authorization and never accepts document-byte uploads; the app serves it only under the `MWB_V4_INTAKE` flag, behind the existing private-beta auth gate.
+
+`postgres/` now owns an independent migration chain for the future durable control plane, including forced tenant RLS, idempotent intake keys, content references, single-flight computation fingerprints, weighted demands, `SKIP LOCKED` claims, lease heartbeats, attempts, complete cost evidence, result versions, and an outbox. It does not modify legacy tables. Its repositories now persist manifest-fingerprinted idempotent intakes, token-digest-only upload authorization, verified blob custody, logical duplicate documents, routed page computations/demands, batch custody commit, provider attempts/cost checkpoints, complete result assembly, and fenced outbox delivery. Lease expiration records unknown cost for reconciliation rather than losing evidence. Real-PostgreSQL tests prove tenant isolation, duplicate computation reuse, fenced claims, accepted/review outcomes, complete logical-document assembly, and idempotent publication. `adapters/s3-compatible-object-store.mjs` defines direct regional upload authorization and streamed immutable-custody verification without buffering large payloads through Matter Workbench. `composition/create-v4-composition.mjs` is an independently instantiable composition root for PostgreSQL repositories, direct object custody, streaming PDF preflight, Mistral document-range workers, Gemini selective-repair workers, progress/ETA, authenticated HTTP, minimal fail-closed health probes, and fenced outbox delivery. It accepts infrastructure/provider adapters by injection and reads no Matter Workbench runtime configuration. Public liveness is minimal; readiness fails closed unless every V4 migration, regional object storage, and (outside isolated development) provider-capacity certificate is present. It is mounted only through the flag-gated `integration/app-mount.mjs`; with the flag off — the default, and the only possible state on the private-beta deploy, which excludes V4 source — Matter Workbench has no V4 caller. Broader integration evidence (load, quality, quota, security, shadow/soak) remains required before the flag is turned on anywhere real.
+
+See:
+
+- `docs/architecture/document-intake-extraction-v4.md`
+- `docs/acceptance/document-intake-extraction-v4.matrix.json`
+- `packages/extraction-contracts/`
+- `workers/document-processing/`
+
+Run isolated evidence:
+
+```bash
+node --test test/document-intake-extraction-v4*.test.mjs
+```
+
+Evaluate cutover readiness (exit `2` is expected while certification is pending):
+
+```bash
+node services/document-intake-extraction/readiness/cli.mjs
+```
+
+The evaluator currently fails closed on load/SLO, expanded human quality, provider quota, security, and finite shadow/soak gates.
