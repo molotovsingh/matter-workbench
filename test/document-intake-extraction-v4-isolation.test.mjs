@@ -10,8 +10,7 @@ const V4_ROOTS = [
   "services/document-intake-extraction/",
   "workers/document-processing/",
 ];
-const V4_DEPLOY_ARTIFACTS = [
-  ...V4_ROOTS,
+const V4_DEPLOY_DOCS = [
   "docs/architecture/document-intake-extraction-v4*",
   "docs/acceptance/document-intake-extraction-v4*",
   "docs/operations/document-intake-extraction-v4*",
@@ -78,10 +77,19 @@ test("V4-ISO-001 the app mount refuses to build unless the intake flag is set", 
 });
 
 // V4-DEPLOY-001
-test("V4-DEPLOY-001 excludes every V4 executable directory from private beta deployment", async () => {
+// V4 used to be withheld from the beta VM entirely, so isolation had two
+// independent guarantees: the code was not on the box, and the flag kept it
+// unmounted. Shipping V4 to the in-house beta gives up the first and keeps the
+// second. That is a deliberate downgrade, so this gate now asserts what is
+// actually true rather than being deleted: executables ship, internal docs do
+// not, and V4-ISO-001 carries the isolation claim alone.
+test("V4-DEPLOY-001 ships V4 executables to the beta VM and keeps V4 internal docs off it", async () => {
   const deploySource = await readFile(path.join(ROOT, "scripts/private-vm-rsync-deploy.mjs"), "utf8");
-  for (const artifact of V4_DEPLOY_ARTIFACTS) {
-    assert.match(deploySource, new RegExp(`^[ \\t]*["']${escapeRegex(artifact)}["'],?$`, "m"), `${artifact} must be an rsync exclusion`);
+  for (const root of V4_ROOTS) {
+    assert.doesNotMatch(deploySource, new RegExp(`^[ \\t]*["']${escapeRegex(root)}["'],?$`, "m"), `${root} must ship so MWB_V4_INTAKE=1 can mount it`);
+  }
+  for (const doc of V4_DEPLOY_DOCS) {
+    assert.match(deploySource, new RegExp(`^[ \\t]*["']${escapeRegex(doc)}["'],?$`, "m"), `${doc} must stay an rsync exclusion`);
   }
 });
 

@@ -25,7 +25,7 @@
       "id": "V4-DEPLOY-001",
       "category": "isolation",
       "status": "automated",
-      "requirement": "Private beta rsync deployment explicitly excludes all V4 executable directories.",
+      "requirement": "Private beta rsync deployment ships V4 executable directories so the flag can mount them, and excludes V4 internal documentation. Runtime isolation is carried by V4-ISO-001 alone.",
       "evidence": [
         "test/document-intake-extraction-v4-isolation.test.mjs"
       ]
