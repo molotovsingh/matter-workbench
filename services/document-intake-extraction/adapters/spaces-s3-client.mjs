@@ -1,4 +1,4 @@
-import { request as httpsRequest } from "node:https";
+import { Agent, request as httpsRequest } from "node:https";
 
 import { canonicalPath, EMPTY_PAYLOAD_SHA256, presignUrl, signRequestHeaders } from "./sigv4.mjs";
 
@@ -33,9 +33,19 @@ export function isTransientNetworkError(error) {
   return /terminated|socket hang up|other side closed|premature close/i.test(message);
 }
 
+// One pooled agent for the process: without it every signed call pays a fresh
+// TCP+TLS handshake to the bucket region.
+const keepAliveAgent = new Agent({ keepAlive: true, maxSockets: 64 });
+
+// A stalled connection is the failure this transport exists to survive, and
+// it is the one shape that never emits 'error': the socket stays open and the
+// promise would hang forever, holding a worker lane and its page leases past
+// expiry. Destroying on timeout converts the hang into a retryable fault.
+const REQUEST_TIMEOUT_MS = 120_000;
+
 function nodeHttpsFetch(url, { method, headers }) {
   return new Promise((resolve, reject) => {
-    const request = httpsRequest(url, { method, headers }, (response) => {
+    const request = httpsRequest(url, { method, headers, agent: keepAliveAgent, timeout: REQUEST_TIMEOUT_MS }, (response) => {
       const headerMap = new Map();
       for (const [name, value] of Object.entries(response.headers)) {
         headerMap.set(name.toLowerCase(), Array.isArray(value) ? value[0] : String(value ?? ""));
@@ -53,9 +63,24 @@ function nodeHttpsFetch(url, { method, headers }) {
         }),
       });
     });
+    request.on("timeout", () => {
+      const error = new Error("S3 request timed out");
+      error.code = "ETIMEDOUT";
+      request.destroy(error);
+    });
     request.on("error", reject);
     request.end();
   });
+}
+
+// The response body is a node IncomingMessage, which has no cancel(): an
+// unread body pins its keep-alive socket and leaves an EventEmitter with no
+// error listener. Draining returns the socket to the pool.
+function releaseResponse(response) {
+  const body = response?.body;
+  if (!body || typeof body.resume !== "function") return;
+  body.on("error", () => {});
+  body.resume();
 }
 
 export function createSpacesS3Client({
@@ -127,6 +152,7 @@ export function createSpacesS3Client({
   const client = {
     async headBucket({ bucket }) {
       const response = await send("HEAD", objectUrl(bucket));
+      releaseResponse(response);
       if (!response.ok) {
         const error = new Error(`bucket is not reachable (HTTP ${response.status})`);
         error.code = response.status === 404 ? "NoSuchBucket" : "BucketUnavailable";
@@ -139,6 +165,7 @@ export function createSpacesS3Client({
     async headObject({ bucket, key, versionId }) {
       const query = versionId ? `?versionId=${encodeURIComponent(versionId)}` : "";
       const response = await send("HEAD", objectUrl(bucket, key, query));
+      releaseResponse(response);
       if (response.status === 404) {
         const error = new Error("object not found");
         error.code = "NoSuchKey";
@@ -155,8 +182,6 @@ export function createSpacesS3Client({
       for (const [name, value] of response.headers) {
         if (name.toLowerCase().startsWith("x-amz-meta-")) metadata[name.slice("x-amz-meta-".length)] = value;
       }
-      // HEAD bodies are empty by definition; make sure the socket is released.
-      await response.body?.cancel?.().catch(() => {});
       return {
         contentLength: Number(response.headers.get("content-length") || 0),
         versionId: response.headers.get("x-amz-version-id") || "",
@@ -168,6 +193,7 @@ export function createSpacesS3Client({
       const query = versionId ? `?versionId=${encodeURIComponent(versionId)}` : "";
       const response = await send("GET", objectUrl(bucket, key, query));
       if (response.status === 404) {
+        releaseResponse(response);
         const error = new Error("object not found");
         error.code = "NoSuchKey";
         error.statusCode = 404;
@@ -203,7 +229,7 @@ export function createSpacesS3Client({
     async deleteObject({ bucket, key }) {
       const response = await send("DELETE", objectUrl(bucket, key));
       if (!response.ok && response.status !== 404) await raiseS3Error(response, "DeleteFailed");
-      await response.body?.cancel?.().catch(() => {});
+      releaseResponse(response);
       return {};
     },
   };

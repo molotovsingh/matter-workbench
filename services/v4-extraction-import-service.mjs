@@ -242,7 +242,7 @@ function buildLogRow({ row, record, pages, intakeId, resultId }) {
     status: "extracted",
     engine: record.engine,
     page_count: record.page_count,
-    ocr_applied: true,
+    ocr_applied: "yes",
     ocr_provider_model: primary,
     ocr_primary_model: primary,
     ocr_repair_model: repairs,
