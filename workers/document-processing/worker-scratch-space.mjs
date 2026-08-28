@@ -49,7 +49,7 @@ export class WorkerScratchSpace {
     const safeTaskId = safeId(taskId, "taskId");
     const expected = nonNegativeInteger(expectedBytes, "expectedBytes");
     if (expected > this.maximumTaskBytes) throw scratchError("task exceeds configured scratch limit", "scratch.task_limit_exceeded");
-    await this.assertCapacity(expected);
+    await this.assertScratchCapacity(expected);
     const allocationId = `${safeTaskId}-${randomUUID()}`;
     const directory = this.resolve(allocationId);
     await mkdir(directory, { recursive: false, mode: 0o700 });
@@ -157,6 +157,10 @@ export class WorkerScratchSpace {
    * without this, a full cache can starve the very work units it exists to
    * speed up, and every one of them fails with capacity_exhausted while
    * gigabytes of purely optional data sit on disk.
+   *
+   * Every reservation goes through here, not just the blob: a work unit
+   * reserves at allocation too, and that one runs first — guarding only the
+   * blob would leave the starvation intact one step earlier.
    */
   async assertScratchCapacity(requestedBytes) {
     try {
@@ -246,7 +250,7 @@ function releaseStream(body) {
   try {
     if (typeof body?.destroy === "function") body.destroy();
     else if (typeof body?.cancel === "function") body.cancel().catch(() => {});
-    else if (typeof body?.return === "function") body.return();
+    else if (typeof body?.return === "function") Promise.resolve(body.return()).catch(() => {});
   } catch { /* the caller is already failing; disposal must not mask it */ }
 }
 

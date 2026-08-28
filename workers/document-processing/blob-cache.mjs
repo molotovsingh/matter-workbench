@@ -38,6 +38,7 @@ export function createBlobCache({
   const limit = Number(maximumBytes) > 0 ? Number(maximumBytes) : 0;
   // Single-flight publish: many lanes finish the same first download at once.
   const publishing = new Map();
+  let reclaiming = null;
 
   return Object.freeze({
     root: cacheRoot,
@@ -87,21 +88,19 @@ export function createBlobCache({
      * scratch space, and its size limit knows nothing about actual disk
      * pressure — so when a work unit cannot reserve space, the cache must
      * yield rather than let purely optional data starve the pipeline.
+     *
+     * Single-flight, because disk pressure is a fleet-wide event: every lane
+     * hits it in the same instant, and independent sweeps would each free their
+     * own shortage — one shortage costing the cache N times over, evicting
+     * precisely the entries those lanes are about to ask for. Joiners get the
+     * bytes this sweep freed; whether that is enough is the caller's re-check
+     * against the filesystem, not a promise made here.
      * Returns the bytes actually freed.
      */
     async reclaim(bytesNeeded = 0) {
-      const wanted = Number(bytesNeeded) > 0 ? Number(bytesNeeded) : Infinity;
-      const entries = await listEntries();
-      entries.sort((a, b) => a.usedAtMs - b.usedAtMs);
-      let freed = 0;
-      for (const entry of entries) {
-        if (freed >= wanted) break;
-        try {
-          await rm(entry.file, { force: true });
-          freed += entry.bytes;
-        } catch { /* another worker got there first */ }
-      }
-      return freed;
+      if (reclaiming) return reclaiming;
+      reclaiming = sweep(bytesNeeded).finally(() => { reclaiming = null; });
+      return reclaiming;
     },
 
     async usage() {
@@ -140,6 +139,21 @@ export function createBlobCache({
       }
     }
     return entries;
+  }
+
+  async function sweep(bytesNeeded) {
+    const wanted = Number(bytesNeeded) > 0 ? Number(bytesNeeded) : Infinity;
+    const entries = await listEntries();
+    entries.sort((a, b) => a.usedAtMs - b.usedAtMs);
+    let freed = 0;
+    for (const entry of entries) {
+      if (freed >= wanted) break;
+      try {
+        await rm(entry.file, { force: true });
+        freed += entry.bytes;
+      } catch { /* another worker got there first */ }
+    }
+    return freed;
   }
 
   // Least-recently-used trim. Bounded and best-effort: the cache holding a

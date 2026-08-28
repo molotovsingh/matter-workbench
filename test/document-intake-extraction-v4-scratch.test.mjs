@@ -289,3 +289,82 @@ test("a full blob cache yields disk back instead of starving work units", async 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+// A work unit reserves disk twice: once for its allocation, once for the blob.
+// Only the second consulted the cache, so under the reserve the unit died in
+// allocate() and the cache was never asked to yield — the exact starvation
+// reclaim exists to prevent, on the path that runs first.
+test("disk pressure at allocation asks the cache to yield, not only at materialization", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-alloc-reclaim-"));
+  try {
+    const blobCache = createBlobCache({ root: path.join(root, "cache") });
+    const stale = Buffer.alloc(4096, 66);
+    const staleSha = createHash("sha256").update(stale).digest("hex");
+    const seeding = new WorkerScratchSpace({ root: path.join(root, "seed"), blobCache });
+    await seeding.withTaskScratch({ taskId: "seed" }, (allocation) =>
+      seeding.materializeBlob({
+        allocation,
+        objectStore: { async openBlobStream() { return { body: (async function* () { yield stale; })(), contentLength: stale.length, sha256: staleSha }; } },
+        blobReference: { sha256: staleSha },
+      }));
+
+    // The cache has eaten the disk down below the reserve. Reclaiming the one
+    // stale entry is exactly enough to let the allocation through.
+    let freeBytes = 0;
+    let reclaimCalls = 0;
+    const scratch = new WorkerScratchSpace({
+      root: path.join(root, "work"),
+      minimumFreeBytes: 4096,
+      statfsImpl: async () => ({ bavail: freeBytes, bsize: 1 }),
+      blobCache: {
+        ...blobCache,
+        open: blobCache.open,
+        publish: blobCache.publish,
+        reclaim: async (bytes) => {
+          reclaimCalls += 1;
+          const freed = await blobCache.reclaim(bytes);
+          freeBytes += freed;
+          return freed;
+        },
+      },
+    });
+
+    const reached = await scratch.withTaskScratch({ taskId: "work" }, async () => "ran");
+    assert.equal(reached, "ran", "the work unit ran instead of starving at allocation");
+    assert.equal(reclaimCalls, 1, "the allocation asked the cache to yield");
+    assert.equal(await blobCache.open(staleSha), null, "the stale entry was surrendered");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// Disk pressure is a fleet-wide event: every lane hits it in the same instant.
+// Independent sweeps would each free their own shortage, so one shortage would
+// cost the cache N entries and strip precisely what the lanes are about to need.
+test("concurrent reclaims collapse into one sweep instead of stripping the cache per lane", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-herd-"));
+  try {
+    const blobCache = createBlobCache({ root: path.join(root, "cache") });
+    const seeding = new WorkerScratchSpace({ root: path.join(root, "seed"), blobCache });
+    for (let index = 0; index < 6; index += 1) {
+      const stale = Buffer.alloc(128, 65 + index);
+      const staleSha = createHash("sha256").update(stale).digest("hex");
+      await seeding.withTaskScratch({ taskId: `seed-${index}` }, (allocation) =>
+        seeding.materializeBlob({
+          allocation,
+          objectStore: { async openBlobStream() { return { body: (async function* () { yield stale; })(), contentLength: stale.length, sha256: staleSha }; } },
+          blobReference: { sha256: staleSha },
+        }));
+    }
+    assert.equal((await blobCache.usage()).entries, 6);
+
+    // The first lane needs one entry's worth; the rest arrive behind it asking
+    // for five times that. Sweeping independently they would empty the cache.
+    const wanted = [128, 640, 640, 640, 640, 640];
+    const freed = await Promise.all(wanted.map((bytes) => blobCache.reclaim(bytes)));
+    assert.deepEqual(freed, Array(6).fill(freed[0]), "every lane joined the same sweep");
+    assert.equal((await blobCache.usage()).entries, 5, "one shortage cost one entry, not six");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
