@@ -119,6 +119,12 @@ test("V4 import writes cache-valid extraction records only for registered, fully
     const log = await readFile(path.join(intakeDir, "Extraction Log.csv"), "utf8");
     assert.match(log, /FILE-0009/, "legacy log rows survive the merge");
     assert.match(log, /FILE-0001,INTAKE-01,.*,extracted,mwb-v4-document-intake-extraction/);
+    // ocr_applied is a "yes"/"no" enum across every other producer
+    // (extract-utils/ocr-policy.mjs); matter-attention-intake.mjs classifies
+    // OCR review rows by testing it literally, so a boolean would drop V4
+    // rows out of that branch.
+    assert.match(log, /,yes,/, "ocr_applied uses the shared yes/no enum");
+    assert.doesNotMatch(log, /,true,/, "no boolean leaks into the log contract");
     assert.match(log, /gemini\/gemini-3\.7-flash/);
     assert.match(log, /openai\/gpt-5\.4/, "repair rung appears in observability");
 
