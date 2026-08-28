@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readdir, rename, rm, stat, statfs } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { copyFile, mkdir, open, readdir, rename, rm, stat, statfs, utimes } from "node:fs/promises";
 import path from "node:path";
 
 import { assertSha256 } from "../../packages/extraction-contracts/index.mjs";
@@ -11,6 +12,14 @@ export class WorkerScratchSpace {
     minimumFreeBytes = 512 * 1024 * 1024,
     statfsImpl = statfs,
     clock = () => new Date(),
+    // Content-addressed local blob cache, shared across every worker that
+    // materializes source documents. A document is split into pages ÷ range
+    // size work units, and each one previously re-downloaded the WHOLE source
+    // from object storage: measured at 32x byte amplification on a real
+    // corpus (2.4 GB fetched for 75 MB of PDFs). Blobs are immutable and
+    // named by their own digest, so caching them locally is safe by
+    // construction. Pass null to disable.
+    blobCache = null,
   } = {}) {
     if (!root) throw new Error("worker scratch root is required");
     this.root = path.resolve(root);
@@ -18,6 +27,7 @@ export class WorkerScratchSpace {
     this.minimumFreeBytes = nonNegativeInteger(minimumFreeBytes, "minimumFreeBytes");
     this.statfsImpl = statfsImpl;
     this.clock = clock;
+    this.blobCache = blobCache;
   }
 
   async initialize() {
@@ -62,7 +72,13 @@ export class WorkerScratchSpace {
     if (!allocation?.directory || typeof allocation.pathFor !== "function") throw new Error("scratch allocation is required");
     if (!objectStore?.openBlobStream) throw new Error("objectStore.openBlobStream is required for bounded scratch materialization");
     const expectedSha256 = assertSha256(blobReference?.sha256, "blobReference.sha256");
-    const opened = await objectStore.openBlobStream(blobReference);
+    // Read the bytes from the local cache when this blob has already been
+    // fetched and verified; otherwise from object storage. Everything below —
+    // size ceiling, streaming hash, digest check, atomic rename — is identical
+    // either way, so a cache hit is never a weaker custody guarantee than a
+    // fresh download: the digest is recomputed from the bytes actually used.
+    const cached = this.blobCache ? await this.blobCache.open(expectedSha256) : null;
+    const opened = cached || await objectStore.openBlobStream(blobReference);
     const contentLength = positiveInteger(opened.contentLength, "blob contentLength");
     if (contentLength > allocation.maximumBytes || contentLength > this.maximumTaskBytes) {
       throw scratchError("blob exceeds configured scratch limit", "scratch.task_limit_exceeded");
@@ -91,7 +107,9 @@ export class WorkerScratchSpace {
       await handle.close();
       await rename(temporary, target);
       const details = await stat(target);
-      return { filePath: target, bytes: details.size, sha256 };
+      // Publish only what the network produced; a cache hit is already cached.
+      if (this.blobCache && !cached) await this.blobCache.publish(sha256, target);
+      return { filePath: target, bytes: details.size, sha256, fromCache: Boolean(cached) };
     } catch (error) {
       try {
         await handle.close();
