@@ -88,6 +88,27 @@ shape — the gate's own strata use representative concurrent batches — and
 validation-hostile corpus. 15 briefs (~2,000 pages) remain provider-unseen
 for certification runs.
 
+**2026-08-28 integrated concurrent-intake run** — the full app path (flag-on
+mount, real DO Spaces bucket, T3 Gemini key, result bridge active): 13
+previously unseen briefs as SEPARATE intakes in concurrency strata
+(1/2/4/6), each legacy-registered first, uploaded via presigned browser-path
+PUTs, extracted, and bridged into the matter record. Outcomes: **all 13
+terminal** (9 ready → bridge-filed; 4 ready_with_review → correctly left
+for legacy re-extraction), **zero 429s across 2,764 provider attempts on
+the T3 key**, $5.58. Per-intake custody→ready on the healthy transport:
+19p/23.2s and 8p/31.2s (inside P95≤60 despite the cross-continent bucket),
+42p/132.3s, 137p/188.1s, 289p/451.4s, 448p/513.2s. The run also surfaced
+and fixed a production transport defect: Node fetch negotiated HTTP/2 to
+Spaces, which terminates streams under concurrent load (zero-byte blob
+reads, one custody-commit 500, three intakes crash-orphaned between store
+commit and inspection); the client now speaks HTTP/1.1 with transient-fault
+retries. Residual finding for the janitor backlog: an intake orphaned
+between custody commit and inspection cannot be healed via the API (upload
+tokens are client-held by design) — completion requires a fresh intake,
+which content-level dedup makes cheap. Topology caveat unchanged: blob
+round-trips to sfo3 inflate absolute latencies; the Mumbai production
+bucket (validated separately the same day) removes this.
+
 ## Required run record
 
 Each sanitized record contains only:
