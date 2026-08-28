@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { EMPTY_PAYLOAD_SHA256, presignUrl, signRequestHeaders } from "../services/document-intake-extraction/adapters/sigv4.mjs";
-import { createSpacesS3Client } from "../services/document-intake-extraction/adapters/spaces-s3-client.mjs";
+import { createSpacesS3Client, isTransientNetworkError } from "../services/document-intake-extraction/adapters/spaces-s3-client.mjs";
 
 // The official AWS SigV4 documentation examples ("Authenticating Requests"),
 // which pin the whole canonicalization + signing chain to Amazon's own
@@ -101,6 +101,50 @@ test("spaces client maps S3 semantics onto the custody store contract", async ()
     () => spaces.client.copyObject({ sourceBucket: "bkt", sourceKey: "s", destinationBucket: "bkt", destinationKey: "d" }),
     (error) => error.code === "InternalError" && /blew up late/.test(error.message),
   );
+});
+
+// The formal load run surfaced HTTP/2 stream terminations from Spaces under
+// concurrency ("TypeError: terminated", zero-byte reads). All client requests
+// are idempotent, so transient connection faults must retry with backoff and
+// fresh signatures; real S3 error responses must not be retried.
+test("spaces client retries transient connection faults and fails fast on the rest", async () => {
+  const attempts = [];
+  const sleeps = [];
+  let mode = "transient-then-ok";
+  const flaky = async (url, init) => {
+    attempts.push(init.headers["x-amz-date"]);
+    if (mode === "transient-then-ok" && attempts.length < 3) {
+      throw Object.assign(new TypeError("terminated"), {});
+    }
+    if (mode === "hard-fail") {
+      throw Object.assign(new Error("bad credentials shape"), { code: "ERR_INVALID_ARG_TYPE" });
+    }
+    return { ok: true, status: 200, headers: new Map([["content-length", "1"]]), body: null, text: async () => "" };
+  };
+  let tick = 0;
+  const spaces = createSpacesS3Client({
+    endpoint: "https://sfo3.digitaloceanspaces.com",
+    region: "sfo3",
+    accessKeyId: "key",
+    secretAccessKey: "secret",
+    fetchImpl: flaky,
+    clock: () => new Date(Date.UTC(2013, 4, 24, 0, 0, tick++)),
+    sleep: async (milliseconds) => sleeps.push(milliseconds),
+  });
+  const head = await spaces.client.headObject({ bucket: "bkt", key: "k" });
+  assert.equal(head.contentLength, 1);
+  assert.equal(attempts.length, 3, "two transient failures then success");
+  assert.deepEqual(sleeps, [250, 500], "linear backoff between attempts");
+  assert.equal(new Set(attempts).size, 3, "every retry re-signs with a fresh timestamp");
+
+  mode = "hard-fail";
+  attempts.length = 0;
+  await assert.rejects(() => spaces.client.headObject({ bucket: "bkt", key: "k" }), (error) => error.code === "S3NetworkError");
+  assert.equal(attempts.length, 1, "non-transient faults do not retry");
+
+  assert.equal(isTransientNetworkError(Object.assign(new Error("x"), { code: "ECONNRESET" })), true);
+  assert.equal(isTransientNetworkError(new TypeError("terminated")), true);
+  assert.equal(isTransientNetworkError(new Error("NoSuchKey")), false);
 });
 
 test("spaces presigner binds the byte size and required headers into the URL", async () => {

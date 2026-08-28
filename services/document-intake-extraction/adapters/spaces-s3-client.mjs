@@ -1,9 +1,19 @@
+import { request as httpsRequest } from "node:https";
+
 import { canonicalPath, EMPTY_PAYLOAD_SHA256, presignUrl, signRequestHeaders } from "./sigv4.mjs";
 
 // Production object-store client for S3-compatible services (DigitalOcean
 // Spaces; AWS S3 by construction). Implements exactly the client + presigner
 // surface `S3CompatibleObjectStore` consumes, so swapping it for the
 // local-disk emulation is a composition choice, not a code change.
+//
+// Transport note: this client deliberately speaks HTTP/1.1 via node:https
+// instead of global fetch. Node's fetch negotiates HTTP/2 where offered, and
+// under concurrent load DigitalOcean terminates h2 streams mid-flight —
+// observed in the formal load run as raw "TypeError: terminated" and
+// zero-byte blob reads that failed custody commits. Every request this
+// client makes is idempotent (signed headers, no request bodies), so
+// transient connection faults are retried with a short backoff.
 //
 // Portability note: the store passes `destinationIfNoneMatch` on blob
 // promotion. Conditional-destination CopyObject is not portable across
@@ -12,13 +22,52 @@ import { canonicalPath, EMPTY_PAYLOAD_SHA256, presignUrl, signRequestHeaders } f
 // CONVERGENT (identical bytes), and the store independently verifies the
 // promoted blob and treats a lost race as reuse.
 
+const TRANSIENT_NETWORK_CODES = new Set([
+  "ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT", "EAI_AGAIN", "EHOSTUNREACH", "ENETUNREACH",
+]);
+
+export function isTransientNetworkError(error) {
+  if (!error) return false;
+  if (TRANSIENT_NETWORK_CODES.has(String(error.code || ""))) return true;
+  const message = String(error.message || "");
+  return /terminated|socket hang up|other side closed|premature close/i.test(message);
+}
+
+function nodeHttpsFetch(url, { method, headers }) {
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest(url, { method, headers }, (response) => {
+      const headerMap = new Map();
+      for (const [name, value] of Object.entries(response.headers)) {
+        headerMap.set(name.toLowerCase(), Array.isArray(value) ? value[0] : String(value ?? ""));
+      }
+      resolve({
+        ok: response.statusCode >= 200 && response.statusCode < 300,
+        status: response.statusCode,
+        headers: headerMap,
+        body: response,
+        text: () => new Promise((resolveText, rejectText) => {
+          const chunks = [];
+          response.on("data", (chunk) => chunks.push(chunk));
+          response.on("end", () => resolveText(Buffer.concat(chunks).toString("utf8")));
+          response.on("error", rejectText);
+        }),
+      });
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
+
 export function createSpacesS3Client({
   endpoint,
   region,
   accessKeyId,
   secretAccessKey,
-  fetchImpl = fetch,
+  fetchImpl = nodeHttpsFetch,
   clock = () => new Date(),
+  transientRetryAttempts = 3,
+  transientRetryDelayMs = 250,
+  sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 } = {}) {
   const base = new URL(String(endpoint || ""));
   if (base.protocol !== "https:" && base.hostname !== "127.0.0.1" && base.hostname !== "localhost") {
@@ -36,18 +85,33 @@ export function createSpacesS3Client({
     return new URL(`${base.protocol}//${host}${path}${query}`);
   };
 
-  async function send(method, url, { headers = {}, body, payloadSha256 = EMPTY_PAYLOAD_SHA256 } = {}) {
-    const signed = signRequestHeaders({
-      method,
-      url,
-      headers,
-      payloadSha256,
-      accessKeyId: keyId,
-      secretAccessKey: secret,
-      region: normalizedRegion,
-      now: clock(),
-    });
-    return fetchImpl(url, { method, headers: signed, body });
+  async function send(method, url, { headers = {}, payloadSha256 = EMPTY_PAYLOAD_SHA256 } = {}) {
+    let lastError;
+    for (let attempt = 1; attempt <= Math.max(1, transientRetryAttempts); attempt += 1) {
+      // Re-sign per attempt so retried requests carry fresh timestamps.
+      const signed = signRequestHeaders({
+        method,
+        url,
+        headers,
+        payloadSha256,
+        accessKeyId: keyId,
+        secretAccessKey: secret,
+        region: normalizedRegion,
+        now: clock(),
+      });
+      try {
+        return await fetchImpl(url, { method, headers: signed });
+      } catch (error) {
+        lastError = error;
+        if (!isTransientNetworkError(error) || attempt === transientRetryAttempts) break;
+        await sleep(transientRetryDelayMs * attempt);
+      }
+    }
+    const error = new Error(`S3 request failed: ${String(lastError?.message || lastError).slice(0, 200)}`);
+    error.code = "S3NetworkError";
+    error.statusCode = 0;
+    error.cause = lastError;
+    throw error;
   }
 
   async function raiseS3Error(response, fallbackCode) {
