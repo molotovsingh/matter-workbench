@@ -70,6 +70,49 @@ test("app mount refuses to build without the flag and requires a database when e
   );
 });
 
+// With MWB_V4_S3_* configured the mount runs custody against the real bucket:
+// the status route says so, and the emulated staging endpoint refuses writes
+// because every legitimate presigned URL points at the bucket itself.
+test("app mount switches to real S3 object storage when configured", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-mount-s3-"));
+  const mount = await createV4IntakeMount({
+    env: {
+      ...FAKE_KEYS,
+      MWB_V4_INTAKE: "1",
+      MWB_V4_SCRATCH_ROOT: path.join(root, "scratch"),
+      MWB_V4_S3_ENDPOINT: "https://sfo3.digitaloceanspaces.com",
+      MWB_V4_S3_REGION: "sfo3",
+      MWB_V4_S3_BUCKET: "custody-test",
+      MWB_V4_S3_ACCESS_KEY_ID: "key",
+      MWB_V4_S3_SECRET_ACCESS_KEY: "secret",
+    },
+    pool: { connect: async () => { throw new Error("unused"); } },
+  });
+  try {
+    const status = fakeResponse();
+    await mount.handleRequest({
+      request: { method: "GET", url: "/api/v4/status", headers: {} },
+      requestUrl: new URL("http://localhost/api/v4/status"),
+      response: status,
+    });
+    const body = JSON.parse(status.state.body);
+    assert.equal(body.objectStore, "s3");
+    assert.equal(body.dataRegion, "sfo3");
+
+    const stagingPut = fakeResponse();
+    await mount.handleRequest({
+      request: { method: "PUT", url: "/api/v4-store/document-intake-extraction/v1/staging/i/f/" + "a".repeat(16), headers: {} },
+      requestUrl: new URL("http://localhost/api/v4-store/document-intake-extraction/v1/staging/i/f/" + "a".repeat(16)),
+      response: stagingPut,
+    });
+    assert.equal(stagingPut.state.statusCode, 403);
+    assert.match(stagingPut.state.body, /key_not_writable/);
+  } finally {
+    await mount.stop();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 // The outbox bridge: one ready event becomes one resultConsumer call carrying
 // plain JSON (folder name via clientRequestId, slug fallback, documents);
 // other event types acknowledge without side effects.

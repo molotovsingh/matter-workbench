@@ -14,6 +14,9 @@
 //   MWB_V4_LANES / MWB_V4_MIN_LANES / MWB_V4_REPAIR_LANES / MWB_V4_RANGE_PAGES
 //   MWB_V4_RANGE_TIMEOUT_MS / MWB_V4_RANGE_FIRST_TIMEOUT_MS  primary range
 //     per-attempt timeout budget (defaults are evidence-based hang detection)
+//   MWB_V4_S3_ENDPOINT / _REGION / _BUCKET / _ACCESS_KEY_ID / _SECRET_ACCESS_KEY
+//     real S3-compatible object storage (DigitalOcean Spaces / AWS S3);
+//     unset = local-disk emulation under MWB_V4_STORE_ROOT
 //   MWB_V4_MAX_UPLOAD_BYTES    per-object staging cap (default: service limit)
 //   MWB_V4_RUNTIME_ROLE        re-grant claim privileges to this role on start
 //   GEMINI_API_KEY / GOOGLE_API_KEY, MISTRAL_API_KEY, OPENAI_API_KEY (ladder)
@@ -33,6 +36,7 @@ import pg from "pg";
 
 import { SERVICE_LIMITS } from "../../../packages/extraction-contracts/index.mjs";
 import { S3CompatibleObjectStore } from "../adapters/s3-compatible-object-store.mjs";
+import { createSpacesS3Client } from "../adapters/spaces-s3-client.mjs";
 import { createDocumentIntakeExtractionV4Composition } from "../composition/create-v4-composition.mjs";
 import { runDocumentIntakeExtractionMigrations } from "../postgres/migrate.mjs";
 import { buildDocumentIntakeExtractionRuntimeRoleSql } from "../postgres/runtime-role-sql.mjs";
@@ -101,8 +105,24 @@ export async function createV4IntakeMount({
   });
   const admissionController = buildAdmissionController({ suite, lanes, minLanes, repairLanes, rangePages });
   const effectivePool = pool || new pg.Pool({ connectionString: databaseUrl, max: lanes + repairLanes + 8 });
-  const localS3 = createLocalDiskS3({ root: storeRoot });
-  const bucket = "mwb-v4-app";
+  // Object storage mode: with MWB_V4_S3_* configured, custody runs against a
+  // real S3-compatible bucket (DigitalOcean Spaces / AWS S3) — browsers PUT
+  // straight to presigned bucket URLs and the emulated staging endpoint goes
+  // unused. Otherwise the local-disk emulation serves development.
+  const s3Endpoint = String(env.MWB_V4_S3_ENDPOINT || "").trim();
+  const spaces = s3Endpoint
+    ? createSpacesS3Client({
+      endpoint: s3Endpoint,
+      region: env.MWB_V4_S3_REGION,
+      accessKeyId: env.MWB_V4_S3_ACCESS_KEY_ID,
+      secretAccessKey: env.MWB_V4_S3_SECRET_ACCESS_KEY,
+    })
+    : null;
+  const localS3 = spaces ? null : createLocalDiskS3({ root: storeRoot });
+  const bucket = spaces ? String(env.MWB_V4_S3_BUCKET || "").trim() : "mwb-v4-app";
+  if (spaces && !bucket) throw new Error("MWB_V4_S3_ENDPOINT requires MWB_V4_S3_BUCKET");
+  const objectStoreMode = spaces ? "s3" : "local-disk";
+  const dataRegion = String(env.MWB_V4_DATA_REGION || (spaces ? env.MWB_V4_S3_REGION : "local-disk"));
   const storePrefix = `${prefix}-store`;
   const inspectorScratch = new WorkerScratchSpace({ root: path.join(scratchRoot, "inspector") });
   // The endpoint below validates staged writes against real authorizations,
@@ -113,16 +133,17 @@ export async function createV4IntakeMount({
     objectStoreFactory: ({ authorizationStore }) => new S3CompatibleObjectStore({
       bucket,
       keyPrefix: OBJECT_KEY_PREFIX,
-      region: String(env.MWB_V4_DATA_REGION || "local-disk"),
-      // Browsers cannot PUT to file:// — presign to an app-served staging
-      // path; handleRequest below plays the bucket for those PUTs.
-      presigner: {
+      region: dataRegion,
+      // Local mode: browsers cannot PUT to file://, so presign to an
+      // app-served staging path and handleRequest plays the bucket. S3 mode:
+      // the real presigner signs direct-to-bucket URLs.
+      presigner: spaces ? spaces.presigner : {
         async presignPut({ bucket: presignBucket, key }) {
           await localS3.presigner.presignPut({ bucket: presignBucket, key });
           return { url: `${storePrefix}/${key}` };
         },
       },
-      client: localS3.client,
+      client: spaces ? spaces.client : localS3.client,
       authorizationStore,
     }),
     documentInspectorFactory: ({ objectStore: store }) => new PdfNativeTextInspector({ objectStore: store, scratchSpace: inspectorScratch }),
@@ -170,6 +191,8 @@ export async function createV4IntakeMount({
           storePrefix,
           uploadTokenHeader: UPLOAD_TOKEN_HEADER,
           resultImport: Boolean(resultConsumer),
+          objectStore: objectStoreMode,
+          dataRegion,
           limits: {
             maximumFiles: SERVICE_LIMITS.maximumFiles,
             maximumFileBytes: Math.min(SERVICE_LIMITS.maximumFileBytes, maximumUploadBytes),
@@ -179,6 +202,9 @@ export async function createV4IntakeMount({
         return true;
       }
       if (request.method === "PUT" && requestUrl.pathname.startsWith(`${storePrefix}/`)) {
+        // In real-S3 mode every presigned URL points at the bucket itself;
+        // nothing legitimate PUTs here, so refuse rather than emulate.
+        if (spaces) return sendStoreError(response, 403, "object.key_not_writable", "Uploads go directly to object storage");
         // Emulated presigned PUT. A presigned URL is a bearer credential, so
         // this endpoint must prove the caller holds the upload token that
         // minted the key: the key's last segment is the token digest prefix.
@@ -284,7 +310,7 @@ export async function createV4IntakeMount({
         log("V4 intake: extraction results will be imported into the matter record (outbox consumer active)");
       }
       started = true;
-      log(`V4 intake mounted at ${prefix} (${suite.label}; tenant ${tenantId}; ${lanes} max lanes)`);
+      log(`V4 intake mounted at ${prefix} (${suite.label}; tenant ${tenantId}; ${lanes} max lanes; object store ${objectStoreMode}${spaces ? ` @ ${dataRegion}` : ""})`);
     },
     async stop() {
       abort?.abort();
