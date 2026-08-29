@@ -22,14 +22,21 @@ worktree onto the new branch — and the VM deploy script rsyncs `git ls-files` 
 working directory, so a silently moved worktree could ship feature code under a
 maintenance-checkpoint label.
 
+Speckit requires the feature identifier to match `^[0-9]{3}-` (see `check_feature_branch`
+in `.specify/scripts/bash/common.sh`), so spec-driven branches carry a three-digit number.
+The `get_current_feature` hook strips the `feature/` prefix, which lets both conventions
+hold at once — `feature/001-postgres-bridge` resolves to feature id `001-postgres-bridge`.
+
 Create the worktree yourself, then run speckit inside it:
 
 ```bash
-git worktree add ../matter-workbench-<name> -b feature/<name>
+git worktree add ../matter-workbench-<name> -b feature/001-<name>
 cd ../matter-workbench-<name>
 ```
 
-Specs resolve against the invoking worktree, so the spec lands beside its branch.
+Specs resolve against the invoking worktree, so the spec lands beside its branch in
+`specs/001-<name>/`. Do not rely on `SPECIFY_FEATURE`: it works, but it is ambient state
+that a later session will not know to set, and the wrong feature then resolves silently.
 Never run `/speckit-specify` from `matter-workbench/` expecting it to branch for you.
 
 ### How to use it
