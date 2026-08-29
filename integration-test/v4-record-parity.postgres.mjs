@@ -172,6 +172,36 @@ test("V4 filing reaches the matter record through real PostgreSQL storage", {
         recordText,
         "the original record must survive a replay byte for byte",
       );
+
+      // FR-014. Filing must not reach across tenants. Asserted here rather than
+      // in a unit test because a fake cannot demonstrate row-level scoping —
+      // the guarantee lives in the database, so only the database can show it.
+      const otherTenantId = randomUUID();
+      const otherMatterId = randomUUID();
+      await admin.query("insert into tenants (id, name, type) values ($1, 'Other tenant', 'internal_test')", [otherTenantId]);
+      await admin.query("insert into matters (id, tenant_id, name) values ($1, $2, $3)", [otherMatterId, otherTenantId, "Other Tenant Matter"]);
+
+      const foreignIndex = {
+        async findMatterFolder(name) {
+          const found = await admin.query("select id, name from matters where name = $1", [String(name)]);
+          return found.rows[0] ? { id: found.rows[0].id, name: found.rows[0].name, matterName: found.rows[0].name } : null;
+        },
+      };
+      // Same storage service, still scoped to the original tenant, but pointed at
+      // another tenant's matter: the index finds it, the storage layer must not.
+      const crossTenantStore = createRuntimeDbMatterRecordStore({ storage, matterIndex: foreignIndex });
+      const foreign = await crossTenantStore.resolveMatter({ folderName: "Other Tenant Matter" });
+      assert.equal(foreign, null, "a matter belonging to another tenant must not resolve");
+
+      const crossTenantService = createV4ExtractionImportService({ store: crossTenantStore });
+      await assert.rejects(
+        () => crossTenantService.importExtractionResult({
+          matterFolderName: "Other Tenant Matter",
+          documents: [{ sha256: SHA_A, originalName: "order.pdf", pages: [{ pageNumber: 1, outcome: "accepted", text: "leak" }] }],
+        }),
+        (error) => error?.code === "v4_import.matter_not_found",
+        "filing into another tenant's matter must fail closed, not write",
+      );
     } finally {
       await admin.end();
     }

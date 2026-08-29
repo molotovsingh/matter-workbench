@@ -41,7 +41,25 @@ export function createRuntimeDbMatterRecordStore({ storage, matterIndex } = {}) 
         return null;
       }
       if (!row?.id) return null;
-      return { id: row.id, name: row.name || name, folderName: row.name || name, matterName: row.matterName || row.name || name };
+      const matter = {
+        id: row.id,
+        name: row.name || name,
+        folderName: row.name || name,
+        matterName: row.matterName || row.name || name,
+      };
+      // Identity comes from the index; AUTHORIZATION does not. The index answers
+      // "which matter is called this", which is not the same question as "may
+      // this caller write to it". Confirm the matter is readable through the
+      // tenant-scoped storage before handing back a handle, so a matter
+      // belonging to another tenant declines rather than resolving (FR-014).
+      // Filing needs the manifest regardless, so this costs nothing extra.
+      try {
+        const manifest = await storage.readMatterText(matter, "matter.json");
+        if (manifest === null) return null;
+      } catch {
+        return null;
+      }
+      return matter;
     },
 
     async readText(matter, relativePath) {
