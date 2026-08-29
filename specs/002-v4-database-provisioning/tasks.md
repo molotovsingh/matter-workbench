@@ -14,8 +14,8 @@ hold; those claims cannot be established by scripts existing.
 
 **Purpose**: Establish clean baselines before operator or runtime behaviour changes.
 
-- [ ] T001 Run `npm test`, `npm run ui:build`, and the existing PostgreSQL integration suite; record baseline results and known pre-existing failures in `specs/002-v4-database-provisioning/tasks.md`
-- [ ] T002 [P] Confirm V4 remains disabled on the beta VM and capture current service health, database list, role list, and connection count in a non-secret local note under `specs/002-v4-database-provisioning/evidence/preflight.md`
+- [X] T001 Run `npm test`, `npm run ui:build`, and the existing PostgreSQL integration suite; record baseline results and known pre-existing failures in `specs/002-v4-database-provisioning/tasks.md`
+- [X] T002 [P] Confirm V4 remains disabled on the beta VM and capture current service health, database list, role list, and connection count in a non-secret local note under `specs/002-v4-database-provisioning/evidence/preflight.md`
 
 ---
 
@@ -167,7 +167,7 @@ event.
 
 ## Notes
 
-- T001 baseline results: _to be recorded during implementation_.
+- T001 baseline: **1940 tests, 1940 pass, 0 fail** on 2026-08-29.
 - The current repository contains no scheduled backup timer; “same cadence and retention” is
   implemented by placing runtime and V4 evidence in the same recoverability-pack directory,
   so one invocation and one external retention rule cover both.
