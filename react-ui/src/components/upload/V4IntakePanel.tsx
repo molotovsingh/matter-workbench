@@ -6,12 +6,16 @@ import {
   commitV4BatchCustody,
   commitV4FileCustody,
   createV4Intake,
+  forgetV4Run,
   getV4Intake,
   getV4Progress,
   newV4IdempotencyKey,
   probeV4IntakeStatus,
   putV4StagedFile,
+  recallV4Run,
+  rememberV4Run,
   v4MatterIdFromName,
+  type V4FilingReport,
   type V4MountStatus,
   type V4Progress,
 } from '../../api/v4Intake';
@@ -52,6 +56,8 @@ const UPLOAD_CONCURRENCY = 4;
 const POLL_INTERVAL_MS = 1000;
 const POLL_FAILURE_TOLERANCE = 5;
 const POLL_DEADLINE_MS = 60 * 60 * 1000;
+const FILING_REPORT_ATTEMPTS = 10;
+const FILING_REPORT_INTERVAL_MS = 600;
 
 export function V4IntakePanel({ matterName, files, busy }: Props) {
   const { appendTerminal } = useApp();
@@ -61,6 +67,8 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
   const [progress, setProgress] = useState<V4Progress | null>(null);
   const [pollWarning, setPollWarning] = useState('');
   const [summary, setSummary] = useState('');
+  const [report, setReport] = useState<V4FilingReport | null>(null);
+  const [reportLost, setReportLost] = useState(false);
   const [error, setError] = useState('');
   const runRef = useRef<RunHandle | null>(null);
 
@@ -73,6 +81,35 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
       cancelled = true;
     };
   }, []);
+
+  // Rejoin the run this matter was last watching. Runs outlive the page: a
+  // large document takes minutes, and the lawyer is not obliged to sit there.
+  // This is a read — it never resubmits documents or starts a second run.
+  useEffect(() => {
+    if (!mountStatus || !matterName) return;
+    const remembered = recallV4Run(matterName);
+    if (!remembered) return;
+    let cancelled = false;
+    (async () => {
+      const intake = await getV4Intake({ intakeId: remembered }).catch(() => null);
+      if (cancelled) return;
+      if (!intake) {
+        // The run aged out of the extraction service. Say so rather than
+        // rendering an empty report, which would read as "nothing landed".
+        forgetV4Run(matterName);
+        setReportLost(true);
+        return;
+      }
+      if (intake.filingReport) {
+        setReport(intake.filingReport);
+        setSummary('Recovered the report from your last fast extraction in this matter.');
+        setPhase('ready');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mountStatus, matterName]);
 
   // Abandon any in-flight run when the panel unmounts (view switch, matter
   // switch). The server side is unharmed: an uncommitted intake simply ages
@@ -146,6 +183,10 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
           lastModifiedMs: item.file.lastModified,
         })),
       });
+      // Remember the run the moment it has an identity, so a reload during the
+      // upload or the wait rejoins it rather than losing it.
+      rememberV4Run(matterName, intake.intakeId);
+      setReportLost(false);
       if (run.cancelled) return;
       if (intake.files.length !== selection.length) {
         throw new Error('The V4 intake did not authorize every selected file.');
@@ -191,6 +232,14 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
 
       const finished = await getV4Intake({ intakeId: intake.intakeId }).catch(() => null);
       if (run.cancelled) return;
+      // The report is written by the server after extraction reaches a terminal
+      // state, so it can trail the result by a moment. Wait briefly rather than
+      // reporting "nothing landed" for a run that is still being filed.
+      const filingReport = mount.resultImport
+        ? await awaitFilingReport(intake.intakeId, run, finished?.filingReport ?? null)
+        : null;
+      if (run.cancelled) return;
+      setReport(filingReport);
       const pages = finalProgress?.processing.observedLogicalPages ?? 0;
       const seconds = Math.max(1, Math.round((Date.now() - startedAtMs) / 1000));
       const reviewNote = finalProgress?.status === 'ready_with_review' ? ' Some pages need review.' : '';
@@ -337,8 +386,18 @@ export function V4IntakePanel({ matterName, files, busy }: Props) {
         <div className="v4-intake-body">
           <div className="v4-intake-stage v4-intake-success">{summary}</div>
           <ProgressBar ratio={1} />
+          <FilingReportView report={report} />
           <div className="form-actions" style={{ marginTop: 10 }}>
             <button type="button" className="secondary" onClick={handleReset}>Run again</button>
+          </div>
+        </div>
+      )}
+
+      {reportLost && phase !== 'ready' && (
+        <div className="v4-intake-body">
+          <div className="v4-intake-stage">
+            The report from your last fast extraction in this matter is no longer available.
+            Anything that was filed is still in the matter record.
           </div>
         </div>
       )}
@@ -450,6 +509,67 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+// The server records the filing report against the run just after extraction
+// finishes, so a read immediately at terminal can race it. Poll briefly, then
+// give up and report nothing rather than blocking the panel indefinitely.
+async function awaitFilingReport(
+  intakeId: string,
+  run: RunHandle,
+  initial: V4FilingReport | null,
+): Promise<V4FilingReport | null> {
+  if (initial) return initial;
+  for (let attempt = 0; attempt < FILING_REPORT_ATTEMPTS; attempt += 1) {
+    await sleep(FILING_REPORT_INTERVAL_MS);
+    if (run.cancelled) return null;
+    const intake = await getV4Intake({ intakeId }).catch(() => null);
+    if (intake?.filingReport) return intake.filingReport;
+  }
+  return null;
+}
+
+// What entered the matter record, and what did not, with a reason for each.
+// Rendered from the server's report rather than inferred here: deciding what
+// counts as filed is the filing service's judgement, and a second opinion
+// computed in the browser would eventually disagree with it.
+function FilingReportView({ report }: { report: V4FilingReport | null }) {
+  if (!report) return null;
+  const groups: Array<{ label: string; entries: string[] }> = [
+    { label: 'Filed into this matter’s record', entries: report.filed },
+    { label: 'Left for normal extraction', entries: report.leftForNormalExtraction },
+    { label: 'Not part of this matter, so skipped', entries: report.skippedUnregistered },
+    { label: 'Already extracted, so left unchanged', entries: report.skippedExistingRecord },
+  ];
+  const total = groups.reduce((sum, group) => sum + group.entries.length, 0);
+  if (total === 0) return null;
+
+  // Say plainly that nothing landed. A success banner with an empty list reads
+  // as though it worked.
+  if (report.filed.length === 0) {
+    return (
+      <div className="v4-intake-report">
+        <div className="v4-intake-stage">Nothing entered this matter’s record.</div>
+        {groups.filter((group) => group.entries.length > 0).map((group) => (
+          <div key={group.label} className="v4-intake-report-group">
+            <span className="v4-intake-report-label">{group.label}</span>
+            <span className="v4-intake-report-entries">{group.entries.join(', ')}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="v4-intake-report">
+      {groups.filter((group) => group.entries.length > 0).map((group) => (
+        <div key={group.label} className="v4-intake-report-group">
+          <span className="v4-intake-report-label">{group.label} ({group.entries.length})</span>
+          <span className="v4-intake-report-entries">{group.entries.join(', ')}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function fileBaseName(relativePath: string): string {

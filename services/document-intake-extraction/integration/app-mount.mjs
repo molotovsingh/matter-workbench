@@ -293,7 +293,11 @@ export async function createV4IntakeMount({
       });
       if (resultConsumer) {
         const dispatcher = composition.createOutboxDispatcher({
-          deliver: createExtractionResultDeliver({ service: composition.service, resultConsumer }),
+          deliver: createExtractionResultDeliver({
+            service: composition.service,
+            resultConsumer,
+            recordFilingReport: (input) => composition.repositories.intakeRepository.recordFilingReport(input),
+          }),
         });
         const outboxLoop = new BoundedDocumentWorkerLoop({
           tenantId,
@@ -330,7 +334,7 @@ export async function createV4IntakeMount({
 // is identified two ways: clientRequestId carries the workbench's exact
 // folder name (set by the upload panel), and matterId carries the V4 slug as
 // a fallback the consumer can reverse by scanning the matters home.
-export function createExtractionResultDeliver({ service, resultConsumer }) {
+export function createExtractionResultDeliver({ service, resultConsumer, recordFilingReport = null }) {
   if (!service?.getResult || !service?.getIntake) throw new Error("result deliver requires the V4 service");
   if (typeof resultConsumer !== "function") throw new Error("result deliver requires a resultConsumer function");
   return async function deliver(event) {
@@ -338,7 +342,7 @@ export function createExtractionResultDeliver({ service, resultConsumer }) {
     const payload = event.payload || {};
     const result = await service.getResult({ tenantId: payload.tenantId, resultId: payload.resultId });
     const intake = await service.getIntake({ tenantId: payload.tenantId, intakeId: payload.intakeId });
-    await resultConsumer({
+    const summary = await resultConsumer({
       matterFolderName: String(intake.clientRequestId || ""),
       matterIdSlug: String(result.matterId || ""),
       intakeId: String(result.intakeId || ""),
@@ -346,6 +350,33 @@ export function createExtractionResultDeliver({ service, resultConsumer }) {
       resultStatus: String(result.status || ""),
       documents: Array.isArray(result.documents) ? result.documents : [],
     });
+    // Keep the consumer's per-document report against the run, so a lawyer who
+    // left the page can still find out what entered the matter record. Plain
+    // data in both directions: the consumer returns JSON and this side stores
+    // it without interpreting it. Best-effort — the documents are already
+    // filed by this point, and losing the report must not undo that or make
+    // the event look undelivered.
+    if (recordFilingReport && summary) {
+      try {
+        await recordFilingReport({
+          tenantId: payload.tenantId,
+          intakeId: String(result.intakeId || ""),
+          report: toFilingReport(summary),
+        });
+      } catch { /* the filing already happened; reporting is not custody */ }
+    }
+  };
+}
+
+// Narrow the consumer's summary to what a lawyer is shown. matterRoot is the
+// consumer's opaque storage handle and never crosses back.
+function toFilingReport(summary = {}) {
+  const list = (value) => (Array.isArray(value) ? value.map((entry) => String(entry)) : []);
+  return {
+    filed: list(summary.imported),
+    leftForNormalExtraction: list(summary.leftForLegacyExtraction),
+    skippedUnregistered: list(summary.skippedNoRegisterMatch),
+    skippedExistingRecord: list(summary.skippedExistingRecord),
   };
 }
 

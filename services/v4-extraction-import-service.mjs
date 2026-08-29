@@ -1,9 +1,6 @@
-import { mkdir, readFile, readdir, stat } from "node:fs/promises";
-import path from "node:path";
-
-import { writeFileAtomic } from "../shared/atomic-file.mjs";
 import { parseCsv, toCsv } from "../shared/csv.mjs";
 import { EXTRACTION_LOG_HEADERS } from "../shared/matter-contract.mjs";
+import { createFilesystemMatterRecordStore } from "./matter-record-store/filesystem-matter-record-store.mjs";
 
 // Imports V4 fast-extraction results into a matter's legacy extract-stage
 // output, so the ordinary preparation pipeline treats the pages as already
@@ -11,6 +8,11 @@ import { EXTRACTION_LOG_HEADERS } from "../shared/matter-contract.mjs";
 // V4 bridge: it knows matter folders, File Registers, and extraction-record/v1
 // — and deliberately imports nothing from services/document-intake-extraction
 // (V4-ISO-001). Plain JSON data crosses the seam in server.mjs.
+//
+// Storage access goes through a matter record store, so the same rules apply
+// whichever arrangement holds the matter. Everything below is expressed in
+// matter-relative paths; the store owns what those mean. See
+// specs/001-v4-record-parity/contracts/matter-record-store.md.
 //
 // Design rules (from the extract-stage contract):
 // - Never allocate FILE-NNNN ids: V4 documents are matched to EXISTING File
@@ -33,12 +35,15 @@ export const V4_IMPORT_ENGINE = "mwb-v4-document-intake-extraction/1.0.0";
 
 export function createV4ExtractionImportService({
   mattersHome,
+  store,
   engine = V4_IMPORT_ENGINE,
   clock = () => new Date(),
   log = () => {},
 } = {}) {
-  if (!String(mattersHome || "").trim()) throw new Error("V4 extraction import requires mattersHome");
-  const home = path.resolve(mattersHome);
+  const recordStore = store || (String(mattersHome || "").trim()
+    ? createFilesystemMatterRecordStore({ mattersHome })
+    : null);
+  if (!recordStore) throw new Error("V4 extraction import requires mattersHome or a matter record store");
 
   return {
     /**
@@ -47,16 +52,16 @@ export function createV4ExtractionImportService({
      *    outcome, provenance?: { provider, model } }] }]
      */
     async importExtractionResult({ matterFolderName, matterIdSlug, intakeId, resultId, documents } = {}) {
-      const matterRoot = await resolveMatterRoot(home, matterFolderName, matterIdSlug);
-      if (!matterRoot) {
+      const matter = await recordStore.resolveMatter({ folderName: matterFolderName, slug: matterIdSlug });
+      if (!matter) {
         const error = new Error(`no matter folder matches "${matterFolderName || matterIdSlug}" under the matters home`);
         error.code = "v4_import.matter_not_found";
         error.retryable = false;
         throw error;
       }
-      const registers = await loadRegisters(matterRoot);
+      const registers = await loadRegisters(recordStore, matter);
       const summary = {
-        matterRoot,
+        matterRoot: matter,
         imported: [],
         skippedNoRegisterMatch: [],
         leftForLegacyExtraction: [],
@@ -77,23 +82,29 @@ export function createV4ExtractionImportService({
           summary.leftForLegacyExtraction.push(match.row.file_id);
           continue;
         }
-        const extractedDir = path.join(match.intakeDir, "_extracted");
-        const recordPath = path.join(extractedDir, `${match.row.file_id}.json`);
-        if (await hasValidExistingRecord(recordPath, sha256)) {
+        const recordPath = `${match.intakeDir}/_extracted/${match.row.file_id}.json`;
+        if (await hasValidExistingRecord(recordStore, matter, recordPath, sha256)) {
           summary.skippedExistingRecord.push(match.row.file_id);
           continue;
         }
         const record = buildExtractionRecord({ row: match.row, sha256, pages, engine, now: clock() });
-        await mkdir(extractedDir, { recursive: true });
-        await writeFileAtomic(recordPath, `${JSON.stringify(record, null, 2)}\n`);
-        await writeFileAtomic(path.join(extractedDir, `${match.row.file_id}.txt`), flatText(record));
+        await recordStore.writeText(matter, recordPath, `${JSON.stringify(record, null, 2)}\n`, {
+          role: "matter_artifact",
+          mimeType: "application/json",
+        });
+        await recordStore.writeText(matter, `${match.intakeDir}/_extracted/${match.row.file_id}.txt`, flatText(record), {
+          role: "matter_artifact",
+          mimeType: "text/plain",
+        });
         await mergeExtractionLog({
+          store: recordStore,
+          matter,
           intakeDir: match.intakeDir,
           logRow: buildLogRow({ row: match.row, record, pages, intakeId, resultId }),
         });
         summary.imported.push(match.row.file_id);
       }
-      log(`V4 import into ${path.basename(matterRoot)}: ${summary.imported.length} record(s) written`
+      log(`V4 import into ${describeMatter(matter)}: ${summary.imported.length} record(s) written`
         + (summary.skippedNoRegisterMatch.length ? `, ${summary.skippedNoRegisterMatch.length} not in register` : "")
         + (summary.leftForLegacyExtraction.length ? `, ${summary.leftForLegacyExtraction.length} left for legacy extraction` : "")
         + (summary.skippedExistingRecord.length ? `, ${summary.skippedExistingRecord.length} already extracted` : ""));
@@ -102,61 +113,26 @@ export function createV4ExtractionImportService({
   };
 }
 
-/**
- * Matter identity: prefer the exact folder name (the workbench's identity for
- * a matter). Fall back to reversing the V4 matterId slug by scanning the
- * matters home — the slug function must stay in sync with
- * react-ui/src/api/v4Intake.ts v4MatterIdFromName.
- */
-async function resolveMatterRoot(home, folderName, slug) {
-  const exact = String(folderName || "").trim();
-  if (exact && !exact.includes("/") && !exact.includes("..")) {
-    const candidate = path.join(home, exact);
-    if (await isMatterRoot(candidate)) return candidate;
-  }
-  const wanted = String(slug || "").trim();
-  if (!wanted) return null;
-  let entries = [];
-  try {
-    entries = await readdir(home, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (slugifyMatterName(entry.name) !== wanted) continue;
-    const candidate = path.join(home, entry.name);
-    if (await isMatterRoot(candidate)) return candidate;
-  }
-  return null;
+// A handle is opaque to this service. Only the log line needs a human label,
+// and it must not assume the handle is a path.
+function describeMatter(matter) {
+  const text = typeof matter === "string" ? matter : String(matter?.name || matter?.folderName || "matter");
+  const parts = text.split(/[\\/]/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : text;
 }
 
-function slugifyMatterName(matterName) {
-  const sanitized = String(matterName)
-    .trim()
-    .replace(/[^a-zA-Z0-9_.:-]+/g, "-")
-    .replace(/^[^a-zA-Z0-9]+/, "")
-    .slice(0, 240);
-  return sanitized || "matter";
-}
-
-async function isMatterRoot(candidate) {
-  try {
-    await stat(path.join(candidate, "matter.json"));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function loadRegisters(matterRoot) {
-  const matter = JSON.parse(await readFile(path.join(matterRoot, "matter.json"), "utf8"));
+async function loadRegisters(store, matter) {
+  const manifest = await store.readText(matter, "matter.json");
+  const parsed = manifest ? JSON.parse(manifest) : {};
   const bySha = new Map();
-  for (const intake of Array.isArray(matter.intakes) ? matter.intakes : []) {
-    const intakeDir = path.join(matterRoot, String(intake.intake_dir || ""));
+  for (const intake of Array.isArray(parsed.intakes) ? parsed.intakes : []) {
+    const intakeDir = String(intake.intake_dir || "").replaceAll("\\", "/").replace(/\/+$/, "");
+    if (!intakeDir) continue;
     let rows = [];
     try {
-      rows = parseCsv(await readFile(path.join(intakeDir, "File Register.csv"), "utf8"));
+      const csv = await store.readText(matter, `${intakeDir}/File Register.csv`);
+      if (!csv) continue;
+      rows = parseCsv(csv);
     } catch {
       continue;
     }
@@ -171,9 +147,11 @@ async function loadRegisters(matterRoot) {
   return { bySha };
 }
 
-async function hasValidExistingRecord(recordPath, sha256) {
+async function hasValidExistingRecord(store, matter, recordPath, sha256) {
   try {
-    const existing = JSON.parse(await readFile(recordPath, "utf8"));
+    const raw = await store.readText(matter, recordPath);
+    if (!raw) return false;
+    const existing = JSON.parse(raw);
     return existing?.schema_version === "extraction-record/v1" && String(existing?.sha256 || "").toLowerCase() === sha256;
   } catch {
     return false;
@@ -260,16 +238,20 @@ function buildLogRow({ row, record, pages, intakeId, resultId }) {
   };
 }
 
-async function mergeExtractionLog({ intakeDir, logRow }) {
-  const logPath = path.join(intakeDir, "Extraction Log.csv");
+async function mergeExtractionLog({ store, matter, intakeDir, logRow }) {
+  const logPath = `${intakeDir}/Extraction Log.csv`;
   let rows = [];
   try {
-    rows = parseCsv(await readFile(logPath, "utf8"));
+    const existing = await store.readText(matter, logPath);
+    rows = existing ? parseCsv(existing) : [];
   } catch {
     rows = [];
   }
   const merged = rows.filter((row) => row.file_id !== logRow.file_id);
   merged.push(logRow);
   merged.sort((a, b) => String(a.file_id).localeCompare(String(b.file_id)));
-  await writeFileAtomic(logPath, toCsv(merged, EXTRACTION_LOG_HEADERS));
+  await store.writeText(matter, logPath, toCsv(merged, EXTRACTION_LOG_HEADERS), {
+    role: "matter_artifact",
+    mimeType: "text/csv",
+  });
 }

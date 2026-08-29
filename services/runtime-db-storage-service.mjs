@@ -732,6 +732,26 @@ export function createRuntimeDbStorageService({
     }
   }
 
+  // Read one matter-relative file as text, whole.
+  //
+  // Deliberately not getRawFile: that is shaped for browser display, so it
+  // returns a stream plus content-type and enforces maxRawBytes. That cap
+  // governs what is safe to render inline, and applying it here would make
+  // filing fail on a large File Register for a reason unrelated to filing.
+  // Absent is null; unreadable still throws.
+  async function readMatterText(matter, relativePath) {
+    ensureEnabled();
+    const normalizedMatter = normalizeMatter(matter);
+    const normalizedPath = normalizeMatterRelativePath(relativePath);
+    try {
+      const payload = readPayloadRow({ matter: normalizedMatter, relativePath: normalizedPath });
+      return Buffer.from(payload.bytes).toString("utf8");
+    } catch (error) {
+      if (error?.statusCode === 404) return null;
+      throw error;
+    }
+  }
+
   async function persistMatterJson(matter, matterJson = {}) {
     ensureEnabled();
     const normalizedMatter = normalizeMatter(matter);
@@ -1098,6 +1118,7 @@ export function createRuntimeDbStorageService({
     readDoctorScan,
     readMatterAttention,
     readMatterJson,
+    readMatterText,
     readUploadSession,
     readProceduralPostureDiagnosisStatus,
     refreshListOfDatesSourceLabels,
