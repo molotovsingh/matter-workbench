@@ -13,6 +13,25 @@ This project uses an opinionated local tooling layer to generate the artifacts t
 | `.specify/scripts/` | Helper shell scripts for common workflow steps |
 | `.specify/hooks.yml` | CI/automation hook definitions |
 
+### Branching: make the worktree first
+
+This repository uses one git worktree per feature branch (`matter-workbench-<name>`),
+with `main` permanently checked out in `matter-workbench/`. The `create_branch` hook is
+disabled in `.specify/hooks.yml` because `git checkout -b` would move the invoking
+worktree onto the new branch — and the VM deploy script rsyncs `git ls-files` from its
+working directory, so a silently moved worktree could ship feature code under a
+maintenance-checkpoint label.
+
+Create the worktree yourself, then run speckit inside it:
+
+```bash
+git worktree add ../matter-workbench-<name> -b feature/<name>
+cd ../matter-workbench-<name>
+```
+
+Specs resolve against the invoking worktree, so the spec lands beside its branch.
+Never run `/speckit-specify` from `matter-workbench/` expecting it to branch for you.
+
 ### How to use it
 
 - Start a new feature: `/speckit-specify` — creates a spec from a template and opens a clarification loop.

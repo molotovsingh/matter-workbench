@@ -23,8 +23,27 @@ hooks:
 
   # Create the feature branch after a new feature is initialised.
   # {{branch_name}} is replaced with the computed branch name, e.g. 003-user-auth.
-  create_branch:
-    - git checkout -b "{{branch_name}}"
+  #
+  # DISABLED for this repository — deliberately, not by accident.
+  #
+  # `git checkout -b` moves whichever worktree invoked it onto the new branch.
+  # This repo runs six worktrees with main permanently checked out in
+  # matter-workbench/, and scripts/private-vm-rsync-deploy.mjs rsyncs
+  # `git ls-files` from its working directory. A silently moved worktree would
+  # therefore ship feature code to the beta VM under a maintenance-checkpoint
+  # label — a release-record lie, which docs/release-policy.md exists to prevent.
+  #
+  # Branch by making the worktree first, then run speckit inside it:
+  #   git worktree add ../matter-workbench-<name> -b feature/<name>
+  #   cd ../matter-workbench-<name>
+  # create-new-feature.sh resolves specs against the invoking worktree, so the
+  # spec lands beside the branch automatically.
+  #
+  # An undefined create_branch hook is a supported mode, not a workaround:
+  # create-new-feature.sh warns and continues.
+  #
+  # create_branch:
+  #   - git checkout -b "{{branch_name}}"
 
   # Get current feature identifier from VCS.
   # This hook determines what identifies the current feature being worked on.
