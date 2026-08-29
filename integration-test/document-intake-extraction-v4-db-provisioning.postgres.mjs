@@ -54,6 +54,12 @@ test("V4 fixed-database provisioning is idempotent, least-privileged and bounded
     assert.deepEqual(role.rows[0], { rolconnlimit: 16, rolsuper: false, rolcreatedb: false, rolcreaterole: false, rolinherit: false, rolbypassrls: false });
     const migrator = await maintenance.query("select rolbypassrls from pg_roles where rolname=$1", [migrationRole]);
     assert.equal(migrator.rows[0].rolbypassrls, true, "operator-only migration owner must be able to dump forced-RLS rows");
+    const migrationClient = new pg.Client({ connectionString: asDatabaseUrl(adminUrl, "postgres", migrationRole, passwordA) });
+    await migrationClient.connect();
+    try {
+      const inspected = await migrationClient.query("select count(*)::integer as count from pg_catalog.pg_hba_file_rules");
+      assert.ok(inspected.rows[0].count > 0, "migration operator can read only the pg_hba view needed by activation inspection");
+    } finally { await migrationClient.end(); }
 
     const runtime = new pg.Client({ connectionString: config.runtimeUrl });
     await runtime.connect();
@@ -108,6 +114,7 @@ test("V4 fixed-database provisioning is idempotent, least-privileged and bounded
   } finally {
     await maintenance.query(`drop database if exists ${qid(databaseName)} with (force)`);
     await maintenance.query(`drop role if exists ${qid(runtimeRole)}`);
+    await maintenance.query(`do $$ begin if exists (select 1 from pg_roles where rolname = '${migrationRole}') then revoke select on pg_catalog.pg_hba_file_rules from ${qid(migrationRole)}; revoke execute on function pg_catalog.pg_hba_file_rules() from ${qid(migrationRole)}; end if; end $$`);
     await maintenance.query(`drop role if exists ${qid(migrationRole)}`);
     await maintenance.end();
   }

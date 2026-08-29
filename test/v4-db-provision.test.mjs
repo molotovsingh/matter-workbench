@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertProvisionState, assertV4FlagOff, buildV4RoleSql } from "../scripts/v4-db-provision.mjs";
+import { assertProvisionState, assertV4FlagOff, buildV4OperatorInspectionSql, buildV4RoleSql } from "../scripts/v4-db-provision.mjs";
 
 const config = {
   databaseName: "matter_workbench_v4",
@@ -23,6 +23,13 @@ test("role SQL creates distinct least-privileged identities and a 16-connection 
   assert.match(sql.runtime, /nosuperuser nocreatedb nocreaterole noinherit nobypassrls/i);
   assert.match(sql.runtime, /connection limit 16/i);
   assert.doesNotMatch(sql.runtime, /migration|admin/i);
+});
+
+test("migration operator receives only the system-view read needed for activation inspection", () => {
+  const sql = buildV4OperatorInspectionSql(config);
+  assert.match(sql, /grant select on pg_catalog\.pg_hba_file_rules to "mwb_v4_migrator"/);
+  assert.match(sql, /grant execute on function pg_catalog\.pg_hba_file_rules\(\) to "mwb_v4_migrator"/);
+  assert.doesNotMatch(sql, /superuser|createdb|createrole|grant all/i);
 });
 
 test("correct existing state verifies idempotently", () => {

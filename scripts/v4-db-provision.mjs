@@ -20,6 +20,14 @@ export function buildV4RoleSql(config) {
   };
 }
 
+export function buildV4OperatorInspectionSql(config) {
+  const role = qid(config.migrationRole);
+  return [
+    `grant select on pg_catalog.pg_hba_file_rules to ${role}`,
+    `grant execute on function pg_catalog.pg_hba_file_rules() to ${role}`,
+  ].join(";\n");
+}
+
 export function assertProvisionState(state, config) {
   if (!state?.database || state.database.name !== config.databaseName || state.database.owner !== config.migrationRole) {
     throw configError("V4 database ownership conflicts with required posture", "v4_db.owner_conflict");
@@ -46,6 +54,10 @@ export async function runV4DbProvision({
     const sql = buildV4RoleSql(config);
     if (!roles.migrationRole) await admin.query(sql.migration);
     if (!roles.runtimeRole) await admin.query(sql.runtime);
+    // The operator-only migration identity needs this one read-only system
+    // view to let readiness/activation verify that cross-database reject rules
+    // remain active. It receives no broader catalog or cluster privilege.
+    await admin.query(buildV4OperatorInspectionSql(config));
 
     const database = await readDatabase(admin, config.databaseName);
     if (!database) {

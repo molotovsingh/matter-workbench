@@ -19,8 +19,9 @@ pressure. A database also gives migration ownership and backup artifacts an expl
 
 **Decision**: Two login identities. The migration identity owns the V4 database/schema, is
 used only by operator commands, and has `BYPASSRLS` so it can migrate, verify the recovery
-canary, and dump every row from tables that force RLS. It remains `NOSUPERUSER NOCREATEDB
-NOCREATEROLE NOINHERIT`. The runtime identity is `NOSUPERUSER NOCREATEDB NOCREATEROLE
+canary, and dump every row from tables that force RLS. It also receives only the system-view
+`SELECT` and backing-function `EXECUTE` needed to inspect `pg_hba_file_rules` during
+readiness/activation. It remains `NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`. The runtime identity is `NOSUPERUSER NOCREATEDB NOCREATEROLE
 NOINHERIT NOBYPASSRLS`, receives only V4 table/function grants, and has `CONNECTION LIMIT 16`.
 
 The runtime service loads only its URL. Migration/admin URLs and passwords live in a separate

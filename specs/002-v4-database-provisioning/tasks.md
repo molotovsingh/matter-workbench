@@ -172,12 +172,12 @@ event.
 - T013 red: pool factory ignored; green: app-mount suite 6/6.
 - T017/T019 red: missing backup/restore modules; green: 5/5 focused tests.
 - T021 real PostgreSQL: 75,022-byte dump, SHA-256 verified, restored migrations/RLS/canary, disposable database cleaned; integration 1/1 pass.
-- T035 full regression: **1972 tests, 1972 pass, 0 fail** (+32 from T001: 1 canary, 5 operator-config, 5 pg_hba, 4 provision, 4 mount/containment, 2 backup, 4 restore, 1 pack, 3 readiness, 3 activation); UI build and diff check pass; PostgreSQL 5/5.
+- T035 full regression: **1973 tests, 1973 pass, 0 fail** (+33 from T001: 1 canary, 5 operator-config, 5 pg_hba, 5 provision, 4 mount/containment, 2 backup, 4 restore, 1 pack, 3 readiness, 3 activation); UI build and diff check pass; PostgreSQL 5/5.
 - T036 evidence scan: 16 persisted evidence artifacts scanned, 0 credential/token hits; renderers also have sentinel-secret unit coverage.
 - T037 traceability: all FR/SC covered; setup/TDD/release-only tasks are phase obligations.
 - T038 beta VM: first provision created `matter_workbench_v4` and applied 11 migrations; second applied 0; service start timestamp remained `6845257767508`, flag entries remained 0, six pg_hba reject rules were active, and runtime-role prohibited operations failed.
 - T039 beta VM: combined runtime/V4 recoverability pack passed; V4 dump 75,016 bytes; disposable restore cleaned; readiness activation-ready with zero failed checks; flag entries remained 0.
-- T040 release note records dormant commit `4da677f`, exact provisioning/recovery/readiness evidence, and leaves tag/current plus flag-on acceptance pending.
+- T040 release note records dormant commit `4da677f`, exact provisioning/recovery/readiness evidence, and leaves tag/current plus flag-on acceptance pending. Final activation rehearsal additionally caught and test-first closed the narrow `pg_hba_file_rules` inspection privilege needed by the official least-privilege activation path.
 - T029/T031 red: readiness and activation modules absent; green: focused gate suite 6/6.
 - T034 real PostgreSQL operator flow: provision → backup → restore → readiness → activation dry-run → disable dry-run, with the flag absent throughout; integration 2/2.
 - T024 red: server classifier/export absent; green: degraded app-mount suite 9/9.

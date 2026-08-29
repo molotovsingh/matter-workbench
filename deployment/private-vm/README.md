@@ -501,8 +501,9 @@ V4 provisioning and recovery run while `MWB_V4_INTAKE` is absent/off. Put only
 `runtime.env`; keep `MWB_V4_ADMIN_URL`, `MWB_V4_MIGRATION_URL`, role names, and
 the pg_hba path in a separate mode-0600 operator file that systemd never loads.
 The migration owner has `BYPASSRLS` solely for forced-RLS migrations, backup, and
-restore verification; the runtime identity remains `NOBYPASSRLS` with a
-16-connection role limit.
+restore verification. It can read `pg_hba_file_rules` only so readiness and activation
+can verify the active denial rules without a superuser connection. The runtime identity
+remains `NOBYPASSRLS` with a 16-connection role limit.
 
 Install cross-database rejects explicitly as an already-authorized OS identity:
 
