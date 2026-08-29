@@ -111,7 +111,7 @@ leaving the page.
 - [X] T027 [P] Run the full gate set: `npm test`, `npm run ui:build`, `git diff --check`, and `MWB_POSTGRES_TEST_ADMIN_URL=... npm run test:postgres`
 - [X] T028 Confirm requirement coverage: every FR and SC in `specs/001-v4-record-parity/spec.md` is cited by at least one task above, except FR-012, which is deliberately uncovered — no task touches the path that could break it
 - [X] T029 Run `npm test` and confirm the total rose only by the tests added in T003, T009, T013, T014, T015, T016, T018, T021 and T026, comparing against the baseline recorded in the Notes below
-- [X] T030 Prepare the Tier 1 release note per `docs/release-policy.md`. This changes storage and custody semantics on a path testers reach, so it is not a maintenance checkpoint. State explicitly in Not Promised that the five V4 certifications remain open and that this feature does not make fast extraction automatic
+- [X] T030 Tier 1 release note prepared at `docs/releases/v1.0.0-beta.133.md`. This changes storage and custody semantics on a path testers reach, so it is not a maintenance checkpoint. State explicitly in Not Promised that the five V4 certifications remain open and that this feature does not make fast extraction automatic
 
 ---
 
