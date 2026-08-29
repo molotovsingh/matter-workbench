@@ -25,11 +25,11 @@ hold; those claims cannot be established by scripts existing.
 
 ⚠️ No story phase starts until T007 passes.
 
-- [ ] T003 Write failing tests for database/role-name validation, fixed database identity, URL redaction, operator/runtime environment separation, and stable failure codes in `test/v4-db-operator-config.test.mjs` *(FR-001, FR-002, FR-013, SC-008)*
-- [ ] T004 Implement shared parsing, safe identifiers, database-name assertion, environment loading, canonical non-secret posture fields, and secret redaction in `scripts/v4-db-operator-config.mjs` until `test/v4-db-operator-config.test.mjs` passes *(FR-001, FR-002, FR-013, SC-008)*
-- [ ] T005 Write a failing migration test in `test/document-intake-extraction-v4-migrations.test.mjs` requiring `011_recovery_canary.sql`, its fixed non-sensitive row, runtime denial of mutation, and checksum immutability *(FR-004, FR-008, SC-005)*
-- [ ] T006 Add `services/document-intake-extraction/postgres/migrations/011_recovery_canary.sql` with one fixed non-sensitive canary row verified by the migration identity and inaccessible to the runtime identity *(FR-004, FR-008, SC-005)*
-- [ ] T007 Run the focused configuration and migration tests and confirm both were observed failing before implementation and now pass; record the red/green evidence in `specs/002-v4-database-provisioning/tasks.md`
+- [X] T003 Write failing tests for database/role-name validation, fixed database identity, URL redaction, operator/runtime environment separation, and stable failure codes in `test/v4-db-operator-config.test.mjs` *(FR-001, FR-002, FR-013, SC-008)*
+- [X] T004 Implement shared parsing, safe identifiers, database-name assertion, environment loading, canonical non-secret posture fields, and secret redaction in `scripts/v4-db-operator-config.mjs` until `test/v4-db-operator-config.test.mjs` passes *(FR-001, FR-002, FR-013, SC-008)*
+- [X] T005 Write a failing migration test in `test/document-intake-extraction-v4-migrations.test.mjs` requiring `011_recovery_canary.sql`, its fixed non-sensitive row, runtime denial of mutation, and checksum immutability *(FR-004, FR-008, SC-005)*
+- [X] T006 Add `services/document-intake-extraction/postgres/migrations/011_recovery_canary.sql` with one fixed non-sensitive canary row verified by the migration identity and inaccessible to the runtime identity *(FR-004, FR-008, SC-005)*
+- [X] T007 Run the focused configuration and migration tests and confirm both were observed failing before implementation and now pass; record the red/green evidence in `specs/002-v4-database-provisioning/tasks.md`
 
 **Checkpoint**: Shared safety primitives and restore canary exist; no production state changed.
 
@@ -168,6 +168,7 @@ event.
 ## Notes
 
 - T001 baseline: **1940 tests, 1940 pass, 0 fail** on 2026-08-29.
+- T003/T005 red: missing operator-config module and missing 011 canary. Green: 6/6 focused tests.
 - The current repository contains no scheduled backup timer; “same cadence and retention” is
   implemented by placing runtime and V4 evidence in the same recoverability-pack directory,
   so one invocation and one external retention rule cover both.
