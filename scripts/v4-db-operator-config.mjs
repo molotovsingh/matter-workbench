@@ -47,8 +47,10 @@ export function postureFingerprint(input = {}) {
   const posture = {
     databaseName: String(input.databaseName || ""),
     databaseHost: String(input.databaseHost || ""),
+    databaseOwner: String(input.databaseOwner || ""),
     migrationRole: String(input.migrationRole || ""),
     runtimeRole: String(input.runtimeRole || ""),
+    runtimeIdentity: canonicalRuntimeIdentity(input.runtimeIdentity),
     poolMaximum: Number(input.poolMaximum || 0),
     autoMigrate: Boolean(input.autoMigrate),
     migrations: Array.isArray(input.migrations)
@@ -57,6 +59,16 @@ export function postureFingerprint(input = {}) {
     backupPolicy: String(input.backupPolicy || ""),
   };
   return createHash("sha256").update(JSON.stringify(posture)).digest("hex");
+}
+
+function canonicalRuntimeIdentity(value = {}) {
+  return {
+    role: String(value.role || ""),
+    superuser: Boolean(value.superuser), createDatabase: Boolean(value.createDatabase), createRole: Boolean(value.createRole),
+    inherit: Boolean(value.inherit), bypassRls: Boolean(value.bypassRls), connectionLimit: Number(value.connectionLimit || 0),
+    runtimeDatabaseDenied: Boolean(value.runtimeDatabaseDenied), mothershipDatabaseDenied: Boolean(value.mothershipDatabaseDenied),
+    requiredPrivileges: Boolean(value.requiredPrivileges),
+  };
 }
 
 export function redactV4DatabaseText(value) {

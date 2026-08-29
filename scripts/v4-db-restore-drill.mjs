@@ -7,6 +7,7 @@ import process from "node:process";
 
 import { psqlConnectionArgs } from "./db-psql.mjs";
 import { configError, redactV4DatabaseText } from "./v4-db-operator-config.mjs";
+import { inspectCurrentV4Posture, readinessPostureFingerprint } from "./v4-db-readiness.mjs";
 
 const PREFIX = "matter_workbench_v4_restore_";
 const VERIFY_SQL = `
@@ -34,6 +35,8 @@ export async function runV4DbRestoreDrill({
   keep = false,
   spawn = spawnSync,
   env = process.env,
+  config,
+  postureFingerprint = "",
 } = {}) {
   if (!adminUrl) throw configError("MWB_V4_ADMIN_URL is required", "v4_db.url_invalid");
   if (!backupPath || !manifestPath) throw configError("backup and manifest are required", "v4_db.restore_input_missing");
@@ -69,11 +72,16 @@ export async function runV4DbRestoreDrill({
   const cleanup = !keep && Boolean(steps.find((step) => step.label === "cleanup")?.ok);
   const checks = { migrations: verified, forcedRls: verified, canary: verified };
   const success = verified && cleanup && !keep;
+  let boundPostureFingerprint = postureFingerprint;
+  if (!boundPostureFingerprint) {
+    try { boundPostureFingerprint = readinessPostureFingerprint(await inspectCurrentV4Posture({ config, env })); } catch { boundPostureFingerprint = ""; }
+  }
   await mkdir(outDir, { recursive: true });
   const reportPath = path.join(outDir, `v4-db-restore-drill-${generatedAt.replace(/[:.]/g, "-")}.json`);
   const evidence = {
     schemaVersion: "v4-db-restore-drill/v1", generatedAt, success,
     backup: path.basename(backupPath), manifest: path.basename(manifestPath), restoredDatabase,
+    sourceSha256: digest, postureFingerprint: boundPostureFingerprint,
     checks, cleanup, keep: Boolean(keep),
     steps: steps.map(({ label, ok, error }) => ({ label, ok, error })),
   };

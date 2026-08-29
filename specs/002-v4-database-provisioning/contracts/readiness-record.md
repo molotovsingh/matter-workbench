@@ -58,6 +58,8 @@ JSON and Markdown carry the same facts. JSON is authoritative for activation too
 
 - `success` and `activationReady` are true only when every required boolean is true.
 - Backup and restore digests must match.
+- The authoritative restore report also carries the posture fingerprint observed at proof
+  time; readiness requires it to equal the current fingerprint.
 - Migration entries, role/posture fields, pool maximum, and auto-migration setting feed the
   fingerprint; paths and timestamps do not, so moving an evidence file does not invalidate
   it.

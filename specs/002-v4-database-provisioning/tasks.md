@@ -102,12 +102,12 @@ returns 503, other V4 routes remain unavailable, and no retry occurs.
 **Independent test**: Activation fails with missing/stale evidence, succeeds with current
 evidence, changes the flag last, and disable removes only the flag without touching the DB.
 
-- [ ] T029 [US4] Write failing readiness-record tests in `test/v4-db-readiness.test.mjs` for every field in `contracts/readiness-record.md`, canonical fingerprinting, secret exclusion, stale migration/role/budget/policy/location invalidation, and routine flag-cycle reuse *(FR-009, FR-013, SC-004, SC-008)*
-- [ ] T030 [US4] Implement read-only `scripts/v4-db-readiness.mjs` to verify database/roles/grants/RLS/migrations/16-connection budget, `MWB_V4_AUTO_MIGRATE=0`, and supplied backup/restore evidence, write JSON/Markdown, and never migrate, grant, restore, restart or set the flag *(FR-009, FR-013, SC-004, SC-008)*
-- [ ] T031 [US4] Write failing activation/disable tests in `test/v4-db-activate.test.mjs` for absent/failed/stale evidence, current evidence, atomic runtime-env edit, flag-last ordering, no restart before edit, disable preserving DB state, and secret-safe output *(FR-009, FR-010, FR-014, SC-009)*
-- [ ] T032 [US4] Implement `scripts/v4-db-activate.mjs` to consume current readiness evidence, refuse activation unless `MWB_V4_AUTO_MIGRATE=0`, atomically set or remove only `MWB_V4_INTAKE`, restart only after a successful edit, and never migrate, grant, back up, restore, or delete V4 data *(FR-009, FR-010, FR-014, SC-009)*
-- [ ] T033 [US4] Add package commands for provision, backup, restore, readiness, activation and disable to `package.json`, and document the exact flag-last sequence in `deployment/private-vm/README.md` *(FR-009, FR-010, FR-014, FR-016)*
-- [ ] T034 [US4] Add an end-to-end operator-flow test to `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs`: provision → backup → restore → readiness → activation dry-run → disable dry-run, proving no earlier step changes the flag *(FR-004, FR-009, FR-010, FR-014, SC-001, SC-004, SC-009)*
+- [X] T029 [US4] Write failing readiness-record tests in `test/v4-db-readiness.test.mjs` for every field in `contracts/readiness-record.md`, canonical fingerprinting, secret exclusion, stale migration/role/budget/policy/location invalidation, and routine flag-cycle reuse *(FR-009, FR-013, SC-004, SC-008)*
+- [X] T030 [US4] Implement read-only `scripts/v4-db-readiness.mjs` to verify database/roles/grants/RLS/migrations/16-connection budget, `MWB_V4_AUTO_MIGRATE=0`, and supplied backup/restore evidence, write JSON/Markdown, and never migrate, grant, restore, restart or set the flag *(FR-009, FR-013, SC-004, SC-008)*
+- [X] T031 [US4] Write failing activation/disable tests in `test/v4-db-activate.test.mjs` for absent/failed/stale evidence, current evidence, atomic runtime-env edit, flag-last ordering, no restart before edit, disable preserving DB state, and secret-safe output *(FR-009, FR-010, FR-014, SC-009)*
+- [X] T032 [US4] Implement `scripts/v4-db-activate.mjs` to consume current readiness evidence, refuse activation unless `MWB_V4_AUTO_MIGRATE=0`, atomically set or remove only `MWB_V4_INTAKE`, restart only after a successful edit, and never migrate, grant, back up, restore, or delete V4 data *(FR-009, FR-010, FR-014, SC-009)*
+- [X] T033 [US4] Add package commands for provision, backup, restore, readiness, activation and disable to `package.json`, and document the exact flag-last sequence in `deployment/private-vm/README.md` *(FR-009, FR-010, FR-014, FR-016)*
+- [X] T034 [US4] Add an end-to-end operator-flow test to `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs`: provision → backup → restore → readiness → activation dry-run → disable dry-run, proving no earlier step changes the flag *(FR-004, FR-009, FR-010, FR-014, SC-001, SC-004, SC-009)*
 
 **Checkpoint**: All stories complete. Activation has one explicit, evidence-gated path.
 
@@ -172,6 +172,8 @@ event.
 - T013 red: pool factory ignored; green: app-mount suite 6/6.
 - T017/T019 red: missing backup/restore modules; green: 5/5 focused tests.
 - T021 real PostgreSQL: 75,022-byte dump, SHA-256 verified, restored migrations/RLS/canary, disposable database cleaned; integration 1/1 pass.
+- T029/T031 red: readiness and activation modules absent; green: focused gate suite 6/6.
+- T034 real PostgreSQL operator flow: provision → backup → restore → readiness → activation dry-run → disable dry-run, with the flag absent throughout; integration 2/2.
 - T024 red: server classifier/export absent; green: degraded app-mount suite 9/9.
 - T027 React build passed; UI smoke 70/70 including 404/503-hide assertion.
 - T028 real process: unreachable V4 returned stable 503; legacy config stayed 200; non-status V4 stayed 404; integration 2/2.

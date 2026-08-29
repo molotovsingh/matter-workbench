@@ -537,6 +537,30 @@ The output folder contains `recoverability-pack.md` and
 `recoverability-pack.json`. Treat those files as the operator evidence bundle
 for a private VM recovery pass.
 
+Activation is flag-last. With V4 still off, take the V4 backup/restore paths
+from that same pack, create current readiness evidence, inspect it, and only
+then activate:
+
+```bash
+npm run v4:db:readiness -- \
+  --backup-manifest "$V4_BACKUP_MANIFEST" \
+  --restore-report "$V4_RESTORE_REPORT" \
+  --out-dir "$HOME/matter-workbench-backups/v4-readiness"
+npm run v4:db:activate -- --readiness "$V4_READINESS_JSON"
+```
+
+No earlier command may set `MWB_V4_INTAKE` or restart Matter Workbench. Disable
+removes only the flag and preserves the database:
+
+```bash
+npm run v4:db:disable
+```
+
+A process that entered degraded V4 status never remounts in the background.
+After repairing the cause, run readiness again and deliberately restart
+`matter-workbench-runtime`; a routine flag cycle may reuse proof only while its
+posture fingerprint remains current.
+
 Use `private-vm:ops-pack` for daily health, incident capture, and rollback
 planning. Use `private-vm:recoverability-pack` when proving that backup and
 restore actually work.
