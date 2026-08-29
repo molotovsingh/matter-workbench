@@ -8,6 +8,10 @@ import test from "node:test";
 const packPath = new URL("../scripts/private-vm-recoverability-pack.mjs", import.meta.url);
 const packagePath = new URL("../package.json", import.meta.url);
 const privateVmReadmePath = new URL("../deployment/private-vm/README.md", import.meta.url);
+const V4_STEPS = {
+  backupV4DbFn: async () => ({ success: true, backupPath: "/tmp/v4.sql", manifestPath: "/tmp/v4.json", bytes: 11, sha256: "v4" }),
+  restoreV4DbFn: async () => ({ success: true, restoredDatabase: "matter_workbench_v4_restore_test", cleanup: true, reportPath: "/tmp/v4-restore.json" }),
+};
 
 test("private VM recoverability pack runs DB, storage, and service checks in order", async () => {
   const { runPrivateVmRecoverabilityPack, renderPrivateVmRecoverabilityPackResult } = await import(packPath.href);
@@ -30,11 +34,15 @@ test("private VM recoverability pack runs DB, storage, and service checks in ord
     },
     restoreDbFn: async ({ backupPath, outDir: stepOutDir, verificationMode }) => {
       calls.push(["db-restore", path.basename(backupPath), path.basename(stepOutDir), verificationMode]);
-      return {
-        success: true,
-        restoredDatabase: "matter_workbench_shadow_restore_test",
-        cleanup: true,
-      };
+      return { success: true, restoredDatabase: "matter_workbench_shadow_restore_test", cleanup: true };
+    },
+    backupV4DbFn: async ({ outDir: stepOutDir, timestamp }) => {
+      calls.push(["v4-db-backup", path.basename(stepOutDir), timestamp]);
+      return { success: true, backupPath: path.join(stepOutDir, "v4.sql"), manifestPath: path.join(stepOutDir, "v4.json"), bytes: 456, sha256: "def456" };
+    },
+    restoreV4DbFn: async ({ backupPath, manifestPath, outDir: stepOutDir }) => {
+      calls.push(["v4-db-restore", path.basename(backupPath), path.basename(manifestPath), path.basename(stepOutDir)]);
+      return { success: true, restoredDatabase: "matter_workbench_v4_restore_test", cleanup: true, reportPath: path.join(stepOutDir, "report.json") };
     },
     storageBackupFn: async ({ outDir: stepOutDir, timestamp }) => {
       calls.push(["storage-backup", path.basename(stepOutDir), timestamp]);
@@ -70,6 +78,8 @@ test("private VM recoverability pack runs DB, storage, and service checks in ord
   assert.deepEqual(calls, [
     ["db-backup", "db", "2026-06-06T14:00:00.000Z"],
     ["db-restore", "shadow-db-backup.sql", "db-restore-drills", "sql-summary"],
+    ["v4-db-backup", "v4-db", "2026-06-06T14:00:00.000Z"],
+    ["v4-db-restore", "v4.sql", "v4.json", "v4-db-restore-drills"],
     ["storage-backup", "storage", "2026-06-06T14:00:00.000Z"],
     ["storage-check", "manifest.json", "storage-restore-checks"],
     ["service-check", "http://172.16.37.128:4191"],
@@ -82,6 +92,8 @@ test("private VM recoverability pack runs DB, storage, and service checks in ord
   assert.equal(evidence.success, true);
   assert.equal(evidence.steps.dbBackup.ok, true);
   assert.equal(evidence.steps.dbRestore.ok, true);
+  assert.equal(evidence.steps.v4DbBackup.ok, true);
+  assert.equal(evidence.steps.v4DbRestore.ok, true);
   assert.equal(evidence.steps.storageBackup.ok, true);
   assert.equal(evidence.steps.storageRestoreCheck.ok, true);
   assert.equal(evidence.steps.serviceCheck.ok, true);
@@ -93,6 +105,21 @@ test("private VM recoverability pack runs DB, storage, and service checks in ord
   assert.match(rendered, /storage_restore_check: ok/);
 });
 
+test("private VM recoverability pack fails atomically when V4 restore proof fails", async () => {
+  const { runPrivateVmRecoverabilityPack } = await import(packPath.href);
+  const result = await runPrivateVmRecoverabilityPack({
+    outDir: await mkdtemp(path.join(os.tmpdir(), "mwb-recoverability-pack-v4-fail-")),
+    timestamp: "2026-06-06T14:00:00.000Z", skipServiceCheck: true, storageMode: "postgres",
+    backupDbFn: async () => ({ success: true, backupPath: "/tmp/db.sql", manifestPath: "/tmp/db.json", bytes: 10, sha256: "db" }),
+    restoreDbFn: async () => ({ success: true, cleanup: true }),
+    backupV4DbFn: async () => ({ success: true, backupPath: "/tmp/v4.sql", manifestPath: "/tmp/v4.json", bytes: 11, sha256: "v4" }),
+    restoreV4DbFn: async () => ({ success: false, cleanup: true }),
+  });
+  assert.equal(result.success, false);
+  assert.equal(result.steps.v4DbRestore.ok, false);
+  assert.match(result.failedSteps.join(","), /v4_db_restore/);
+});
+
 test("private VM recoverability pack fails closed when storage backup bytes do not verify", async () => {
   const { runPrivateVmRecoverabilityPack } = await import(packPath.href);
 
@@ -100,6 +127,7 @@ test("private VM recoverability pack fails closed when storage backup bytes do n
     outDir: await mkdtemp(path.join(os.tmpdir(), "mwb-recoverability-pack-fail-")),
     timestamp: "2026-06-06T14:00:00.000Z",
     skipServiceCheck: true,
+    ...V4_STEPS,
     backupDbFn: async () => ({ success: true, backupPath: "/tmp/db.sql", manifestPath: "/tmp/db.json", bytes: 10, sha256: "db" }),
     restoreDbFn: async () => ({ success: true, cleanup: true }),
     storageBackupFn: async () => ({ success: true, manifestPath: "/tmp/storage/manifest.json", pdfObjects: 3, objectsCopied: 3, failedObjects: 0 }),
@@ -136,6 +164,7 @@ test("private VM recoverability pack passes beta auth to service check", async (
   const result = await runPrivateVmRecoverabilityPack({
     outDir: await mkdtemp(path.join(os.tmpdir(), "mwb-recoverability-pack-auth-")),
     timestamp: "2026-06-06T14:00:00.000Z",
+    ...V4_STEPS,
     authUsername: "operator",
     authPassword: "private-secret",
     backupDbFn: async () => ({ success: true, backupPath: "/tmp/db.sql", manifestPath: "/tmp/db.json", bytes: 10, sha256: "db" }),
@@ -163,6 +192,7 @@ test("private VM recoverability pack skips local storage backup in postgres stor
     timestamp: "2026-06-06T14:00:00.000Z",
     storageMode: "postgres",
     skipServiceCheck: true,
+    ...V4_STEPS,
     backupDbFn: async () => ({ success: true, backupPath: "/tmp/db.sql", manifestPath: "/tmp/db.json", bytes: 10, sha256: "db" }),
     restoreDbFn: async () => ({ success: true, cleanup: true }),
     storageBackupFn: async () => {

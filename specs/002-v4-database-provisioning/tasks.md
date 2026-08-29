@@ -51,7 +51,7 @@ the workbench remains healthy; runtime operations succeed and prohibited ones fa
 - [X] T013 [US1] Add a failing pool-budget case to `test/document-intake-extraction-v4-app-mount.test.mjs` proving worker settings cannot raise the configured maximum above 16 *(FR-006, SC-007)*
 - [X] T014 [US1] Update `services/document-intake-extraction/integration/app-mount.mjs` to require/use `MWB_V4_DB_POOL_MAX=16` independently of lane settings; the mount consumes `MWB_V4_AUTO_MIGRATE` but never rewrites environment, while readiness and activation require its production value to be `0` *(FR-004, FR-006, SC-007)*
 - [X] T015 [US1] Add `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs` exercising real role/database creation, second-run idempotency, migration/grant verification, prohibited operations, and unchanged runtime/mothership databases; run a flag-off representative 4-primary/4-repair database workload, sample the runtime role in `pg_stat_activity`, and assert peak connections never exceed 16 *(FR-001–FR-006, FR-015, SC-001–SC-003, SC-007)*
-- [ ] T016 [US1] Document non-secret runtime and operator variables, file-permission boundaries, and flag-off provisioning in `public-deployment.env.example` and `deployment/private-vm/README.md` *(FR-002, FR-004, FR-006)*
+- [X] T016 [US1] Document non-secret runtime and operator variables, file-permission boundaries, and flag-off provisioning in `public-deployment.env.example` and `deployment/private-vm/README.md` *(FR-002, FR-004, FR-006)*
 
 **Checkpoint**: US1 local implementation complete. Independent VM acceptance remains pending T038; the database is not activation-ready.
 
@@ -65,13 +65,13 @@ retention unit as the runtime database.
 **Independent test**: Seed the canary, back up, restore into a unique disposable database,
 verify migrations/RLS/roles/canary, and prove cleanup; a corrupt backup must fail.
 
-- [ ] T017 [US2] Write failing backup tests in `test/v4-db-backup.test.mjs` for exact database targeting, non-empty dump, SHA-256 manifest, secret redaction, command failure, and zero-byte dump refusal *(FR-007, FR-013, SC-004, SC-008)*
-- [ ] T018 [US2] Implement `scripts/v4-db-backup.mjs` using existing pg_dump connection/redaction helpers but emitting unambiguous `v4-db-backup/v1` artifacts under a caller-supplied pack directory *(FR-007, FR-013, SC-004, SC-008)*
-- [ ] T019 [US2] Write failing restore tests in `test/v4-db-restore-drill.test.mjs` for manifest digest validation, safe unique names, create/restore/verify/drop order, migration/RLS/canary checks, corrupt backup refusal, and cleanup on verification failure *(FR-008, SC-005, SC-008)*
-- [ ] T020 [US2] Implement `scripts/v4-db-restore-drill.mjs` producing `v4-db-restore-drill/v1`, accepting only `matter_workbench_v4_restore_*`, verifying current migration names/checksums, forced RLS and canary, and dropping only its own database *(FR-008, SC-005, SC-008)*
-- [ ] T021 [US2] Add real PostgreSQL backup/restore integration coverage to `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs`, including canary content and cleanup verification *(FR-007, FR-008, SC-004, SC-005)*
-- [ ] T022 [US2] Extend `test/private-vm-recoverability-pack.test.mjs` with failing cases requiring V4 backup and restore steps, whole-pack failure propagation, shared timestamp/root, and runtime/V4 evidence retention as one unit *(FR-007–FR-009, SC-004)*
-- [ ] T023 [US2] Update `scripts/private-vm-recoverability-pack.mjs` to run runtime and V4 backup/restore in one timestamped pack, fail the pack when either database fails, and emit both evidence paths without secrets *(FR-007–FR-009, FR-013, SC-004, SC-008)*
+- [X] T017 [US2] Write failing backup tests in `test/v4-db-backup.test.mjs` for exact database targeting, non-empty dump, SHA-256 manifest, secret redaction, command failure, and zero-byte dump refusal *(FR-007, FR-013, SC-004, SC-008)*
+- [X] T018 [US2] Implement `scripts/v4-db-backup.mjs` using existing pg_dump connection/redaction helpers but emitting unambiguous `v4-db-backup/v1` artifacts under a caller-supplied pack directory *(FR-007, FR-013, SC-004, SC-008)*
+- [X] T019 [US2] Write failing restore tests in `test/v4-db-restore-drill.test.mjs` for manifest digest validation, safe unique names, create/restore/verify/drop order, migration/RLS/canary checks, corrupt backup refusal, and cleanup on verification failure *(FR-008, SC-005, SC-008)*
+- [X] T020 [US2] Implement `scripts/v4-db-restore-drill.mjs` producing `v4-db-restore-drill/v1`, accepting only `matter_workbench_v4_restore_*`, verifying current migration names/checksums, forced RLS and canary, and dropping only its own database *(FR-008, SC-005, SC-008)*
+- [X] T021 [US2] Add real PostgreSQL backup/restore integration coverage to `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs`, including canary content and cleanup verification *(FR-007, FR-008, SC-004, SC-005)*
+- [X] T022 [US2] Extend `test/private-vm-recoverability-pack.test.mjs` with failing cases requiring V4 backup and restore steps, whole-pack failure propagation, shared timestamp/root, and runtime/V4 evidence retention as one unit *(FR-007–FR-009, SC-004)*
+- [X] T023 [US2] Update `scripts/private-vm-recoverability-pack.mjs` to run runtime and V4 backup/restore in one timestamped pack, fail the pack when either database fails, and emit both evidence paths without secrets *(FR-007–FR-009, FR-013, SC-004, SC-008)*
 
 **Checkpoint**: US2 local implementation complete. Independent VM recovery acceptance remains pending T039.
 
@@ -170,6 +170,9 @@ event.
 - T001 baseline: **1940 tests, 1940 pass, 0 fail** on 2026-08-29.
 - T009 red: missing pg_hba modules; green: 5/5 focused tests.
 - T013 red: pool factory ignored; green: app-mount suite 6/6.
+- T017/T019 red: missing backup/restore modules; green: 5/5 focused tests.
+- T021 real PostgreSQL: 75,022-byte dump, SHA-256 verified, restored migrations/RLS/canary, disposable database cleaned; integration 1/1 pass.
+- T022 pack red: V4 steps absent; green: combined recoverability suite 11/11.
 - T015 PostgreSQL: fixed database provisioned twice; 1/1 pass with sampled 4-primary/4-repair role workload at 8 connections.
 - T003/T005 red: missing operator-config module and missing 011 canary. Green: 6/6 focused tests.
 - The current repository contains no scheduled backup timer; “same cadence and retention” is

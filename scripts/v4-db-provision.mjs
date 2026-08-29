@@ -15,7 +15,7 @@ export function buildV4RoleSql(config) {
   const migrationPassword = new URL(config.migrationUrl).password;
   const runtimePassword = new URL(config.runtimeUrl).password;
   return {
-    migration: `create role ${qid(config.migrationRole)} login password ${qlit(migrationPassword)} nosuperuser nocreatedb nocreaterole noinherit nobypassrls`,
+    migration: `create role ${qid(config.migrationRole)} login password ${qlit(migrationPassword)} nosuperuser nocreatedb nocreaterole noinherit bypassrls`,
     runtime: `create role ${qid(config.runtimeRole)} login password ${qlit(runtimePassword)} nosuperuser nocreatedb nocreaterole noinherit nobypassrls connection limit 16`,
   };
 }
@@ -24,8 +24,8 @@ export function assertProvisionState(state, config) {
   if (!state?.database || state.database.name !== config.databaseName || state.database.owner !== config.migrationRole) {
     throw configError("V4 database ownership conflicts with required posture", "v4_db.owner_conflict");
   }
-  assertRole(state.migrationRole, config.migrationRole, -1, false);
-  assertRole(state.runtimeRole, config.runtimeRole, 16, true);
+  assertRole(state.migrationRole, config.migrationRole, -1, false, true);
+  assertRole(state.runtimeRole, config.runtimeRole, 16, true, false);
   return true;
 }
 
@@ -137,8 +137,8 @@ async function verifyMigratedPosture(pool) {
   if (canary.rows[0]?.canary_value !== "matter-workbench-v4") throw configError("V4 recovery canary is missing", "v4_db.canary_missing");
 }
 
-function assertRole(role, expectedName, connectionLimit, requireLimit) {
-  if (!role || role.name !== expectedName || role.superuser || role.createDatabase || role.createRole || role.inherit || role.bypassRls || (requireLimit && role.connectionLimit !== connectionLimit)) {
+function assertRole(role, expectedName, connectionLimit, requireLimit, expectedBypassRls) {
+  if (!role || role.name !== expectedName || role.superuser || role.createDatabase || role.createRole || role.inherit || role.bypassRls !== expectedBypassRls || (requireLimit && role.connectionLimit !== connectionLimit)) {
     throw configError(`V4 role ${expectedName} conflicts with required posture`, "v4_db.role_conflict");
   }
 }

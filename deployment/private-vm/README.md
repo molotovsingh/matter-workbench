@@ -494,6 +494,28 @@ The operator must back up the database. If storage rows still point at local
 filesystem paths, the matching file bytes must be backed up too. A DB-only
 backup can restore valid rows that point at missing PDFs.
 
+### V4 database operator boundary
+
+V4 provisioning and recovery run while `MWB_V4_INTAKE` is absent/off. Put only
+`MWB_V4_DB_URL`, `MWB_V4_DB_POOL_MAX=16`, and `MWB_V4_AUTO_MIGRATE=0` in
+`runtime.env`; keep `MWB_V4_ADMIN_URL`, `MWB_V4_MIGRATION_URL`, role names, and
+the pg_hba path in a separate mode-0600 operator file that systemd never loads.
+The migration owner has `BYPASSRLS` solely for forced-RLS migrations, backup, and
+restore verification; the runtime identity remains `NOBYPASSRLS` with a
+16-connection role limit.
+
+Install cross-database rejects explicitly as an already-authorized OS identity:
+
+```bash
+set -a; . "$HOME/.config/matter-workbench/v4-db-operator.env"; set +a
+npm run v4:db:pg-hba:install
+npm run v4:db:provision
+```
+
+The installer never invokes sudo or prompts. If multiple PostgreSQL client
+versions exist, set `MWB_PG_DUMP_BIN` and `MWB_PSQL_BIN` to binaries matching the
+server major version. Never enable the flag during provisioning or migration.
+
 The preferred one-command operator check is:
 
 ```bash
@@ -503,8 +525,10 @@ npm run private-vm:recoverability-pack -- --base-url http://127.0.0.1:4191 --out
 
 That command creates:
 
-- a database backup;
-- a restored-database drill using DB-only summary verification;
+- a runtime database backup;
+- a restored-runtime-database drill using DB-only summary verification;
+- a V4 database backup and digest manifest;
+- a cleaned-up V4 restore drill verifying migrations, forced RLS, and canary;
 - a storage backup for local PDF storage objects;
 - a storage restore/hash check;
 - a live private-VM service check.

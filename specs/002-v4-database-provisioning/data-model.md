@@ -26,6 +26,8 @@ Privileged login used only by operator commands.
 | database ownership | Owns `matter_workbench_v4` and V4 schema objects |
 | service exposure | URL is not loaded by systemd runtime service |
 | use | migrations, grants, backup, restore verification |
+| bypass RLS | true, solely so operator commands can dump and verify tables that force RLS |
+| superuser/create DB/create role/inherit | false |
 | reporting | role name allowed; password/URL forbidden |
 
 ## Runtime Identity

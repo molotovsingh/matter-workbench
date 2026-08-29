@@ -19,7 +19,7 @@ test("provision refuses to run with V4 enabled", () => {
 
 test("role SQL creates distinct least-privileged identities and a 16-connection runtime role", () => {
   const sql = buildV4RoleSql(config);
-  assert.match(sql.migration, /nosuperuser nocreatedb nocreaterole noinherit nobypassrls/i);
+  assert.match(sql.migration, /nosuperuser nocreatedb nocreaterole noinherit bypassrls/i, "operator-only owner must dump forced-RLS rows");
   assert.match(sql.runtime, /nosuperuser nocreatedb nocreaterole noinherit nobypassrls/i);
   assert.match(sql.runtime, /connection limit 16/i);
   assert.doesNotMatch(sql.runtime, /migration|admin/i);
@@ -28,7 +28,7 @@ test("role SQL creates distinct least-privileged identities and a 16-connection 
 test("correct existing state verifies idempotently", () => {
   const state = {
     database: { name: config.databaseName, owner: config.migrationRole },
-    migrationRole: { name: config.migrationRole, superuser: false, createDatabase: false, createRole: false, inherit: false, bypassRls: false },
+    migrationRole: { name: config.migrationRole, superuser: false, createDatabase: false, createRole: false, inherit: false, bypassRls: true },
     runtimeRole: { name: config.runtimeRole, superuser: false, createDatabase: false, createRole: false, inherit: false, bypassRls: false, connectionLimit: 16 },
   };
   assert.equal(assertProvisionState(state, config), true);
@@ -37,7 +37,7 @@ test("correct existing state verifies idempotently", () => {
 test("ownership and role drift fail rather than being repaired", () => {
   const good = {
     database: { name: config.databaseName, owner: config.migrationRole },
-    migrationRole: { name: config.migrationRole, superuser: false, createDatabase: false, createRole: false, inherit: false, bypassRls: false },
+    migrationRole: { name: config.migrationRole, superuser: false, createDatabase: false, createRole: false, inherit: false, bypassRls: true },
     runtimeRole: { name: config.runtimeRole, superuser: false, createDatabase: false, createRole: false, inherit: false, bypassRls: false, connectionLimit: 16 },
   };
   assert.throws(() => assertProvisionState({ ...good, database: { ...good.database, owner: "wrong" } }, config), { code: "v4_db.owner_conflict" });
