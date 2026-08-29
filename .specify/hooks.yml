@@ -18,8 +18,25 @@ hooks:
 
   # List branches for auto-numbering. The output of this hook is captured
   # and parsed; each line should be one branch name (git branch -a format).
+  #
+  # LOCAL CHANGE: strips the `feature/` prefix so this repo's branches are
+  # visible to the numbering scan, which matches ^[0-9]{3}- against each line.
+  #
+  # This matters more than it looks under a worktree workflow. Auto-numbering
+  # draws from two sources: specs/ directories and branch names. specs/ lives
+  # inside the tree, so it is per-worktree — two features specced in parallel
+  # worktrees cannot see each other and both come out numbered 001. Branches
+  # are repo-global, shared across every worktree through one ref database, so
+  # counting them is what makes numbering correct here.
+  #
+  # The `+ ` marker is stripped for the same reason. git marks branches checked
+  # out in ANOTHER worktree with `+`, and the downstream cleaner in
+  # create-new-feature.sh only strips `*` and spaces. Under this workflow every
+  # active feature branch is checked out in its own worktree, so `+` is the
+  # common case, not the rare one — left unstripped it hides precisely the
+  # branches the counter exists to find.
   list_branches:
-    - git branch -a
+    - git branch -a | sed 's|^[+*] ||; s|feature/||'
 
   # Create the feature branch after a new feature is initialised.
   # {{branch_name}} is replaced with the computed branch name, e.g. 003-user-auth.
