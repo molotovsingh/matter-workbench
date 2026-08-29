@@ -43,14 +43,14 @@ off, with no host restart or mutation of runtime/mothership databases.
 **Independent test**: Provision from absent state, run again, and prove both runs pass while
 the workbench remains healthy; runtime operations succeed and prohibited ones fail.
 
-- [ ] T008 [US1] Write failing create-or-verify unit tests in `test/v4-db-provision.test.mjs` for absent state, idempotent correct state, conflicting owner, conflicting role attributes, migration checksum mismatch, and flag-on refusal *(FR-001–FR-005, SC-001, SC-002)*
-- [ ] T009 [US1] Write failing tests in `test/v4-db-pg-hba.test.mjs` for exact local/TCP V4 runtime-role rejection against runtime and mothership databases, safe marker-block rendering, duplicate-block refusal, existing-file preservation, refusal without privileged file access, reload verification, and rollback on invalid active rules *(FR-003, FR-015, SC-003)*
-- [ ] T010 [US1] Implement pure render/verify helpers in `scripts/v4-db-pg-hba.mjs` and an explicitly invoked privileged installer in `scripts/v4-db-pg-hba-install.mjs`; the installer must never invoke sudo or prompt, must own only its marker block, write atomically with a backup, reload, verify active rules, and restore the backup on failure *(FR-003, FR-015, SC-003)*
-- [ ] T011 [US1] Implement `scripts/v4-db-provision.mjs` to require V4 flag off; create or verify `matter_workbench_v4`, migration/runtime identities, database ownership, role attributes, runtime role `CONNECTION LIMIT 16`, and pg_hba denial before applying V4 migrations and grants *(FR-001–FR-006, FR-015)*
-- [ ] T012 [US1] Make `scripts/v4-db-provision.mjs` run `runDocumentIntakeExtractionMigrations` using the migration identity, apply `buildDocumentIntakeExtractionRuntimeRoleSql`, verify forced RLS and required runtime operations, and fail rather than repair conflicts *(FR-003–FR-005, SC-002, SC-003)*
-- [ ] T013 [US1] Add a failing pool-budget case to `test/document-intake-extraction-v4-app-mount.test.mjs` proving worker settings cannot raise the configured maximum above 16 *(FR-006, SC-007)*
-- [ ] T014 [US1] Update `services/document-intake-extraction/integration/app-mount.mjs` to require/use `MWB_V4_DB_POOL_MAX=16` independently of lane settings; the mount consumes `MWB_V4_AUTO_MIGRATE` but never rewrites environment, while readiness and activation require its production value to be `0` *(FR-004, FR-006, SC-007)*
-- [ ] T015 [US1] Add `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs` exercising real role/database creation, second-run idempotency, migration/grant verification, prohibited operations, and unchanged runtime/mothership databases; run a flag-off representative 4-primary/4-repair database workload, sample the runtime role in `pg_stat_activity`, and assert peak connections never exceed 16 *(FR-001–FR-006, FR-015, SC-001–SC-003, SC-007)*
+- [X] T008 [US1] Write failing create-or-verify unit tests in `test/v4-db-provision.test.mjs` for absent state, idempotent correct state, conflicting owner, conflicting role attributes, migration checksum mismatch, and flag-on refusal *(FR-001–FR-005, SC-001, SC-002)*
+- [X] T009 [US1] Write failing tests in `test/v4-db-pg-hba.test.mjs` for exact local/TCP V4 runtime-role rejection against runtime and mothership databases, safe marker-block rendering, duplicate-block refusal, existing-file preservation, refusal without privileged file access, reload verification, and rollback on invalid active rules *(FR-003, FR-015, SC-003)*
+- [X] T010 [US1] Implement pure render/verify helpers in `scripts/v4-db-pg-hba.mjs` and an explicitly invoked privileged installer in `scripts/v4-db-pg-hba-install.mjs`; the installer must never invoke sudo or prompt, must own only its marker block, write atomically with a backup, reload, verify active rules, and restore the backup on failure *(FR-003, FR-015, SC-003)*
+- [X] T011 [US1] Implement `scripts/v4-db-provision.mjs` to require V4 flag off; create or verify `matter_workbench_v4`, migration/runtime identities, database ownership, role attributes, runtime role `CONNECTION LIMIT 16`, and pg_hba denial before applying V4 migrations and grants *(FR-001–FR-006, FR-015)*
+- [X] T012 [US1] Make `scripts/v4-db-provision.mjs` run `runDocumentIntakeExtractionMigrations` using the migration identity, apply `buildDocumentIntakeExtractionRuntimeRoleSql`, verify forced RLS and required runtime operations, and fail rather than repair conflicts *(FR-003–FR-005, SC-002, SC-003)*
+- [X] T013 [US1] Add a failing pool-budget case to `test/document-intake-extraction-v4-app-mount.test.mjs` proving worker settings cannot raise the configured maximum above 16 *(FR-006, SC-007)*
+- [X] T014 [US1] Update `services/document-intake-extraction/integration/app-mount.mjs` to require/use `MWB_V4_DB_POOL_MAX=16` independently of lane settings; the mount consumes `MWB_V4_AUTO_MIGRATE` but never rewrites environment, while readiness and activation require its production value to be `0` *(FR-004, FR-006, SC-007)*
+- [X] T015 [US1] Add `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs` exercising real role/database creation, second-run idempotency, migration/grant verification, prohibited operations, and unchanged runtime/mothership databases; run a flag-off representative 4-primary/4-repair database workload, sample the runtime role in `pg_stat_activity`, and assert peak connections never exceed 16 *(FR-001–FR-006, FR-015, SC-001–SC-003, SC-007)*
 - [ ] T016 [US1] Document non-secret runtime and operator variables, file-permission boundaries, and flag-off provisioning in `public-deployment.env.example` and `deployment/private-vm/README.md` *(FR-002, FR-004, FR-006)*
 
 **Checkpoint**: US1 local implementation complete. Independent VM acceptance remains pending T038; the database is not activation-ready.
@@ -168,6 +168,9 @@ event.
 ## Notes
 
 - T001 baseline: **1940 tests, 1940 pass, 0 fail** on 2026-08-29.
+- T009 red: missing pg_hba modules; green: 5/5 focused tests.
+- T013 red: pool factory ignored; green: app-mount suite 6/6.
+- T015 PostgreSQL: fixed database provisioned twice; 1/1 pass with sampled 4-primary/4-repair role workload at 8 connections.
 - T003/T005 red: missing operator-config module and missing 011 canary. Green: 6/6 focused tests.
 - The current repository contains no scheduled backup timer; “same cadence and retention” is
   implemented by placing runtime and V4 evidence in the same recoverability-pack directory,

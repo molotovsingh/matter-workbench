@@ -176,6 +176,33 @@ test("app mount falls back to defaults for empty numeric env vars", async () => 
   }
 });
 
+test("app mount caps its database pool independently of worker settings", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-pool-budget-"));
+  const created = [];
+  const fakePool = { connect: async () => { throw new Error("unused"); }, end: async () => {} };
+  const mount = await createV4IntakeMount({
+    env: {
+      ...FAKE_KEYS,
+      MWB_V4_INTAKE: "1",
+      MWB_V4_DB_URL: "postgresql://runtime:secret@localhost/matter_workbench_v4",
+      MWB_V4_DB_POOL_MAX: "16",
+      MWB_V4_LANES: "128",
+      MWB_V4_REPAIR_LANES: "32",
+      MWB_V4_STORE_ROOT: path.join(root, "store"),
+      MWB_V4_SCRATCH_ROOT: path.join(root, "scratch"),
+    },
+    poolFactory(options) { created.push(options); return fakePool; },
+  });
+  try {
+    assert.equal(created[0].max, 16, "worker settings must not raise the connection budget");
+    assert.equal(mount.config.poolMaximum, 16);
+    assert.equal(mount.config.lanes, 128, "test precondition: worker setting was not clamped to the pool budget");
+  } finally {
+    await mount.stop();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("app mount serves the V4 API under its prefix and plays the bucket for presigned staging PUTs", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-mount-"));
   const uploadToken = "upload-token-under-test";
