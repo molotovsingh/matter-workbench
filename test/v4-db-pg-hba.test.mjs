@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -38,6 +38,7 @@ test("privileged installer writes atomically, reloads and verifies", async () =>
   try {
     const file = path.join(root, "pg_hba.conf");
     await writeFile(file, "# existing\nlocal all all peer\n");
+    await chmod(file, 0o640);
     const calls = [];
     const result = await installV4PgHba({
       file,
@@ -50,6 +51,7 @@ test("privileged installer writes atomically, reloads and verifies", async () =>
     assert.deepEqual(calls, ["reload", "verify"]);
     assert.match(await readFile(file, "utf8"), /BEGIN MATTER WORKBENCH V4/);
     assert.match(await readFile(`${file}.mwb-v4.backup`, "utf8"), /^# existing/);
+    assert.equal((await stat(file)).mode & 0o777, 0o640, "atomic replacement preserves pg_hba mode");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

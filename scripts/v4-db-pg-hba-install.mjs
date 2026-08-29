@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { constants } from "node:fs";
-import { access, copyFile, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import process from "node:process";
 
@@ -19,6 +19,7 @@ export async function installV4PgHba({
   if (!target) throw configError("pg_hba file is required", "v4_db.pg_hba_file_required");
   await assertPrivileged(target);
   const original = await readFile(target, "utf8");
+  const metadata = await stat(target);
   const updated = upsertV4PgHbaBlock(original, { runtimeRole });
   if (updated === original) {
     if (!await verify({ runtimeRole })) throw configError("active V4 pg_hba rules did not verify", "v4_db.pg_hba_verification_failed");
@@ -29,7 +30,8 @@ export async function installV4PgHba({
   const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
   await copyFile(target, backup);
   try {
-    await writeFile(temporary, updated, { mode: 0o600 });
+    await writeFile(temporary, updated, { mode: metadata.mode });
+    await chmod(temporary, metadata.mode);
     await rename(temporary, target);
     await reload();
     if (!await verify({ runtimeRole })) throw configError("active V4 pg_hba rules did not verify", "v4_db.pg_hba_verification_failed");
