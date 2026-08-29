@@ -73,6 +73,7 @@ import { createProceduralPostureDiagnosisRunner } from "./skills/builtins/proced
 import { createMatterStoryRunner } from "./skills/builtins/the_story/runner.mjs";
 import { usesRuntimeDbStorage } from "./routes/route-utils.mjs";
 import { createV4ExtractionImportService } from "./services/v4-extraction-import-service.mjs";
+import { createFilesystemMatterRecordStore } from "./services/matter-record-store/filesystem-matter-record-store.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
 import {
@@ -515,7 +516,7 @@ export async function createWorkbenchServer(options = {}) {
         console.log("V4 intake: no matters home configured — extraction results stay in the V4 store");
       } else {
         const v4ImportService = createV4ExtractionImportService({
-          mattersHome,
+          store: createFilesystemMatterRecordStore({ mattersHome }),
           log: (line) => console.log(line),
         });
         v4ResultConsumer = (input) => v4ImportService.importExtractionResult(input);

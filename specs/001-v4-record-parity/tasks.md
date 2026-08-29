@@ -28,8 +28,8 @@ T028; requirements without a task are visible rather than inferred.
 
 **Purpose**: Establish the reference baseline this feature must not break.
 
-- [ ] T001 Record the baseline: run `npm test` and write the pass count into the Notes section of `specs/001-v4-record-parity/tasks.md`, so any later change in total is visible rather than assumed
-- [ ] T002 [P] Create the directory `services/matter-record-store/` with no implementation yet
+- [X] T001 Record the baseline: run `npm test` and write the pass count into the Notes section of `specs/001-v4-record-parity/tasks.md`, so any later change in total is visible rather than assumed
+- [X] T002 [P] Create the directory `services/matter-record-store/` with no implementation yet
 
 ---
 
@@ -43,13 +43,13 @@ proves less than one that has.
 
 ⚠️ Nothing in Phase 3 or 4 may start until T009 passes.
 
-- [ ] T003 Write the port contract test in `test/matter-record-store.test.mjs`, covering every MUST and MUST NOT in `specs/001-v4-record-parity/contracts/matter-record-store.md`. It MUST fail at this point — the adapter does not exist yet
-- [ ] T004 Implement `resolveMatter`, `readText`, `writeText` in `services/matter-record-store/filesystem-matter-record-store.mjs`, moving the existing directory-resolution, file-read, and atomic-write behaviour out of `services/v4-extraction-import-service.mjs` verbatim
-- [ ] T005 Refactor `services/v4-extraction-import-service.mjs` to accept a store and call it, removing every direct `node:fs/promises` import while leaving all filing rules — content matching, the readability gate, the existing-record check, the log merge — exactly where they are *(FR-003)*
-- [ ] T006 Update `server.mjs` to construct the filesystem store and pass it to the import service, leaving the postgres-mode branch untouched for now
-- [ ] T007 Verify `test/matter-record-store.test.mjs` now passes against the filesystem adapter
-- [ ] T008 Verify `test/v4-extraction-import.test.mjs` passes **with no edits to that file**. If it needs changing, T004–T006 altered reference behaviour and must be reworked
-- [ ] T009 Assert in `test/matter-record-store.test.mjs` that a record written through the filesystem adapter satisfies `canUseCachedExtraction` from `extract-engine.mjs:101` for its matching register row, pinning the reuse property before the refactor can lose it *(FR-008, SC-003)*
+- [X] T003 Write the port contract test in `test/matter-record-store.test.mjs`, covering every MUST and MUST NOT in `specs/001-v4-record-parity/contracts/matter-record-store.md`. It MUST fail at this point — the adapter does not exist yet
+- [X] T004 Implement `resolveMatter`, `readText`, `writeText` in `services/matter-record-store/filesystem-matter-record-store.mjs`, moving the existing directory-resolution, file-read, and atomic-write behaviour out of `services/v4-extraction-import-service.mjs` verbatim
+- [X] T005 Refactor `services/v4-extraction-import-service.mjs` to accept a store and call it, removing every direct `node:fs/promises` import while leaving all filing rules — content matching, the readability gate, the existing-record check, the log merge — exactly where they are *(FR-003)*
+- [X] T006 Update `server.mjs` to construct the filesystem store and pass it to the import service, leaving the postgres-mode branch untouched for now
+- [X] T007 Verify `test/matter-record-store.test.mjs` now passes against the filesystem adapter
+- [X] T008 Verify `test/v4-extraction-import.test.mjs` passes **with no edits to that file**. If it needs changing, T004–T006 altered reference behaviour and must be reworked
+- [X] T009 Assert in `test/matter-record-store.test.mjs` that a record written through the filesystem adapter satisfies `canUseCachedExtraction` from `extract-engine.mjs:101` for its matching register row, pinning the reuse property before the refactor can lose it *(FR-008, SC-003)*
 
 **Checkpoint**: Filesystem arrangement behaves exactly as before, now through the port, with
 its reuse eligibility pinned by a test.
@@ -170,7 +170,10 @@ feature green and worthless. Do not write it in the comparison style of its neig
 
 ## Notes
 
-- T001 baseline pass count: _to be recorded_
+- T001 baseline pass count: **1908 pass / 0 fail** (2026-08-29). Note: a fresh worktree has
+  no `node_modules` (gitignored, per-worktree), so the first run reported 116 failures that
+  were purely environmental. `npm ci` first. This is exactly what the baseline task exists
+  to catch.
 - FR-012 ("fast extraction remains an explicit choice") is deliberately uncovered. It is a
   negative requirement and nothing in this plan touches the automated preparation path that
   could violate it. Recorded here so the gap is a decision rather than an oversight.
