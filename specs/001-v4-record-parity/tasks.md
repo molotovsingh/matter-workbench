@@ -64,16 +64,16 @@ same observable result as the filesystem arrangement.
 **Independent test**: Run the same documents against a matter held each way and compare the
 resulting records — same accepted documents, same text, same references, same log entries.
 
-- [ ] T010 [US1] Add a narrow full-text read to `services/runtime-db-storage-service.mjs` that returns a matter-relative file as a string with **no display size cap**, distinct from `getRawFile` (research R2)
-- [ ] T011 [US1] Implement `services/matter-record-store/runtime-db-matter-record-store.mjs` against the same contract, resolving matters by name only and declining when the name does not resolve (research R3) *(FR-001, FR-009)*
-- [ ] T012 [US1] In `services/matter-record-store/runtime-db-matter-record-store.mjs`, make `writeText` persist **one file per call** rather than accumulating a batch, so a mid-batch failure leaves the same state as the filesystem arrangement (research R4) *(FR-002)*
-- [ ] T013 [P] [US1] Extend `test/matter-record-store.test.mjs` to run the identical contract cases against the database adapter
-- [ ] T014 [US1] Write the parity scenario table in `test/v4-record-parity.test.mjs`: one table of scenarios executed through both adapters, asserting obligations P1–P5 from the contract by **comparing the two results to each other**, not against two hand-written expectations *(FR-002, SC-002)*
-- [ ] T015 [US1] Add these scenarios to the table in `test/v4-record-parity.test.mjs`: unregistered content, duplicate registrations, an existing valid record, a document with one unreadable page, an existing activity-log entry, a filename mismatch, and an unresolvable matter *(FR-004, FR-005, FR-006, FR-007, FR-009, SC-005)*
-- [ ] T016 [US1] Add a reuse-eligibility case to `test/v4-record-parity.test.mjs`: records written by **both** adapters must satisfy `canUseCachedExtraction`. Assert this **absolutely, not by comparing adapters** — equality passes if both are wrong, which is the one hole parity testing cannot see *(FR-008, SC-003)*
-- [ ] T017 [US1] Replace the postgres-mode branch in `server.mjs` (the block logging "postgres storage mode — extraction results stay in the V4 store") so it selects the database adapter instead of setting the result consumer to null *(FR-001)*
-- [ ] T018 [US1] Add `integration-test/v4-record-parity.postgres.mjs` filing real results against a real database, run via `npm run test:postgres` *(SC-001)*
-- [ ] T019 [P] [US1] Verify `test/document-intake-extraction-v4-isolation.test.mjs` still passes — the import service and its adapters must not have acquired an import from the extraction service
+- [X] T010 [US1] Add a narrow full-text read to `services/runtime-db-storage-service.mjs` that returns a matter-relative file as a string with **no display size cap**, distinct from `getRawFile` (research R2)
+- [X] T011 [US1] Implement `services/matter-record-store/runtime-db-matter-record-store.mjs` against the same contract, resolving matters by name only and declining when the name does not resolve (research R3) *(FR-001, FR-009)*
+- [X] T012 [US1] In `services/matter-record-store/runtime-db-matter-record-store.mjs`, make `writeText` persist **one file per call** rather than accumulating a batch, so a mid-batch failure leaves the same state as the filesystem arrangement (research R4) *(FR-002)*
+- [X] T013 [P] [US1] Extend `test/matter-record-store.test.mjs` to run the identical contract cases against the database adapter
+- [X] T014 [US1] Write the parity scenario table in `test/v4-record-parity.test.mjs`: one table of scenarios executed through both adapters, asserting obligations P1–P5 from the contract by **comparing the two results to each other**, not against two hand-written expectations *(FR-002, SC-002)*
+- [X] T015 [US1] Add these scenarios to the table in `test/v4-record-parity.test.mjs`: unregistered content, duplicate registrations, an existing valid record, a document with one unreadable page, an existing activity-log entry, a filename mismatch, and an unresolvable matter *(FR-004, FR-005, FR-006, FR-007, FR-009, SC-005)*
+- [X] T016 [US1] Add a reuse-eligibility case to `test/v4-record-parity.test.mjs`: records written by **both** adapters must satisfy `canUseCachedExtraction`. Assert this **absolutely, not by comparing adapters** — equality passes if both are wrong, which is the one hole parity testing cannot see *(FR-008, SC-003)*
+- [X] T017 [US1] Replace the postgres-mode branch in `server.mjs` (the block logging "postgres storage mode — extraction results stay in the V4 store") so it selects the database adapter instead of setting the result consumer to null *(FR-001)*
+- [X] T018 [US1] Add `integration-test/v4-record-parity.postgres.mjs` filing real results against a real database, run via `npm run test:postgres` *(SC-001)*
+- [X] T019 [P] [US1] Verify `test/document-intake-extraction-v4-isolation.test.mjs` still passes — the import service and its adapters must not have acquired an import from the extraction service
 
 **Checkpoint**: US1 complete and independently shippable. The defect is fixed.
 

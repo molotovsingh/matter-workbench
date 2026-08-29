@@ -74,6 +74,7 @@ import { createMatterStoryRunner } from "./skills/builtins/the_story/runner.mjs"
 import { usesRuntimeDbStorage } from "./routes/route-utils.mjs";
 import { createV4ExtractionImportService } from "./services/v4-extraction-import-service.mjs";
 import { createFilesystemMatterRecordStore } from "./services/matter-record-store/filesystem-matter-record-store.mjs";
+import { createRuntimeDbMatterRecordStore } from "./services/matter-record-store/runtime-db-matter-record-store.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
 import {
@@ -506,17 +507,20 @@ export async function createWorkbenchServer(options = {}) {
       // results land as cached extract-stage output, so preparation skips its
       // own slow OCR for those files. Plain JSON crosses this seam — the
       // import service never touches V4 code and the mount never touches
-      // legacy code. Filesystem storage mode only for now; in postgres mode
-      // results stay in the V4 evidence store.
+      // legacy code. Both matter storage arrangements are supported: the
+      // filing rules are identical either way, and only the reads and writes
+      // differ, so the arrangement selects a store rather than deciding
+      // whether results reach the matter at all.
       let v4ResultConsumer = null;
       const mattersHome = configService.getMattersHome();
-      if (usesRuntimeDbStorage(matterStore, runtimeDbStorageService)) {
-        console.log("V4 intake: postgres storage mode — extraction results stay in the V4 store (import bridge is filesystem-mode only)");
-      } else if (!mattersHome) {
-        console.log("V4 intake: no matters home configured — extraction results stay in the V4 store");
+      const v4RecordStore = usesRuntimeDbStorage(matterStore, runtimeDbStorageService)
+        ? createRuntimeDbMatterRecordStore({ storage: runtimeDbStorageService, matterIndex: runtimeMatterIndex })
+        : (mattersHome ? createFilesystemMatterRecordStore({ mattersHome }) : null);
+      if (!v4RecordStore) {
+        console.log("V4 intake: no matter storage configured — extraction results stay in the V4 store");
       } else {
         const v4ImportService = createV4ExtractionImportService({
-          store: createFilesystemMatterRecordStore({ mattersHome }),
+          store: v4RecordStore,
           log: (line) => console.log(line),
         });
         v4ResultConsumer = (input) => v4ImportService.importExtractionResult(input);

@@ -8,6 +8,8 @@ import { canUseCachedExtraction } from "../extract-engine.mjs";
 import { toCsv } from "../shared/csv.mjs";
 import { FILE_REGISTER_HEADERS } from "../shared/matter-contract.mjs";
 import { createFilesystemMatterRecordStore } from "../services/matter-record-store/filesystem-matter-record-store.mjs";
+import { createRuntimeDbMatterRecordStore } from "../services/matter-record-store/runtime-db-matter-record-store.mjs";
+import { runtimeObjectKeyCandidates, runtimeObjectKeyForMatterPath } from "../services/runtime-db-object-key-policy.mjs";
 import { createV4ExtractionImportService } from "../services/v4-extraction-import-service.mjs";
 
 // The storage port every adapter must satisfy. Each case maps to a MUST or
@@ -38,7 +40,63 @@ const FILESYSTEM_ADAPTER = {
   },
 };
 
-const ADAPTERS = [FILESYSTEM_ADAPTER];
+// Stands in for the runtime database service. The SQL layer is faked; the KEY
+// DERIVATION is the real one, so a path-mapping mistake fails here rather than
+// waiting for the PostgreSQL integration test. What this cannot cover — actual
+// persistence, tenant scoping, transaction behaviour — is exactly what
+// integration-test/v4-record-parity.postgres.mjs covers.
+function createFakeRuntimeStorage() {
+  const rows = new Map();
+  return {
+    rows,
+    async readMatterText(matter, relativePath) {
+      for (const key of runtimeObjectKeyCandidates({ matter, relativePath })) {
+        if (rows.has(key)) return rows.get(key).text;
+      }
+      return null;
+    },
+    async persistTextArtifacts(matter, files = []) {
+      // The real service compiles an array into one statement. The adapter is
+      // required to call it one file at a time; assert that here so a later
+      // "optimisation" back to batching fails loudly (research R4).
+      assert.equal(files.length, 1, "the adapter must write one file per call, not a batch");
+      for (const file of files) {
+        rows.set(runtimeObjectKeyForMatterPath({ matter, relativePath: file.relativePath }), {
+          text: String(file.text ?? ""),
+          objectRole: file.objectRole,
+          mimeType: file.mimeType,
+        });
+      }
+      return files;
+    },
+  };
+}
+
+const RUNTIME_DB_ADAPTER = {
+  name: "runtime-db",
+  async create() {
+    const storage = createFakeRuntimeStorage();
+    const known = new Map();
+    // Matter payloads are scoped by matter id in SQL, so identity comes from the
+    // index rather than from the name alone. See runtime-db adapter resolveMatter.
+    const matterIndex = { async findMatterFolder(name) { return known.get(String(name)) || null; } };
+    return {
+      storage,
+      store: createRuntimeDbMatterRecordStore({ storage, matterIndex }),
+      async addMatter(name, { intakes = [] } = {}) {
+        const matter = { id: `id-${name}`, name, folderName: name, matterName: name };
+        known.set(name, matter);
+        storage.rows.set(runtimeObjectKeyForMatterPath({ matter, relativePath: "matter.json" }), {
+          text: JSON.stringify({ intakes }, null, 2),
+        });
+        return matter;
+      },
+      async cleanup() { storage.rows.clear(); },
+    };
+  },
+};
+
+const ADAPTERS = [FILESYSTEM_ADAPTER, RUNTIME_DB_ADAPTER];
 
 for (const adapter of ADAPTERS) {
   test(`${adapter.name}: resolveMatter returns a handle for an existing matter`, async () => {
