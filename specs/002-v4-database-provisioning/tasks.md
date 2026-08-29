@@ -177,7 +177,7 @@ event.
 - T037 traceability: all FR/SC covered; setup/TDD/release-only tasks are phase obligations.
 - T038 beta VM: first provision created `matter_workbench_v4` and applied 11 migrations; second applied 0; service start timestamp remained `6845257767508`, flag entries remained 0, six pg_hba reject rules were active, and runtime-role prohibited operations failed.
 - T039 beta VM: combined runtime/V4 recoverability pack passed; V4 dump 75,016 bytes; disposable restore cleaned; readiness activation-ready with zero failed checks; flag entries remained 0.
-- T040 release note records dormant commit `4da677f`, exact provisioning/recovery/readiness evidence, and leaves tag/current plus flag-on acceptance pending. Final activation rehearsal additionally caught and test-first closed the narrow `pg_hba_file_rules` inspection privilege needed by the official least-privilege activation path.
+- T040 first recorded the dormant `4da677f` rehearsal. Final activation caught and test-first closed the narrow `pg_hba_file_rules` inspection privilege needed by the official least-privilege path; `8a5e970` was then deployed, activated flag-last, tagged, and accepted with status 200, UI smoke 89/89, and a one-page real flow ready/filed in 3.775 seconds.
 - T029/T031 red: readiness and activation modules absent; green: focused gate suite 6/6.
 - T034 real PostgreSQL operator flow: provision → backup → restore → readiness → activation dry-run → disable dry-run, with the flag absent throughout; integration 2/2.
 - T024 red: server classifier/export absent; green: degraded app-mount suite 9/9.

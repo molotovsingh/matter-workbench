@@ -1,0 +1,91 @@
+OK React hides V4 for disabled 404 and degraded 503 probes — probeV4IntakeStatus must return null for every non-2xx response and non-ready body
+OK React native command registry matches shared backend built-ins — 11 commands
+OK React native command aliases match shared backend aliases — 29 aliases
+OK React Case Timeline dependency states match shared contract — 3 states
+OK React rerun advice states match shared contract — 6 states
+OK React preparation stage actions match shared contract — 7 states
+OK React skill-overlap override threshold matches shared contract — React=12 shared=12
+OK React skill-overlap blocking decisions match shared contract — 1 commands
+OK React skill-overlap blocking actions match shared contract — 2 commands
+OK React skill-idea input patterns match shared contract — 11 commands
+OK React skill-idea session commands match shared contract — 6 command sets
+OK React skill-idea design brief fields match shared contract — 8 commands
+OK React skill-idea target lanes match shared contract — 4 commands
+OK React skill-idea paid/free postures match shared contract — 3 commands
+OK React skill-idea risk levels match shared contract — 3 commands
+OK React skill-idea readiness checks match shared contract — 8 aliases
+OK React skill-idea sample gate requires a selected matter — folderName guard present
+OK React skill-idea review packet keeps governance fields — classification and open questions present
+OK React skill-idea statuses match shared contract — 5 states
+OK React skill-idea status values match shared contract — 5 commands
+OK React legacy skill-idea statuses match shared contract — 2 states
+OK React skill sample states match shared contract — 4 states
+OK React skill sample state values match shared contract — 4 commands
+OK React UI HTML is reachable — 200 text/html; charset=utf-8
+OK React UI serves Matter Workbench HTML
+OK React UI has a mount point and script
+OK Private beta auth login returned a session cookie
+OK Config API returns an object
+OK Config exposes matter custody — runtime DB storage mode
+OK Config exposes active-matter state
+OK Matters API returns matters array — 17 matters
+OK Matters API entries expose names
+OK Skills API returns flat skills array — 12 skills
+OK Skill cards expose slash and title
+OK Skills API includes React-routed native commands — 11 commands
+OK Source Labels native skill is present
+OK Case Timeline native skill is present
+OK AI settings expose API-key readiness
+OK AI settings expose aiTasks array — 4 tasks
+OK AI task rows expose label, provider, and readiness
+OK Custom skills API exposes skills array — 1 custom skills
+OK Custom skill cards expose slash, title, and status
+OK Skill ideas API exposes ideas array — 9 ideas
+OK Skill idea cards expose id, text, and status
+OK Skill factory health exposes state — ok
+OK Skill factory health exposes check rows — 9 checks
+OK Custom skill runs API exposes runs array — 0 runs
+OK Custom skill run rows expose id and status
+OK Job status API exposes ledger schema — job-status-ledger/v1
+OK Job status API exposes jobs array — 5 jobs
+OK Job status rows expose id, kind, and status
+OK Private beta feedback API exposes ledger schema — private-beta-feedback-ledger/v1
+OK Private beta feedback API exposes feedback array — 5 notes
+OK Private beta feedback sync API exposes result schema — private-beta-feedback-sync-result/v1
+OK Private beta feedback sync API exposes attempted count — 0
+OK Private beta signal API exposes ledger schema — private-beta-signal-ledger/v1
+OK Private beta signal API exposes signals array — 5 signals
+OK Private beta observability API exposes evidence schema — private-beta-observability/v1
+OK Private beta observability exposes summary
+OK Private beta observability exposes ranked problems — 6 problems
+OK Private beta observability links feedback evidence — 5 feedback notes
+OK Private beta signal sync API exposes result schema — private-beta-signal-sync-result/v1
+OK Private beta signal sync API exposes attempted count — 0
+OK Workspace API exposes folder name — Beta 103 Prep Relay Smoke mr09xjwe
+OK Workspace API exposes a directory tree
+OK Workspace API exposes tree children — 4 root nodes
+OK Matter Status API exposes matter name — Beta 103 Prep Relay Smoke mr09xjwe
+OK Matter Status API exposes matter root
+OK Matter Status API exposes stage rows — 4 stages
+OK Matter Status stage rows expose label, presence, and state
+OK Matter attention API exposes items array — 0 items
+OK Matter Context API returns an object
+OK Matter Context API exposes counts
+OK Matter Context API exposes top sources — 1 sources
+OK Matter Context API exposes library artifacts — 3 artifacts
+OK Matter Context Search API returns an object
+OK Matter Context Search API exposes results array — 0 results
+OK Matter Context Search result rows expose snippets
+OK Doctor scan API exposes issues array — 0 issues
+OK File preview API exposes path — 00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json
+OK File preview API exposes name — FILE-0001.json
+OK File preview API exposes text content — 1008 chars
+OK Prepare Matter API exposes stage rows — 6 stages
+OK Prepare Matter stages expose state and action
+OK Prepare Matter next step exposes state when present
+OK Rerun advice exposes state — current
+OK Rerun advice exposes confirmation flag
+OK Rerun advice artifact path is optional text
+OK Rerun advice dependency state is optional text
+
+React UI smoke passed: 89/89 checks passed.

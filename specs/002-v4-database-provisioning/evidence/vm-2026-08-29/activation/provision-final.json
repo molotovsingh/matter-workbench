@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "v4-db-provision/v1",
+  "success": true,
+  "databaseName": "matter_workbench_v4",
+  "migrationRole": "mwb_v4_migrator",
+  "runtimeRole": "mwb_v4_runtime",
+  "poolMaximum": 16,
+  "createdDatabase": false,
+  "migrations": [
+    {
+      "name": "001_control_plane.sql",
+      "sha256": "4b0c0c3c7a35d2acc33aa87e9c1bf16a4ae38859b435e6a2c4822ff577d7bf0d",
+      "status": "already_applied"
+    },
+    {
+      "name": "002_document_local_claims.sql",
+      "sha256": "a3de35ae8f71a000898f16ead12238f807608c01c8a9f7f464807d0f1818da33",
+      "status": "already_applied"
+    },
+    {
+      "name": "003_selective_repair_lineage.sql",
+      "sha256": "d2138e2d352c320cf215a23b5dc844015930ec84d526608f7026856eecd4845b",
+      "status": "already_applied"
+    },
+    {
+      "name": "004_capacity_outcomes.sql",
+      "sha256": "165670ebee62c5d2b3173f8d64321450d17a852db9bd11f16344ae6585d6a39d",
+      "status": "already_applied"
+    },
+    {
+      "name": "005_worker_capacity_requests.sql",
+      "sha256": "aaca7e2b62fe40e5c09a2c7d77b0440d3b9832a188981018b788d5322456982c",
+      "status": "already_applied"
+    },
+    {
+      "name": "006_intake_workload_class.sql",
+      "sha256": "d8c5f44fa17e3c5fa60dac7933cbc27007af2ea1001415c463314d31b866ce7c",
+      "status": "already_applied"
+    },
+    {
+      "name": "007_append_only_audit.sql",
+      "sha256": "ea1349c16b780b77668e24964b8f9b35b3143a2fe4a8914264789bd0e4a7c39c",
+      "status": "already_applied"
+    },
+    {
+      "name": "008_cost_reconciliation.sql",
+      "sha256": "edd4ff8e6e1a68d2178964aaaf87d7b6c2eeed50727dc24d1509621c550d009d",
+      "status": "already_applied"
+    },
+    {
+      "name": "009_capability_scoped_claims.sql",
+      "sha256": "20fc90746389bb1e8810edda05df9410f8b6731b769010f7bdfc84e61cb8c142",
+      "status": "already_applied"
+    },
+    {
+      "name": "010_intake_filing_summary.sql",
+      "sha256": "cb0688485cc161df237f7e3d849a647a0617f764b07408d94e7000b86ba8a815",
+      "status": "already_applied"
+    },
+    {
+      "name": "011_recovery_canary.sql",
+      "sha256": "f02c449bbbe64295a9422763ab6a8347553bce4c4173b84e12ce34c8cec1fe6b",
+      "status": "already_applied"
+    }
+  ]
+}

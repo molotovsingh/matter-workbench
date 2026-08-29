@@ -1,0 +1,24 @@
+Matter Workbench private VM service check
+passed: yes
+base_url: http://127.0.0.1:4191
+authenticated: yes
+root_ok: yes
+root_bytes: 451
+runtime_db_enabled: yes
+matters_home: null
+matter_count: 17
+target_matter: Beta 103 Prep Relay Smoke mr09xjwe
+workspace_readable: yes
+preview_path: 00_Inbox/Intake 01 - Initial/_extracted/FILE-0001.json
+file_preview_readable: yes
+preview_bytes: 1008
+user_readiness_available: yes
+user_readiness_status: ready
+user_readiness_schema: user-readiness/v1
+user_readiness_checks: 5
+user_readiness_assistant: ready: Assistant is ready.
+user_readiness_language_leak: no
+ai_error_boundary_probe: skipped
+ai_error_boundary_status: 
+ai_error_boundary_code: 
+ai_error_boundary_language_leak: no

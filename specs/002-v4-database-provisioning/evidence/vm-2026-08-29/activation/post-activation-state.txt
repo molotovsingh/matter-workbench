@@ -1,0 +1,14 @@
+commit=8a5e970
+flag_entries=1
+service_active=active
+v4_runtime_connections=5
+v4_role_connection_limit=16
+restore_databases=0
+v4_status_http=200
+v4_status_ok=true
+v4_status_enabled=true
+v4_status_started=true
+result_import=true
+primary=mistral
+lanes=4
+repair_lanes=4

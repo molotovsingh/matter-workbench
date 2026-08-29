@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "v4-activation-speed-acceptance/v1",
+  "success": true,
+  "generatedAt": "2026-08-29T13:36:52.487Z",
+  "matterName": "Fast Register Speed Acceptance 2026-08-29T13-36-48-376Z",
+  "intakeId": "65687d51-a416-4168-856a-ff729b9cdc3a",
+  "resultId": "17bc793c-a319-485e-926b-a1b6a6dfd378",
+  "fileName": "fast-register-speed-acceptance.pdf",
+  "bytes": 649,
+  "custodyMilliseconds": 174,
+  "totalMilliseconds": 3775,
+  "status": "ready",
+  "pages": 1,
+  "completionRatio": 1,
+  "exception": {
+    "active": false,
+    "reasons": []
+  },
+  "filingReport": {
+    "filed": [
+      "FILE-0001"
+    ],
+    "skippedUnregistered": [],
+    "skippedExistingRecord": [],
+    "leftForNormalExtraction": []
+  }
+}
