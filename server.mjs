@@ -77,6 +77,7 @@ import { createFilesystemMatterRecordStore } from "./services/matter-record-stor
 import { createRuntimeDbMatterRecordStore } from "./services/matter-record-store/runtime-db-matter-record-store.mjs";
 import { loadLocalEnv } from "./shared/local-env.mjs";
 import { DEFAULT_WORKBENCH_HOST, DEFAULT_WORKBENCH_PORT } from "./shared/local-server-defaults.mjs";
+import { redactSensitiveText } from "./shared/secret-redaction.mjs";
 import {
   userFacingAiErrorCode,
   userFacingAiErrorMessage,
@@ -84,6 +85,20 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+export function classifyV4InitializationError(error) {
+  const code = String(error?.code || "").toUpperCase();
+  const text = String(error?.message || "").toLowerCase();
+  if (["ECONNREFUSED", "ENOTFOUND", "EHOSTUNREACH", "ETIMEDOUT", "57P01", "57P02", "57P03"].includes(code)
+      || /connection (?:refused|terminated|timed out)|database .*unavailable|could not connect/.test(text)) {
+    return "v4.database_unavailable";
+  }
+  if (code.includes("MIGRATION") || /migration|checksum|schema version/.test(text)) return "v4.migration_invalid";
+  if (["42501", "28000", "28P01"].includes(code) || /permission denied|insufficient privilege|authentication failed/.test(text)) {
+    return "v4.privileges_missing";
+  }
+  return "v4.initialization_failed";
+}
 
 export async function createWorkbenchServer(options = {}) {
   const appDir = options.appDir || __dirname;
@@ -500,9 +515,11 @@ export async function createWorkbenchServer(options = {}) {
   // the flag must lose V4 only — never the whole workbench — so a failed load
   // degrades loudly instead of failing the server's boot.
   let v4IntakeMount = null;
+  let v4IntakeDegradedCode = "";
   if (env.MWB_V4_INTAKE === "1") {
     try {
-      const { createV4IntakeMount } = await import("./services/document-intake-extraction/integration/app-mount.mjs");
+      const createV4IntakeMount = options.v4IntakeMountFactory
+        || (await import("./services/document-intake-extraction/integration/app-mount.mjs")).createV4IntakeMount;
       // Bridge V4 extraction results into the legacy matter record: ready
       // results land as cached extract-stage output, so preparation skips its
       // own slow OCR for those files. Plain JSON crosses this seam — the
@@ -527,14 +544,8 @@ export async function createWorkbenchServer(options = {}) {
       }
       v4IntakeMount = await createV4IntakeMount({ env, log: (line) => console.log(line), resultConsumer: v4ResultConsumer });
     } catch (error) {
-      // Only a missing V4 source tree (the excluded-deploy case) degrades
-      // silently; a real misconfiguration — bad DB URL, bad flag combo —
-      // stays a loud, unmissable boot failure as it was before the mount.
-      if (error?.code === "ERR_MODULE_NOT_FOUND") {
-        console.error(`V4 intake is flagged on but its source is not deployed; continuing without it: ${error.message}`);
-      } else {
-        throw error;
-      }
+      v4IntakeDegradedCode = classifyV4InitializationError(error);
+      console.error(`V4 intake failed to initialize; continuing in degraded mode (${v4IntakeDegradedCode}): ${redactSensitiveText(error?.message || String(error))}`);
     }
   }
   services.v4IntakeMount = v4IntakeMount;
@@ -557,6 +568,15 @@ export async function createWorkbenchServer(options = {}) {
       await runWithRequestContext(requestContext, async () => {
         if (await handlePrivateBetaAuthApiRequest({ request, requestUrl, response, services })) return;
         if (requirePrivateBetaAuth({ request, requestUrl, response, services })) return;
+        if (v4IntakeDegradedCode && request.method === "GET" && requestUrl.pathname === "/api/v4/status") {
+          response.setHeader("cache-control", "no-store");
+          sendJson(response, 503, { ok: false, enabled: true, started: false, code: v4IntakeDegradedCode });
+          return;
+        }
+        if (v4IntakeDegradedCode && requestUrl.pathname.startsWith("/api/v4/")) {
+          sendJson(response, 404, { error: "Not found" });
+          return;
+        }
         if (v4IntakeMount && await v4IntakeMount.handleRequest({ request, requestUrl, response })) return;
         if (await handleApiRequest({ request, requestUrl, response, services })) return;
 
@@ -609,7 +629,8 @@ export async function createWorkbenchServer(options = {}) {
         // privileges) must not keep serving /api/v4: unregister it so intakes
         // are refused (404 through to legacy) rather than accepted to sit
         // forever with no workers.
-        console.error("V4 intake mount failed to start; disabling it:", error?.message || error);
+        v4IntakeDegradedCode = classifyV4InitializationError(error);
+        console.error(`V4 intake mount failed to start; continuing in degraded mode (${v4IntakeDegradedCode}): ${redactSensitiveText(error?.message || String(error))}`);
         const failed = v4IntakeMount;
         v4IntakeMount = null;
         services.v4IntakeMount = null;

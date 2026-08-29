@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "private-vm-recoverability-pack/v1",
+  "generatedAt": "2026-08-29T08:08:03.714Z",
+  "success": true,
+  "baseUrl": "http://127.0.0.1:4191",
+  "failedSteps": [],
+  "steps": {
+    "dbBackup": {
+      "ok": true,
+      "backupPath": "/var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z/db/shadow-db-backup-2026-08-29T08-08-03-714Z.sql",
+      "manifestPath": "/var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z/db/shadow-db-backup-2026-08-29T08-08-03-714Z.json",
+      "bytes": 7068441346,
+      "sha256": "2e14f6de3362a9e4083ca626a0acf0312300130805ee8a89647b68c871ea6f17",
+      "error": ""
+    },
+    "dbRestore": {
+      "ok": true,
+      "skipped": false,
+      "restoredDatabase": "matter_workbench_shadow_restore_2026_08_29T08_08_03_714Z",
+      "cleanup": true,
+      "failedStep": "",
+      "error": ""
+    },
+    "v4DbBackup": {
+      "ok": true,
+      "backupPath": "/var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z/v4-db/v4-db-backup-2026-08-29T08-08-03-714Z.sql",
+      "manifestPath": "/var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z/v4-db/v4-db-backup-2026-08-29T08-08-03-714Z.json",
+      "bytes": 75016,
+      "sha256": "137c432c682ae406590e9ad323f7792f8688b8e1dddc0f54765b7bbff27a8ee3",
+      "error": ""
+    },
+    "v4DbRestore": {
+      "ok": true,
+      "restoredDatabase": "matter_workbench_v4_restore_2026_08_29t08_08_03_714z",
+      "cleanup": true,
+      "reportPath": "/var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z/v4-db-restore-drills/v4-db-restore-drill-2026-08-29T08-08-03-714Z.json",
+      "error": ""
+    },
+    "storageBackup": {
+      "ok": true,
+      "error": ""
+    },
+    "storageRestoreCheck": {
+      "ok": true,
+      "error": ""
+    },
+    "serviceCheck": {
+      "ok": true,
+      "skipped": false,
+      "baseUrl": "http://127.0.0.1:4191",
+      "matterCount": 17,
+      "targetMatter": "Beta 103 Prep Relay Smoke mr09xjwe",
+      "error": ""
+    }
+  }
+}

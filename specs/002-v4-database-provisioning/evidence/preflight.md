@@ -1,0 +1,10 @@
+generated_at=2026-08-29T06:45:35Z
+current_commit=34de07b
+v4_flag_entries=0
+runtime_service=active
+mothership_service=active
+runtime_database=matter_workbench_runtime
+database=matter_workbench_mothership
+database=matter_workbench_runtime
+database=postgres
+instance_connections=6

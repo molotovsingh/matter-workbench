@@ -1,0 +1,12 @@
+v4_connect=true
+runtime_database_denied=true code=28000
+mothership_database_denied=true code=28000
+ddl_denied=true code=42501
+canary_denied=true code=42501
+runtime_role_connlimit=16
+runtime_role_bypassrls=f
+migration_role_bypassrls=t
+active_reject_rules=6
+existing_runtime_role_superuser=false
+existing_runtime_role_createdb=true
+existing_runtime_role_createrole=false

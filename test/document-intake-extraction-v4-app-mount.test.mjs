@@ -6,12 +6,58 @@ import path from "node:path";
 import test from "node:test";
 
 import { createExtractionResultDeliver, createV4IntakeMount } from "../services/document-intake-extraction/integration/app-mount.mjs";
+import { classifyV4InitializationError, createWorkbenchServer } from "../server.mjs";
 
 const FAKE_KEYS = {
   GEMINI_API_KEY: "gemini-test-key",
   MISTRAL_API_KEY: "mistral-test-key",
   OPENAI_API_KEY: "openai-test-key",
 };
+
+test("V4 startup failures have stable non-secret classifications", () => {
+  assert.equal(classifyV4InitializationError(Object.assign(new Error("connect ECONNREFUSED postgres://u:secret@db/v4"), { code: "ECONNREFUSED" })), "v4.database_unavailable");
+  assert.equal(classifyV4InitializationError(Object.assign(new Error("migration checksum mismatch"), { code: "v4_db.migration_checksum_mismatch" })), "v4.migration_invalid");
+  assert.equal(classifyV4InitializationError(Object.assign(new Error("permission denied for table intakes"), { code: "42501" })), "v4.privileges_missing");
+  assert.equal(classifyV4InitializationError(new Error("unknown secret=never-return-this")), "v4.initialization_failed");
+});
+
+test("flagged-on initialization failure leaves host live and owns only degraded status", async () => {
+  const app = await createWorkbenchServer({
+    appDir: process.cwd(), host: "127.0.0.1", port: 0,
+    env: { ...FAKE_KEYS, MWB_V4_INTAKE: "1" },
+    v4IntakeMountFactory: async () => { throw Object.assign(new Error("postgres://runtime:raw-password@127.0.0.1/matter_workbench_v4"), { code: "ECONNREFUSED" }); },
+  });
+  await new Promise((resolve, reject) => { app.server.once("error", reject); app.server.listen(0, "127.0.0.1", resolve); });
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  try {
+    const status = await fetch(`${base}/api/v4/status`);
+    assert.equal(status.status, 503);
+    assert.equal(status.headers.get("cache-control"), "no-store");
+    const body = await status.json();
+    assert.deepEqual(body, { ok: false, enabled: true, started: false, code: "v4.database_unavailable" });
+    assert.doesNotMatch(JSON.stringify(body), /raw-password|postgres|matter_workbench/);
+    assert.equal((await fetch(`${base}/api/v4/v1/intakes`)).status, 404, "non-status V4 routes remain unowned");
+    assert.equal((await fetch(`${base}/api/config`)).status, 200, "legacy host route remains healthy");
+  } finally { await new Promise((resolve) => app.server.close(resolve)); }
+});
+
+test("failed mount is stopped once and never retried in the same process", async () => {
+  let starts = 0; let stops = 0;
+  const app = await createWorkbenchServer({
+    appDir: process.cwd(), host: "127.0.0.1", port: 0,
+    env: { ...FAKE_KEYS, MWB_V4_INTAKE: "1" },
+    v4IntakeMountFactory: async () => ({ handleRequest: async () => false, start: async () => { starts += 1; throw Object.assign(new Error("permission denied"), { code: "42501" }); }, stop: async () => { stops += 1; } }),
+  });
+  await new Promise((resolve, reject) => { app.server.once("error", reject); app.server.listen(0, "127.0.0.1", resolve); });
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  try {
+    for (let i = 0; i < 20 && stops === 0; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal((await fetch(`${base}/api/v4/status`)).status, 503);
+    assert.equal(starts, 1); assert.equal(stops, 1);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(starts, 1, "no timer or request remounts V4");
+  } finally { await new Promise((resolve) => app.server.close(resolve)); }
+});
 
 function fakeResponse() {
   const state = { statusCode: 0, body: "", headers: {} };
@@ -170,6 +216,33 @@ test("app mount falls back to defaults for empty numeric env vars", async () => 
     assert.equal(mount.config.lanes, 24);
     assert.equal(mount.config.rangePages, 8);
     assert.equal(mount.config.repairLanes, 6, "explicit values still apply");
+  } finally {
+    await mount.stop();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("app mount caps its database pool independently of worker settings", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mwb-v4-pool-budget-"));
+  const created = [];
+  const fakePool = { connect: async () => { throw new Error("unused"); }, end: async () => {} };
+  const mount = await createV4IntakeMount({
+    env: {
+      ...FAKE_KEYS,
+      MWB_V4_INTAKE: "1",
+      MWB_V4_DB_URL: "postgresql://runtime:secret@localhost/matter_workbench_v4",
+      MWB_V4_DB_POOL_MAX: "16",
+      MWB_V4_LANES: "128",
+      MWB_V4_REPAIR_LANES: "32",
+      MWB_V4_STORE_ROOT: path.join(root, "store"),
+      MWB_V4_SCRATCH_ROOT: path.join(root, "scratch"),
+    },
+    poolFactory(options) { created.push(options); return fakePool; },
+  });
+  try {
+    assert.equal(created[0].max, 16, "worker settings must not raise the connection budget");
+    assert.equal(mount.config.poolMaximum, 16);
+    assert.equal(mount.config.lanes, 128, "test precondition: worker setting was not clamped to the pool budget");
   } finally {
     await mount.stop();
     await rm(root, { recursive: true, force: true });

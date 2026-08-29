@@ -69,6 +69,7 @@ export async function createV4IntakeMount({
   env = process.env,
   prefix = "/api/v4",
   pool = null,
+  poolFactory = (options) => new pg.Pool(options),
   log = () => {},
   autoMigrate = env.MWB_V4_AUTO_MIGRATE !== "0",
   // Optional bridge to the host app: called once per ready extraction result
@@ -88,6 +89,9 @@ export async function createV4IntakeMount({
   const lanes = boundedInteger(env.MWB_V4_LANES, 24, 1, 128);
   const minLanes = boundedInteger(env.MWB_V4_MIN_LANES, 2, 1, 128);
   const repairLanes = boundedInteger(env.MWB_V4_REPAIR_LANES, 4, 1, 32);
+  // Independent of worker counts. The old lanes + repairLanes + 8 formula
+  // silently increased database pressure whenever throughput was tuned.
+  const poolMaximum = boundedInteger(env.MWB_V4_DB_POOL_MAX, 16, 1, 16);
   const rangePages = boundedInteger(env.MWB_V4_RANGE_PAGES, 8, 1, 32);
   const maximumUploadBytes = boundedInteger(env.MWB_V4_MAX_UPLOAD_BYTES, SERVICE_LIMITS.maximumFileBytes, 1, SERVICE_LIMITS.maximumFileBytes);
   const runtimeRoleName = String(env.MWB_V4_RUNTIME_ROLE || "").trim();
@@ -105,7 +109,7 @@ export async function createV4IntakeMount({
     rangeFirstAttemptTimeoutMs: optionalBoundedInteger(env.MWB_V4_RANGE_FIRST_TIMEOUT_MS, 5_000, 10 * 60_000),
   });
   const admissionController = buildAdmissionController({ suite, lanes, minLanes, repairLanes, rangePages });
-  const effectivePool = pool || new pg.Pool({ connectionString: databaseUrl, max: lanes + repairLanes + 8 });
+  const effectivePool = pool || poolFactory({ connectionString: databaseUrl, max: poolMaximum });
   // Object storage mode: with MWB_V4_S3_* configured, custody runs against a
   // real S3-compatible bucket (DigitalOcean Spaces / AWS S3) — browsers PUT
   // straight to presigned bucket URLs and the emulated staging endpoint goes
@@ -175,7 +179,7 @@ export async function createV4IntakeMount({
     tenantId,
     label: suite.label,
     admissionController,
-    config: Object.freeze({ lanes, minLanes, repairLanes, rangePages, maximumUploadBytes }),
+    config: Object.freeze({ lanes, minLanes, repairLanes, poolMaximum, rangePages, maximumUploadBytes }),
     isStarted: () => started,
     async handleRequest({ request, requestUrl, response }) {
       if (request.method === "GET" && requestUrl.pathname === `${prefix}/status`) {

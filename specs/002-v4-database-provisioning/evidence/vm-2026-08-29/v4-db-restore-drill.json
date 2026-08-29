@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "v4-db-restore-drill/v1",
+  "generatedAt": "2026-08-29T08:08:03.714Z",
+  "success": true,
+  "backup": "v4-db-backup-2026-08-29T08-08-03-714Z.sql",
+  "manifest": "v4-db-backup-2026-08-29T08-08-03-714Z.json",
+  "restoredDatabase": "matter_workbench_v4_restore_2026_08_29t08_08_03_714z",
+  "sourceSha256": "137c432c682ae406590e9ad323f7792f8688b8e1dddc0f54765b7bbff27a8ee3",
+  "postureFingerprint": "0dc5077cd393ba430a40c566d4f35739406d9db70fa14a0190de87387d20d055",
+  "checks": {
+    "migrations": true,
+    "forcedRls": true,
+    "canary": true
+  },
+  "cleanup": true,
+  "keep": false,
+  "steps": [
+    {
+      "label": "create",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "label": "restore",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "label": "verify",
+      "ok": true,
+      "error": ""
+    },
+    {
+      "label": "cleanup",
+      "ok": true,
+      "error": ""
+    }
+  ]
+}

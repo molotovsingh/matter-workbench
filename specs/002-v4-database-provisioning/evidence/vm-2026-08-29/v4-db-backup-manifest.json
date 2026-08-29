@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "v4-db-backup/v1",
+  "generatedAt": "2026-08-29T08:08:03.714Z",
+  "success": true,
+  "databaseName": "matter_workbench_v4",
+  "pgDumpSource": "MWB_PG_DUMP_BIN",
+  "files": {
+    "sql": "v4-db-backup-2026-08-29T08-08-03-714Z.sql",
+    "manifest": "v4-db-backup-2026-08-29T08-08-03-714Z.json"
+  },
+  "backup": {
+    "bytes": 75016,
+    "sha256": "137c432c682ae406590e9ad323f7792f8688b8e1dddc0f54765b7bbff27a8ee3"
+  },
+  "errorCode": ""
+}

@@ -27,7 +27,8 @@ test("V4-ISO-001 keeps production callers and legacy dependencies outside the is
     const relativePath = path.relative(ROOT, absolutePath).replaceAll(path.sep, "/");
     const source = await readFile(absolutePath, "utf8");
     const imports = Array.from(source.matchAll(IMPORT_SPECIFIER), (match) => match[1]);
-    const isV4 = V4_ROOTS.some((prefix) => relativePath.startsWith(prefix));
+    const isV4 = V4_ROOTS.some((prefix) => relativePath.startsWith(prefix))
+      || relativePath.startsWith("scripts/v4-db-");
     const isEvidence = relativePath.startsWith("test/")
       || relativePath.startsWith("docs/")
       || relativePath.startsWith("integration-test/document-intake-extraction-v4")

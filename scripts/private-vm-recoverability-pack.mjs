@@ -11,6 +11,8 @@ import { runShadowRestoreDrill } from "./db-shadow-restore-drill.mjs";
 import { runShadowStorageBackup } from "./db-shadow-storage-backup.mjs";
 import { runShadowStorageRestoreCheck } from "./db-shadow-storage-restore-check.mjs";
 import { runPrivateVmServiceCheck } from "./private-vm-service-check.mjs";
+import { runV4DbBackup } from "./v4-db-backup.mjs";
+import { runV4DbRestoreDrill } from "./v4-db-restore-drill.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const SCHEMA_VERSION = "private-vm-recoverability-pack/v1";
@@ -89,6 +91,8 @@ export async function runPrivateVmRecoverabilityPack({
   skipDbRestore = false,
   backupDbFn = runShadowBackup,
   restoreDbFn = runShadowRestoreDrill,
+  backupV4DbFn = runV4DbBackup,
+  restoreV4DbFn = runV4DbRestoreDrill,
   storageBackupFn = runShadowStorageBackup,
   storageRestoreCheckFn = runShadowStorageRestoreCheck,
   serviceCheckFn = runPrivateVmServiceCheck,
@@ -114,6 +118,8 @@ export async function runPrivateVmRecoverabilityPack({
       };
     }),
     dbRestore: null,
+    v4DbBackup: null,
+    v4DbRestore: null,
     storageBackup: null,
     storageRestoreCheck: null,
     serviceCheck: null,
@@ -137,6 +143,27 @@ export async function runPrivateVmRecoverabilityPack({
         error: result.success ? "" : result.failedStep?.label || "database restore drill failed",
       };
     });
+
+  steps.v4DbBackup = await runStep("v4_db_backup", async () => {
+    const result = await backupV4DbFn({ outDir: path.join(packDir, "v4-db"), timestamp: generatedAt });
+    return {
+      ok: Boolean(result.success), backupPath: result.backupPath || "", manifestPath: result.manifestPath || "",
+      bytes: result.bytes || 0, sha256: result.sha256 || "",
+      error: result.success ? "" : result.error || "V4 database backup failed",
+    };
+  });
+
+  steps.v4DbRestore = await runStep("v4_db_restore", async () => {
+    if (!steps.v4DbBackup.ok) return { ok: false, error: "V4 database backup did not succeed" };
+    const result = await restoreV4DbFn({
+      backupPath: steps.v4DbBackup.backupPath, manifestPath: steps.v4DbBackup.manifestPath,
+      outDir: path.join(packDir, "v4-db-restore-drills"), timestamp: generatedAt,
+    });
+    return {
+      ok: Boolean(result.success), restoredDatabase: result.restoredDatabase || "", cleanup: Boolean(result.cleanup),
+      reportPath: result.reportPath || "", error: result.success ? "" : "V4 database restore drill failed",
+    };
+  });
 
   const dbBackedStorage = String(storageMode || "").trim().toLowerCase() === "postgres" && !mattersHome;
   steps.storageBackup = dbBackedStorage
@@ -213,6 +240,8 @@ export function renderPrivateVmRecoverabilityPackResult(result = {}) {
     `pack_dir: ${result.packDir || ""}`,
     `db_backup: ${result.steps?.dbBackup?.ok ? "ok" : "failed"}`,
     `db_restore: ${result.steps?.dbRestore?.ok ? "ok" : "failed"}`,
+    `v4_db_backup: ${result.steps?.v4DbBackup?.ok ? "ok" : "failed"}`,
+    `v4_db_restore: ${result.steps?.v4DbRestore?.ok ? "ok" : "failed"}`,
     `storage_backup: ${result.steps?.storageBackup?.ok ? "ok" : "failed"}`,
     `storage_restore_check: ${result.steps?.storageRestoreCheck?.ok ? "ok" : "failed"}`,
     `service_check: ${result.steps?.serviceCheck?.ok ? "ok" : "failed"}`,
@@ -274,6 +303,8 @@ function toPortableEvidence(result) {
     steps: {
       dbBackup: pickStep(result.steps?.dbBackup, ["ok", "backupPath", "manifestPath", "bytes", "sha256", "error"]),
       dbRestore: pickStep(result.steps?.dbRestore, ["ok", "skipped", "restoredDatabase", "cleanup", "failedStep", "error"]),
+      v4DbBackup: pickStep(result.steps?.v4DbBackup, ["ok", "backupPath", "manifestPath", "bytes", "sha256", "error"]),
+      v4DbRestore: pickStep(result.steps?.v4DbRestore, ["ok", "restoredDatabase", "cleanup", "reportPath", "error"]),
       storageBackup: pickStep(result.steps?.storageBackup, ["ok", "backupDir", "manifestPath", "pdfObjects", "objectsCopied", "failedObjects", "error"]),
       storageRestoreCheck: pickStep(result.steps?.storageRestoreCheck, ["ok", "checkedObjects", "failedObjects", "error"]),
       serviceCheck: pickStep(result.steps?.serviceCheck, ["ok", "skipped", "baseUrl", "matterCount", "targetMatter", "error"]),
@@ -303,6 +334,8 @@ function renderEvidenceMarkdown(evidence = {}) {
     "",
     `- Database backup: ${evidence.steps?.dbBackup?.ok ? "ok" : "failed"}`,
     `- Database restore drill: ${evidence.steps?.dbRestore?.ok ? "ok" : "failed"}`,
+    `- V4 database backup: ${evidence.steps?.v4DbBackup?.ok ? "ok" : "failed"}`,
+    `- V4 database restore drill: ${evidence.steps?.v4DbRestore?.ok ? "ok" : "failed"}`,
     `- Storage backup: ${evidence.steps?.storageBackup?.ok ? "ok" : "failed"}`,
     `- Storage restore check: ${evidence.steps?.storageRestoreCheck?.ok ? "ok" : "failed"}`,
     `- Service check: ${evidence.steps?.serviceCheck?.ok ? "ok" : "failed"}`,
