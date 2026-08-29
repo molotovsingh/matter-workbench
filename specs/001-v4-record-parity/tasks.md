@@ -72,7 +72,7 @@ resulting records — same accepted documents, same text, same references, same 
 - [X] T015 [US1] Add these scenarios to the table in `test/v4-record-parity.test.mjs`: unregistered content, duplicate registrations, an existing valid record, a document with one unreadable page, an existing activity-log entry, a filename mismatch, and an unresolvable matter *(FR-004, FR-005, FR-006, FR-007, FR-009, SC-005)*
 - [X] T016 [US1] Add a reuse-eligibility case to `test/v4-record-parity.test.mjs`: records written by **both** adapters must satisfy `canUseCachedExtraction`. Assert this **absolutely, not by comparing adapters** — equality passes if both are wrong, which is the one hole parity testing cannot see *(FR-008, SC-003)*
 - [X] T017 [US1] Replace the postgres-mode branch in `server.mjs` (the block logging "postgres storage mode — extraction results stay in the V4 store") so it selects the database adapter instead of setting the result consumer to null *(FR-001)*
-- [X] T018 [US1] Add `integration-test/v4-record-parity.postgres.mjs` filing real results against a real database, run via `npm run test:postgres` *(SC-001)*
+- [X] T018 [US1] Add `integration-test/document-intake-extraction-v4-record-parity.postgres.mjs` filing real results against a real database, run via `npm run test:postgres` *(SC-001)*
 - [X] T019 [P] [US1] Verify `test/document-intake-extraction-v4-isolation.test.mjs` still passes — the import service and its adapters must not have acquired an import from the extraction service
 
 **Checkpoint**: US1 complete and independently shippable. The defect is fixed.
@@ -90,7 +90,10 @@ matches the record. Reload mid-run and confirm the run rejoins rather than resta
 **Note**: No React component test harness exists in this repository. Verification for the UI
 tasks is `npm run ui:build` (which runs typecheck), `npm run ui:smoke`, and manual use.
 
-- [ ] T020 [US2] Carry the filing summary back through the result-delivery seam as plain data in `services/document-intake-extraction/integration/app-mount.mjs`, without the import service gaining any knowledge of the extraction service
+- [X] T020a [US2] Add `services/document-intake-extraction/postgres/migrations/010_intake_filing_summary.sql` adding a nullable jsonb column to `document_intake_extraction.intakes` for the filing report, following the pattern in `006_intake_workload_class.sql`
+- [X] T020b [US2] Add read and write support for that column in `services/document-intake-extraction/postgres/postgres-intake-repository.mjs`, leaving the write-once extraction result untouched
+- [X] T020c [US2] Capture the filing summary returned by the result consumer in `services/document-intake-extraction/integration/app-mount.mjs` and store it against the intake, keeping the seam plain data in both directions
+- [X] T020d [US2] Surface the stored report on the existing intake read in `services/document-intake-extraction/integration/app-mount.mjs`, so recovery needs no new endpoint
 - [ ] T021 [US2] Assert in `test/v4-record-parity.test.mjs` that the returned summary matches the record: every document reported filed has a record, every document reported skipped or left has none, and the counts agree *(FR-010, FR-011, SC-004)*
 - [ ] T022 [US2] Render per-document outcomes in `react-ui/src/components/upload/V4IntakePanel.tsx` — filed, left for normal extraction, skipped as unregistered, skipped because a record existed — with a reason for every document not filed *(FR-010, SC-006)*
 - [ ] T023 [US2] Show a plain "nothing entered the record" state in `react-ui/src/components/upload/V4IntakePanel.tsx` rather than a success message when no document was filed

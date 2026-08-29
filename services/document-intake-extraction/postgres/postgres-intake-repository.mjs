@@ -84,6 +84,27 @@ export class PostgresIntakeRepository {
     });
   }
 
+  /**
+   * Record what a downstream consumer did with this run's results.
+   *
+   * Opaque here: extraction neither interprets nor reads it back, it only keeps
+   * it against the run so the report survives a lawyer leaving the page. Stored
+   * on the intake rather than the extraction result because results are written
+   * once and are the evidence; intakes already carry mutable run state.
+   */
+  async recordFilingReport({ tenantId, intakeId, report } = {}) {
+    return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
+      const updated = await client.query([
+        "update document_intake_extraction.intakes",
+        "set filing_report_json = $3::jsonb, updated_at = now()",
+        "where tenant_id = $1 and intake_id = $2::uuid",
+        "returning intake_id::text",
+      ].join("\n"), [tenantId, intakeId, JSON.stringify(report ?? null)]);
+      if (!updated.rows[0]) throw repositoryError("intake not found", "intake.not_found");
+      return { intakeId: updated.rows[0].intake_id };
+    });
+  }
+
   async readProgressSnapshot({ tenantId, intakeId } = {}) {
     return withDocumentIntakeExtractionTenant(this.pool, tenantId, async (client) => {
       const intake = await readIntakeWithClient(client, tenantId, intakeId);
@@ -282,7 +303,7 @@ export class PostgresIntakeRepository {
 
 async function readIntakeWithClient(client, tenantId, intakeId) {
   const result = await client.query([
-    "select intake_id::text, tenant_id, matter_id, idempotency_key, request_fingerprint, client_request_id, workload_class, status, expected_file_count, expected_bytes::text, committed_file_count, committed_bytes::text, observed_page_count, custody_committed_at, ready_at, result_id::text, created_at, updated_at",
+    "select intake_id::text, tenant_id, matter_id, idempotency_key, request_fingerprint, client_request_id, workload_class, status, expected_file_count, expected_bytes::text, committed_file_count, committed_bytes::text, observed_page_count, custody_committed_at, ready_at, result_id::text, filing_report_json, created_at, updated_at",
     "from document_intake_extraction.intakes",
     "where tenant_id = $1 and intake_id = $2::uuid",
   ].join("\n"), [tenantId, intakeId]);
@@ -312,6 +333,10 @@ async function readIntakeWithClient(client, tenantId, intakeId) {
     custodyCommittedAt: iso(row.custody_committed_at),
     readyAt: iso(row.ready_at),
     resultId: row.result_id || "",
+    // What the downstream consumer did with this run's results, if anything has
+    // reported yet. Null until a report is recorded. Written by the integration
+    // seam, never read by extraction itself.
+    filingReport: row.filing_report_json ?? null,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     files: files.rows.map((file) => ({

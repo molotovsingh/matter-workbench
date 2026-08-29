@@ -200,9 +200,9 @@ produce the same outcome under both.
   descriptive and may differ between registration and upload.
 - Where fast extraction and normal extraction disagree about readability, normal extraction
   is the fallback and fast extraction yields.
-- Outcome reports are recoverable within a run's lifetime, not archived. Recovery is bounded
-  by how long the extraction service already retains a run's result; this feature introduces
-  no new retention policy and no new durable artifact.
+- Outcome reports are recoverable within a run's lifetime, not archived. The report is held
+  with the run itself, so it is discarded when the run is; this feature introduces no
+  retention policy of its own and no artifact that outlives what it describes.
 - What was filed remains independently visible in the matter's activity log regardless of
   whether the report was seen.
 - Documents left for normal extraction need no action from the lawyer — ordinary preparation

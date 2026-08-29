@@ -137,9 +137,27 @@ rather than only rendering at the moment of completion. No new durable artifact 
 > **Revised 2026-08-29** after the spec clarification chose session recovery over ephemeral
 > reporting (FR-013, SC-007). The original decision rendered outcomes only at completion,
 > which loses the report entirely for any run the lawyer does not wait out — and runs reach
-> several minutes on large documents. What did *not* change: outcomes are still not persisted
-> as a new artifact. Recovery re-reads a result the extraction service already retains, so
-> retention is inherited rather than invented.
+> several minutes on large documents.
+>
+> **Revised again, same day.** The first revision kept "no new stored state" from the
+> original decision without re-testing it against the new assumption — a conclusion carried
+> forward rather than reconsidered. Recovery needs the report to exist somewhere the client
+> can ask for after a reload, and nothing already holds it.
+>
+> **The report is stored on the intake record.** The intake is the run, and the run identity
+> is what FR-013 says recovery is bounded by, so the report's lifetime matches the
+> requirement exactly rather than approximately.
+>
+> Rejected: the extraction result record. `extraction_results.payload_json` is written once
+> and the repository exposes no update path, because the result is the extraction evidence.
+> Annotating evidence after the fact with a downstream consumer's bookkeeping is the wrong
+> shape regardless of how convenient the column is. Intakes are already mutable
+> (`006_intake_workload_class.sql` adds to them; the repository already updates them), so
+> the intake carries mutable run state and the result stays immutable.
+>
+> Also rejected: writing the report into the matter. Tempting because it needs no V4 change
+> and rides the existing port for free, but the report describes a *run*, not a matter, and
+> would then outlive the run it describes with no lifecycle of its own.
 
 **Rationale**: The filing service already computes exactly the four outcomes the spec
 requires — filed, left for normal extraction, skipped as unregistered, skipped because a
@@ -150,10 +168,9 @@ Plain data across the seam preserves the isolation boundary that Constitution pr
 requires stay executable: the filing service must not gain an import from the extraction
 service, and `V4-ISO-001` must continue to pass unchanged.
 
-The spec's Assumptions bound recovery by the extraction service's existing result retention,
-so no storage and no retention policy are added. The panel needs to remember which run it
-was watching and be able to ask for that run's state again; the server side already holds
-the state.
+The panel remembers which run it was watching and asks for that run's state again. One
+column is added to the intake record to hold the report; no new table, no new endpoint, and
+no retention policy of its own — the report is deleted when the intake is.
 
 The port contract is unaffected. Recovery is a client-and-request concern, not a storage
 concern, so no obligation is added to either adapter.

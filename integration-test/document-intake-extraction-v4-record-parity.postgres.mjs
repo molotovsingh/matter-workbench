@@ -6,6 +6,8 @@ import test from "node:test";
 import pg from "pg";
 
 import { buildRuntimeRoleSetupSql } from "../scripts/db-runtime-role-setup.mjs";
+import { PostgresIntakeRepository } from "../services/document-intake-extraction/postgres/postgres-intake-repository.mjs";
+import { runDocumentIntakeExtractionMigrations } from "../services/document-intake-extraction/postgres/migrate.mjs";
 import { canUseCachedExtraction } from "../extract-engine.mjs";
 import { createRuntimeDbMatterRecordStore } from "../services/matter-record-store/runtime-db-matter-record-store.mjs";
 import { createRuntimeDbStorageService } from "../services/runtime-db-storage-service.mjs";
@@ -172,6 +174,39 @@ test("V4 filing reaches the matter record through real PostgreSQL storage", {
         recordText,
         "the original record must survive a replay byte for byte",
       );
+
+      // FR-013: the report survives the lawyer leaving the page. Stored against
+      // the run, so it is discarded with the run and outlives nothing.
+      const v4Pool = new pg.Pool({ connectionString: databaseAdminUrl });
+      try {
+        await runDocumentIntakeExtractionMigrations({ pool: v4Pool });
+        const intakeRepository = new PostgresIntakeRepository({ pool: v4Pool });
+        const v4TenantId = `tenant-${suffix}`;
+        const created = await intakeRepository.createIntake({
+          schemaVersion: "document-intake-extraction.create-intake-command/v1",
+          tenantId: v4TenantId,
+          matterId: "matter-slug",
+          idempotencyKey: `key-${suffix}`,
+          clientRequestId: MATTER_NAME,
+          files: [{ originalName: "order.pdf", relativePath: "order.pdf", expectedBytes: 1024 }],
+        });
+
+        const before = await intakeRepository.readIntake({ tenantId: v4TenantId, intakeId: created.intakeId });
+        assert.equal(before.filingReport, null, "a run carries no report until one is recorded");
+
+        const report = {
+          filed: ["FILE-0001"],
+          leftForNormalExtraction: ["FILE-0003"],
+          skippedUnregistered: ["stray.pdf"],
+          skippedExistingRecord: [],
+        };
+        await intakeRepository.recordFilingReport({ tenantId: v4TenantId, intakeId: created.intakeId, report });
+
+        const after = await intakeRepository.readIntake({ tenantId: v4TenantId, intakeId: created.intakeId });
+        assert.deepEqual(after.filingReport, report, "the report must survive a fresh read of the run");
+      } finally {
+        await v4Pool.end();
+      }
 
       // FR-014. Filing must not reach across tenants. Asserted here rather than
       // in a unit test because a fake cannot demonstrate row-level scoping —
