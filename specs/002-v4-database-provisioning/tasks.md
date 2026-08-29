@@ -115,9 +115,9 @@ evidence, changes the flag last, and disable removes only the flag without touch
 
 ## Phase 7: Polish and Release Readiness
 
-- [ ] T035 Run `npm test`, `npm run ui:build`, `git diff --check`, and the complete PostgreSQL integration suite; compare test count against T001 and explain every increase in `specs/002-v4-database-provisioning/tasks.md`
-- [ ] T036 [P] Run a secret scan over V4 evidence fixtures and rendered reports in `test/`, `integration-test/`, and `specs/002-v4-database-provisioning/` and assert zero URLs/passwords/tokens *(SC-008)*
-- [ ] T037 [P] Validate requirement traceability: every FR/SC in `specs/002-v4-database-provisioning/spec.md` maps to at least one task and every task maps to a story, requirement, or release obligation
+- [X] T035 Run `npm test`, `npm run ui:build`, `git diff --check`, and the complete PostgreSQL integration suite; compare test count against T001 and explain every increase in `specs/002-v4-database-provisioning/tasks.md`
+- [X] T036 [P] Run a secret scan over V4 evidence fixtures and rendered reports in `test/`, `integration-test/`, and `specs/002-v4-database-provisioning/` and assert zero URLs/passwords/tokens *(SC-008)*
+- [X] T037 [P] Validate requirement traceability: every FR/SC in `specs/002-v4-database-provisioning/spec.md` maps to at least one task and every task maps to a story, requirement, or release obligation
 - [ ] T038 Execute a flag-off beta-VM provisioning rehearsal and capture non-secret evidence under `specs/002-v4-database-provisioning/evidence/`, confirming host uptime and service start timestamp do not change *(SC-001)*
 - [ ] T039 Execute `npm run private-vm:recoverability-pack` and `npm run v4:db:readiness` on the beta VM with V4 still off; confirm the restore database is removed and readiness is activation-ready for the current posture *(SC-004, SC-005)*
 - [ ] T040 Update `docs/releases/v1.0.0-beta.133.md` with the exact provisioning, migration, backup/restore, readiness and degraded-status evidence; do not tag or move `docs/releases/current.md` until the later flag-on deploy completes
@@ -172,6 +172,9 @@ event.
 - T013 red: pool factory ignored; green: app-mount suite 6/6.
 - T017/T019 red: missing backup/restore modules; green: 5/5 focused tests.
 - T021 real PostgreSQL: 75,022-byte dump, SHA-256 verified, restored migrations/RLS/canary, disposable database cleaned; integration 1/1 pass.
+- T035 full regression: **1971 tests, 1971 pass, 0 fail** (+31 from T001: 1 canary, 5 operator-config, 5 pg_hba, 4 provision, 4 mount/containment, 2 backup, 3 restore, 1 pack, 3 readiness, 3 activation); UI build and diff check pass; PostgreSQL 5/5.
+- T036 evidence scan: 1 persisted evidence artifact scanned, 0 credential/token hits; renderers also have sentinel-secret unit coverage.
+- T037 traceability: all FR/SC covered; setup/TDD/release-only tasks are phase obligations.
 - T029/T031 red: readiness and activation modules absent; green: focused gate suite 6/6.
 - T034 real PostgreSQL operator flow: provision → backup → restore → readiness → activation dry-run → disable dry-run, with the flag absent throughout; integration 2/2.
 - T024 red: server classifier/export absent; green: degraded app-mount suite 9/9.

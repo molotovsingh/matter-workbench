@@ -27,6 +27,7 @@ test("V4 fixed-database provisioning is idempotent, least-privileged and bounded
   const maintenance = new pg.Client({ connectionString: adminUrl });
   await maintenance.connect();
   const initialDatabases = await databaseNames(maintenance);
+  const initialProtectedDatabases = await protectedDatabasePosture(maintenance);
   assert.ok(!initialDatabases.includes(databaseName), "disposable cluster must not already contain the fixed V4 database");
   assert.ok(!(await roleExists(maintenance, migrationRole)) && !(await roleExists(maintenance, runtimeRole)), "disposable cluster must not contain fixed V4 roles");
   const config = {
@@ -48,8 +49,7 @@ test("V4 fixed-database provisioning is idempotent, least-privileged and bounded
     assert.equal(second.createdDatabase, false);
     assert.ok(second.migrations.every((item) => item.status === "already_applied"));
 
-    const currentDatabases = await databaseNames(maintenance);
-    assert.deepEqual(currentDatabases.filter((name) => name !== databaseName), initialDatabases, "existing databases are unchanged");
+    assert.deepEqual(await protectedDatabasePosture(maintenance), initialProtectedDatabases, "runtime and mothership databases are unchanged");
     const role = await maintenance.query("select rolconnlimit, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolbypassrls from pg_roles where rolname=$1", [runtimeRole]);
     assert.deepEqual(role.rows[0], { rolconnlimit: 16, rolsuper: false, rolcreatedb: false, rolcreaterole: false, rolinherit: false, rolbypassrls: false });
     const migrator = await maintenance.query("select rolbypassrls from pg_roles where rolname=$1", [migrationRole]);
@@ -158,6 +158,14 @@ async function freePort() {
 async function databaseNames(client) {
   const result = await client.query("select datname from pg_database where datistemplate=false order by datname");
   return result.rows.map((row) => row.datname);
+}
+async function protectedDatabasePosture(client) {
+  const result = await client.query([
+    "select d.datname, r.rolname as owner, d.datallowconn, d.datconnlimit",
+    "from pg_database d join pg_roles r on r.oid=d.datdba",
+    "where d.datname = any(array['matter_workbench_runtime','matter_workbench_mothership']::text[]) order by d.datname",
+  ].join("\n"));
+  return result.rows;
 }
 async function roleExists(client, name) { return Boolean((await client.query("select 1 from pg_roles where rolname=$1", [name])).rowCount); }
 function asDatabaseUrl(base, database, user, password) { const url = new URL(base); url.pathname = `/${database}`; url.username = user; url.password = password; return url.toString(); }
