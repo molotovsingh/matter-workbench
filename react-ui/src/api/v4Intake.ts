@@ -62,6 +62,17 @@ export interface V4IntakeFile {
   uploadAuthorization?: V4UploadAuthorization;
 }
 
+// What the matter record did with this run's results. Recorded against the run
+// by the server after filing, so it survives the lawyer leaving the page. Null
+// until filing has reported, and absent entirely on deployments where results
+// stay in the V4 evidence store.
+export interface V4FilingReport {
+  filed: string[];
+  leftForNormalExtraction: string[];
+  skippedUnregistered: string[];
+  skippedExistingRecord: string[];
+}
+
 export interface V4Intake {
   intakeId: string;
   matterId: string;
@@ -71,6 +82,38 @@ export interface V4Intake {
   expectedBytes: number;
   files: V4IntakeFile[];
   resultId?: string | null;
+  filingReport?: V4FilingReport | null;
+}
+
+// Which run this matter was last watching. Remembered so a reload or a trip
+// away from the page rejoins the run instead of losing it: runs reach several
+// minutes on large documents, and a report only the patient ever see is not
+// much of a report. Scoped per matter so two matters cannot cross wires.
+const RUN_STORAGE_PREFIX = 'mwb.v4.run.';
+
+export function rememberV4Run(matterName: string, intakeId: string): void {
+  try {
+    window.localStorage.setItem(`${RUN_STORAGE_PREFIX}${v4MatterIdFromName(matterName)}`, intakeId);
+  } catch {
+    // Private browsing or a full quota. Recovery is a convenience, never a
+    // custody guarantee, so losing the pointer must not break the run.
+  }
+}
+
+export function recallV4Run(matterName: string): string {
+  try {
+    return window.localStorage.getItem(`${RUN_STORAGE_PREFIX}${v4MatterIdFromName(matterName)}`) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function forgetV4Run(matterName: string): void {
+  try {
+    window.localStorage.removeItem(`${RUN_STORAGE_PREFIX}${v4MatterIdFromName(matterName)}`);
+  } catch {
+    // See rememberV4Run.
+  }
 }
 
 export interface V4Progress {

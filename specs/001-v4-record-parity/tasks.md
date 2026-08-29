@@ -94,11 +94,11 @@ tasks is `npm run ui:build` (which runs typecheck), `npm run ui:smoke`, and manu
 - [X] T020b [US2] Add read and write support for that column in `services/document-intake-extraction/postgres/postgres-intake-repository.mjs`, leaving the write-once extraction result untouched
 - [X] T020c [US2] Capture the filing summary returned by the result consumer in `services/document-intake-extraction/integration/app-mount.mjs` and store it against the intake, keeping the seam plain data in both directions
 - [X] T020d [US2] Surface the stored report on the existing intake read in `services/document-intake-extraction/integration/app-mount.mjs`, so recovery needs no new endpoint
-- [ ] T021 [US2] Assert in `test/v4-record-parity.test.mjs` that the returned summary matches the record: every document reported filed has a record, every document reported skipped or left has none, and the counts agree *(FR-010, FR-011, SC-004)*
-- [ ] T022 [US2] Render per-document outcomes in `react-ui/src/components/upload/V4IntakePanel.tsx` — filed, left for normal extraction, skipped as unregistered, skipped because a record existed — with a reason for every document not filed *(FR-010, SC-006)*
-- [ ] T023 [US2] Show a plain "nothing entered the record" state in `react-ui/src/components/upload/V4IntakePanel.tsx` rather than a success message when no document was filed
-- [ ] T024 [US2] Persist the run identity per matter in `react-ui/src/components/upload/V4IntakePanel.tsx` and re-attach on mount using the existing `getV4Intake` / progress reads in `react-ui/src/api/v4Intake.ts` — no new endpoint, and re-attaching must not resubmit documents *(FR-013, SC-007)*
-- [ ] T025 [US2] Handle an aged-out run in `react-ui/src/components/upload/V4IntakePanel.tsx`: state that the report is no longer available rather than rendering an empty one *(FR-013)*
+- [X] T021 [US2] Assert in `test/v4-record-parity.test.mjs` that the returned summary matches the record: every document reported filed has a record, every document reported skipped or left has none, and the counts agree *(FR-010, FR-011, SC-004)*
+- [X] T022 [US2] Render per-document outcomes in `react-ui/src/components/upload/V4IntakePanel.tsx` — filed, left for normal extraction, skipped as unregistered, skipped because a record existed — with a reason for every document not filed *(FR-010, SC-006)*
+- [X] T023 [US2] Show a plain "nothing entered the record" state in `react-ui/src/components/upload/V4IntakePanel.tsx` rather than a success message when no document was filed
+- [X] T024 [US2] Persist the run identity per matter in `react-ui/src/components/upload/V4IntakePanel.tsx` and re-attach on mount using the existing `getV4Intake` / progress reads in `react-ui/src/api/v4Intake.ts` — no new endpoint, and re-attaching must not resubmit documents *(FR-013, SC-007)*
+- [X] T025 [US2] Handle an aged-out run in `react-ui/src/components/upload/V4IntakePanel.tsx`: state that the report is no longer available rather than rendering an empty one *(FR-013)*
 
 **Checkpoint**: US2 complete. Outcomes are visible, verified against the record, and survive
 leaving the page.
@@ -109,9 +109,9 @@ leaving the page.
 
 - [X] T026 [P] Add a cross-tenant filing test to `test/matter-record-store.test.mjs` asserting that filing declines to write into a matter outside the caller's tenant *(FR-014)*
 - [X] T027 [P] Run the full gate set: `npm test`, `npm run ui:build`, `git diff --check`, and `MWB_POSTGRES_TEST_ADMIN_URL=... npm run test:postgres`
-- [ ] T028 Confirm requirement coverage: every FR and SC in `specs/001-v4-record-parity/spec.md` is cited by at least one task above, except FR-012, which is deliberately uncovered — no task touches the path that could break it
+- [X] T028 Confirm requirement coverage: every FR and SC in `specs/001-v4-record-parity/spec.md` is cited by at least one task above, except FR-012, which is deliberately uncovered — no task touches the path that could break it
 - [X] T029 Run `npm test` and confirm the total rose only by the tests added in T003, T009, T013, T014, T015, T016, T018, T021 and T026, comparing against the baseline recorded in the Notes below
-- [ ] T030 Prepare the Tier 1 release note per `docs/release-policy.md`. This changes storage and custody semantics on a path testers reach, so it is not a maintenance checkpoint. State explicitly in Not Promised that the five V4 certifications remain open and that this feature does not make fast extraction automatic
+- [X] T030 Prepare the Tier 1 release note per `docs/release-policy.md`. This changes storage and custody semantics on a path testers reach, so it is not a maintenance checkpoint. State explicitly in Not Promised that the five V4 certifications remain open and that this feature does not make fast extraction automatic
 
 ---
 

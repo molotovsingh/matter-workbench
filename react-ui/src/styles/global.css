@@ -827,6 +827,10 @@ padding: 0 2px;
 .v4-intake-problem { color: var(--warning-text); margin-top: 6px; }
 .v4-intake-stage { color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 8px; }
 .v4-intake-success { color: var(--success); }
+.v4-intake-report { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.v4-intake-report-group { display: flex; gap: 8px; align-items: baseline; font-size: 12px; line-height: 1.5; }
+.v4-intake-report-label { color: var(--muted); flex: 0 0 auto; }
+.v4-intake-report-entries { color: var(--text); word-break: break-word; }
 .v4-intake-bar { background: var(--subtle-bg); border: 1px solid var(--border-subtle); border-radius: 999px; height: 8px; overflow: hidden; }
 .v4-intake-bar-fill { background: var(--success); border-radius: 999px; height: 100%; transition: width 0.35s ease; }
 .v4-intake-files { display: grid; gap: 3px; margin-top: 10px; }

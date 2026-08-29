@@ -243,6 +243,47 @@ test("parity: an unresolvable matter declines to write under either arrangement"
   assert.equal(first.failure?.code, "v4_import.matter_not_found", "must fail closed rather than choose a matter");
 });
 
+// FR-010, FR-011, SC-004. Comparison proves the arrangements agree about what
+// they reported; it does not prove either report is TRUE. A report that claimed
+// a document was filed when no record exists would be worse than no report at
+// all, because it looks authoritative. So this checks the report against the
+// record it describes, under both arrangements.
+test("the reported outcome for every document matches what is actually in the record", async () => {
+  const results = await runEverywhere(seedRegister(), fileDocuments([
+    { sha256: SHA_A, originalName: "order.pdf", pages: [page(1, "ORDER: allowed.")] },
+    { sha256: SHA_B, originalName: "notice.pdf", pages: [page(1, "Readable."), page(2, "", "review_required")] },
+    { sha256: "c".repeat(64), originalName: "stray.pdf", pages: [page(1, "Not registered.")] },
+  ]));
+
+  for (const result of results) {
+    const { imported, leftForLegacyExtraction, skippedNoRegisterMatch, skippedExistingRecord } = result.summary;
+
+    // Every document has exactly one outcome, and none is reported twice.
+    const every = [...imported, ...leftForLegacyExtraction, ...skippedNoRegisterMatch, ...skippedExistingRecord];
+    assert.equal(new Set(every).size, every.length, `${result.name}: a document reached more than one outcome`);
+    assert.equal(every.length, 3, `${result.name}: every submitted document must reach an outcome`);
+
+    for (const fileId of imported) {
+      assert.ok(
+        result.files.has(`${INTAKE_DIR}/_extracted/${fileId}.json`),
+        `${result.name}: ${fileId} was reported filed but has no record`,
+      );
+    }
+    for (const fileId of leftForLegacyExtraction) {
+      assert.equal(
+        result.files.has(`${INTAKE_DIR}/_extracted/${fileId}.json`),
+        false,
+        `${result.name}: ${fileId} was reported left for normal extraction but a record was written`,
+      );
+    }
+    // Nothing unregistered may appear anywhere in the record.
+    const written = [...result.files.keys()].join("\n");
+    assert.doesNotMatch(written, /stray/, `${result.name}: unregistered content reached the record`);
+  }
+
+  assertParity(results, "report matches record");
+});
+
 // --- the one assertion that is NOT a comparison ---------------------------
 //
 // Everything above proves the arrangements agree. Nothing above proves either
