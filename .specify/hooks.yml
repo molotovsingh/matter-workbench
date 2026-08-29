@@ -13,8 +13,19 @@
 hooks:
   # Fetch all remotes so that branch listings are up-to-date before
   # auto-numbering a new feature branch.
+  #
+  # LOCAL CHANGE: output is discarded. check_existing_branches in
+  # create-new-feature.sh runs this hook inside the command substitution that
+  # produces BRANCH_NUMBER, and `git fetch --all` prints "Fetching <remote>" to
+  # stdout — not stderr, which the script does redirect. Those lines end up in
+  # the branch number and the script dies on `10#Fetching: value too great for
+  # base`. Any repo with a configured remote hits this.
+  #
+  # Nothing parses this hook's output; only list_branches is read. Silencing it
+  # is therefore safe, and keeps the fix in configuration rather than patching
+  # the vendored script.
   fetch_remotes:
-    - git fetch --all --prune
+    - git fetch --all --prune >/dev/null 2>&1
 
   # List branches for auto-numbering. The output of this hook is captured
   # and parsed; each line should be one branch name (git branch -a format).
@@ -35,8 +46,15 @@ hooks:
   # active feature branch is checked out in its own worktree, so `+` is the
   # common case, not the rare one — left unstripped it hides precisely the
   # branches the counter exists to find.
+  #
+  # The current branch is excluded. Under this repo's workflow the feature
+  # branch is created BY HAND before speckit runs, so it already exists when
+  # the counter looks — counting it makes the script allocate the next number
+  # and every feature lands with a spec directory one ahead of its branch.
+  # Excluding only the current branch keeps other worktrees' branches visible,
+  # which is the collision this hook exists to prevent.
   list_branches:
-    - git branch -a | sed 's|^[+*] ||; s|feature/||'
+    - git branch -a | sed 's|^[+*] ||; s|feature/||' | grep -vx "$(git rev-parse --abbrev-ref HEAD | sed 's|^feature/||')"
 
   # Create the feature branch after a new feature is initialised.
   # {{branch_name}} is replaced with the computed branch name, e.g. 003-user-auth.
