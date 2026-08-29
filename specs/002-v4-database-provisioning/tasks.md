@@ -118,9 +118,9 @@ evidence, changes the flag last, and disable removes only the flag without touch
 - [X] T035 Run `npm test`, `npm run ui:build`, `git diff --check`, and the complete PostgreSQL integration suite; compare test count against T001 and explain every increase in `specs/002-v4-database-provisioning/tasks.md`
 - [X] T036 [P] Run a secret scan over V4 evidence fixtures and rendered reports in `test/`, `integration-test/`, and `specs/002-v4-database-provisioning/` and assert zero URLs/passwords/tokens *(SC-008)*
 - [X] T037 [P] Validate requirement traceability: every FR/SC in `specs/002-v4-database-provisioning/spec.md` maps to at least one task and every task maps to a story, requirement, or release obligation
-- [ ] T038 Execute a flag-off beta-VM provisioning rehearsal and capture non-secret evidence under `specs/002-v4-database-provisioning/evidence/`, confirming host uptime and service start timestamp do not change *(SC-001)*
-- [ ] T039 Execute `npm run private-vm:recoverability-pack` and `npm run v4:db:readiness` on the beta VM with V4 still off; confirm the restore database is removed and readiness is activation-ready for the current posture *(SC-004, SC-005)*
-- [ ] T040 Update `docs/releases/v1.0.0-beta.133.md` with the exact provisioning, migration, backup/restore, readiness and degraded-status evidence; do not tag or move `docs/releases/current.md` until the later flag-on deploy completes
+- [X] T038 Execute a flag-off beta-VM provisioning rehearsal and capture non-secret evidence under `specs/002-v4-database-provisioning/evidence/`, confirming host uptime and service start timestamp do not change *(SC-001)*
+- [X] T039 Execute `npm run private-vm:recoverability-pack` and `npm run v4:db:readiness` on the beta VM with V4 still off; confirm the restore database is removed and readiness is activation-ready for the current posture *(SC-004, SC-005)*
+- [X] T040 Update `docs/releases/v1.0.0-beta.133.md` with the exact provisioning, migration, backup/restore, readiness and degraded-status evidence; do not tag or move `docs/releases/current.md` until the later flag-on deploy completes
 
 ---
 
@@ -172,15 +172,18 @@ event.
 - T013 red: pool factory ignored; green: app-mount suite 6/6.
 - T017/T019 red: missing backup/restore modules; green: 5/5 focused tests.
 - T021 real PostgreSQL: 75,022-byte dump, SHA-256 verified, restored migrations/RLS/canary, disposable database cleaned; integration 1/1 pass.
-- T035 full regression: **1971 tests, 1971 pass, 0 fail** (+31 from T001: 1 canary, 5 operator-config, 5 pg_hba, 4 provision, 4 mount/containment, 2 backup, 3 restore, 1 pack, 3 readiness, 3 activation); UI build and diff check pass; PostgreSQL 5/5.
-- T036 evidence scan: 1 persisted evidence artifact scanned, 0 credential/token hits; renderers also have sentinel-secret unit coverage.
+- T035 full regression: **1972 tests, 1972 pass, 0 fail** (+32 from T001: 1 canary, 5 operator-config, 5 pg_hba, 4 provision, 4 mount/containment, 2 backup, 4 restore, 1 pack, 3 readiness, 3 activation); UI build and diff check pass; PostgreSQL 5/5.
+- T036 evidence scan: 16 persisted evidence artifacts scanned, 0 credential/token hits; renderers also have sentinel-secret unit coverage.
 - T037 traceability: all FR/SC covered; setup/TDD/release-only tasks are phase obligations.
+- T038 beta VM: first provision created `matter_workbench_v4` and applied 11 migrations; second applied 0; service start timestamp remained `6845257767508`, flag entries remained 0, six pg_hba reject rules were active, and runtime-role prohibited operations failed.
+- T039 beta VM: combined runtime/V4 recoverability pack passed; V4 dump 75,016 bytes; disposable restore cleaned; readiness activation-ready with zero failed checks; flag entries remained 0.
+- T040 release note records dormant commit `4da677f`, exact provisioning/recovery/readiness evidence, and leaves tag/current plus flag-on acceptance pending.
 - T029/T031 red: readiness and activation modules absent; green: focused gate suite 6/6.
 - T034 real PostgreSQL operator flow: provision → backup → restore → readiness → activation dry-run → disable dry-run, with the flag absent throughout; integration 2/2.
 - T024 red: server classifier/export absent; green: degraded app-mount suite 9/9.
 - T027 React build passed; UI smoke 70/70 including 404/503-hide assertion.
 - T028 real process: unreachable V4 returned stable 503; legacy config stayed 200; non-status V4 stayed 404; integration 2/2.
-- T022 pack red: V4 steps absent; green: combined recoverability suite 11/11.
+- T022 pack red: V4 steps absent; green: final combined recovery-focused suite 12/12.
 - T015 PostgreSQL: fixed database provisioned twice; 1/1 pass with sampled 4-primary/4-repair role workload at 8 connections.
 - T003/T005 red: missing operator-config module and missing 011 canary. Green: 6/6 focused tests.
 - The current repository contains no scheduled backup timer; “same cadence and retention” is

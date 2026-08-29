@@ -22,6 +22,7 @@ test("restore verifies digest before creation, checks posture and cleans up", as
       manifestPath: manifest,
       outDir: root,
       timestamp: "2026-08-29T07:01:02.003Z",
+      postureFingerprint: "b".repeat(64),
       spawn(command, args) {
         calls.push(args.join(" "));
         if (args.includes("-tA")) return { status: 0, stdout: "ok\n", stderr: "" };
@@ -52,6 +53,19 @@ test("digest mismatch fails before any database command", async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("missing posture fingerprint cannot report activation-grade success", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "v4-restore-"));
+  try {
+    const backup = path.join(root, "backup.sql"); const content = Buffer.from("ok"); const manifest = path.join(root, "manifest.json");
+    await writeFile(backup, content);
+    await writeFile(manifest, JSON.stringify({ schemaVersion: "v4-db-backup/v1", success: true, databaseName: "matter_workbench_v4", backup: { bytes: 2, sha256: createHash("sha256").update(content).digest("hex") } }));
+    const result = await runV4DbRestoreDrill({ adminUrl: "postgresql://admin:x@localhost/postgres", backupPath: backup, manifestPath: manifest, outDir: root, spawn(command, args) { return { status: 0, stdout: args.includes("-tA") ? "ok\n" : "", stderr: "" }; } });
+    assert.equal(result.success, false);
+    assert.equal(result.cleanup, true);
+    assert.equal(result.postureFingerprint, "");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("--keep evidence cannot report cleanup or activation-grade success", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "v4-restore-"));
   try {
@@ -60,7 +74,7 @@ test("--keep evidence cannot report cleanup or activation-grade success", async 
     const manifest = path.join(root, "manifest.json");
     await writeFile(backup, content);
     await writeFile(manifest, JSON.stringify({ schemaVersion: "v4-db-backup/v1", success: true, databaseName: "matter_workbench_v4", backup: { bytes: 2, sha256: createHash("sha256").update(content).digest("hex") } }));
-    const result = await runV4DbRestoreDrill({ adminUrl: "postgresql://admin:x@localhost/postgres", backupPath: backup, manifestPath: manifest, outDir: root, keep: true, spawn(command, args) { return { status: 0, stdout: args.includes("-tA") ? "ok\n" : "", stderr: "" }; } });
+    const result = await runV4DbRestoreDrill({ adminUrl: "postgresql://admin:x@localhost/postgres", backupPath: backup, manifestPath: manifest, outDir: root, keep: true, postureFingerprint: "c".repeat(64), spawn(command, args) { return { status: 0, stdout: args.includes("-tA") ? "ok\n" : "", stderr: "" }; } });
     assert.equal(result.success, false);
     assert.equal(result.cleanup, false);
   } finally { await rm(root, { recursive: true, force: true }); }

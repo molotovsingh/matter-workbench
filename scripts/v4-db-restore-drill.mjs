@@ -71,11 +71,14 @@ export async function runV4DbRestoreDrill({
   }
   const cleanup = !keep && Boolean(steps.find((step) => step.label === "cleanup")?.ok);
   const checks = { migrations: verified, forcedRls: verified, canary: verified };
-  const success = verified && cleanup && !keep;
   let boundPostureFingerprint = postureFingerprint;
   if (!boundPostureFingerprint) {
     try { boundPostureFingerprint = readinessPostureFingerprint(await inspectCurrentV4Posture({ config, env })); } catch { boundPostureFingerprint = ""; }
   }
+  // A restored database without a bound current-posture fingerprint is useful
+  // diagnosis, not activation-grade recovery evidence. Fail the restore result
+  // so the combined recoverability pack also fails atomically.
+  const success = verified && cleanup && !keep && /^[a-f0-9]{64}$/.test(boundPostureFingerprint);
   await mkdir(outDir, { recursive: true });
   const reportPath = path.join(outDir, `v4-db-restore-drill-${generatedAt.replace(/[:.]/g, "-")}.json`);
   const evidence = {

@@ -1,0 +1,2 @@
+V4 database readiness: ready
+record: /var/lib/postgresql/mwb-v4-evidence/readiness/v4-db-readiness-2026-08-29T08-11-18-272Z.json

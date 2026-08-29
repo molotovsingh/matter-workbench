@@ -1,0 +1,13 @@
+Matter Workbench private VM recoverability pack
+success: yes
+generated_at: 2026-08-29T08:08:03.714Z
+pack_dir: /var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z
+db_backup: ok
+db_restore: ok
+v4_db_backup: ok
+v4_db_restore: ok
+storage_backup: ok
+storage_restore_check: ok
+service_check: ok
+evidence_md: /var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z/recoverability-pack.md
+evidence_json: /var/lib/postgresql/mwb-v4-evidence/recoverability/private-vm-recoverability-pack-2026-08-29T08-08-03-714Z/recoverability-pack.json
