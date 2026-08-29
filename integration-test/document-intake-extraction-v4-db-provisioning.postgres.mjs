@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -87,6 +89,48 @@ test("V4 fixed-database provisioning is idempotent, least-privileged and bounded
     await maintenance.end();
   }
 });
+
+test("real process contains unreachable V4 as a degraded 503", { timeout: 60_000 }, async () => {
+  const port = await freePort();
+  const secret = "must-not-escape";
+  const child = spawn(process.execPath, ["server.mjs"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env, PORT: String(port), MWB_RUNTIME_HOST: "127.0.0.1", MWB_V4_INTAKE: "1",
+      MWB_V4_DB_URL: `postgresql://mwb_v4_runtime:${secret}@127.0.0.1:1/matter_workbench_v4`,
+      MWB_V4_DB_POOL_MAX: "16", MWB_V4_AUTO_MIGRATE: "0",
+      GEMINI_API_KEY: "integration-placeholder", MISTRAL_API_KEY: "integration-placeholder", OPENAI_API_KEY: "integration-placeholder",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let output = "";
+  child.stdout.on("data", (chunk) => { output += chunk; });
+  child.stderr.on("data", (chunk) => { output += chunk; });
+  const base = `http://127.0.0.1:${port}`;
+  try {
+    let response = null;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      try { response = await fetch(`${base}/api/v4/status`); if (response.status === 503) break; } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.equal(response?.status, 503, output);
+    assert.equal((await response.json()).code, "v4.database_unavailable");
+    assert.equal((await fetch(`${base}/api/config`)).status, 200);
+    assert.equal((await fetch(`${base}/api/v4/v1/intakes`)).status, 404);
+    assert.doesNotMatch(output, new RegExp(secret));
+  } finally {
+    child.kill("SIGTERM");
+    await new Promise((resolve) => { child.once("exit", resolve); setTimeout(resolve, 2_000).unref(); });
+  }
+});
+
+async function freePort() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+  const port = server.address().port;
+  await new Promise((resolve) => server.close(resolve));
+  return port;
+}
 
 async function databaseNames(client) {
   const result = await client.query("select datname from pg_database where datistemplate=false order by datname");

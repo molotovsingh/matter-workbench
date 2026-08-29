@@ -47,6 +47,7 @@ const reactSkillIdeaSessionPath = new URL("../react-ui/src/lib/skillIdeaSession.
 const reactSkillIdeaSessionCommandsPath = new URL("../react-ui/src/lib/skillIdeaSessionCommands.ts", import.meta.url);
 const reactSkillIdeaStatusesPath = new URL("../react-ui/src/lib/skillIdeaStatuses.ts", import.meta.url);
 const reactSkillSampleStatesPath = new URL("../react-ui/src/lib/skillSampleStates.ts", import.meta.url);
+const reactV4IntakePath = new URL("../react-ui/src/api/v4Intake.ts", import.meta.url);
 
 const checks = [];
 let configPayload = null;
@@ -166,6 +167,17 @@ function firstCookie(setCookieHeader = "") {
 }
 
 async function run() {
+  try {
+    const source = await readFile(reactV4IntakePath, "utf8");
+    assert(
+      /if\s*\(!res\.ok\)\s*return null/.test(source) && /status\?\.ok !== true/.test(source),
+      "React hides V4 for disabled 404 and degraded 503 probes",
+      "probeV4IntakeStatus must return null for every non-2xx response and non-ready body",
+    );
+  } catch (error) {
+    fail("React V4 discovery probe is readable", error.message);
+  }
+
   try {
     const reactNativeCommands = await readReactNativeCommands();
     assert(

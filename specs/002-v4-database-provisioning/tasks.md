@@ -85,11 +85,11 @@ verify migrations/RLS/roles/canary, and prove cleanup; a corrupt backup must fai
 **Independent test**: Start with an unreachable V4 URL; host and legacy route work, V4 status
 returns 503, other V4 routes remain unavailable, and no retry occurs.
 
-- [ ] T024 [US3] Write failing startup-containment tests in `test/document-intake-extraction-v4-app-mount.test.mjs` for database unavailable, migration mismatch, privilege failure, unknown initialization failure, host availability, no background retry, and stable redacted codes *(FR-011, FR-012, FR-016, SC-006, SC-008, SC-010)*
-- [ ] T025 [US3] Implement stable error classification and a host-owned degraded V4 status response in `server.mjs`: 503 for flagged-on failure, 404 only when intentionally disabled, all non-status V4 routes unavailable, no raw message exposed *(FR-011, FR-012, SC-006, SC-008)*
-- [ ] T026 [US3] Preserve the failed-mount cleanup and no-retry lifecycle in `server.mjs`; require operator readiness plus process restart for recovery, with no timer or dynamic remount path *(FR-016, SC-010)*
-- [ ] T027 [P] [US3] Verify `react-ui/src/api/v4Intake.ts` continues to hide the panel for a 503 degraded response and add coverage to the existing UI smoke mechanism without introducing a component-test framework *(FR-012, SC-006)*
-- [ ] T028 [US3] Add a controlled real-process failure test in `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs` proving Matter Workbench/legacy availability and degraded V4 503 with an unreachable database *(FR-011, FR-012, SC-006, SC-008)*
+- [X] T024 [US3] Write failing startup-containment tests in `test/document-intake-extraction-v4-app-mount.test.mjs` for database unavailable, migration mismatch, privilege failure, unknown initialization failure, host availability, no background retry, and stable redacted codes *(FR-011, FR-012, FR-016, SC-006, SC-008, SC-010)*
+- [X] T025 [US3] Implement stable error classification and a host-owned degraded V4 status response in `server.mjs`: 503 for flagged-on failure, 404 only when intentionally disabled, all non-status V4 routes unavailable, no raw message exposed *(FR-011, FR-012, SC-006, SC-008)*
+- [X] T026 [US3] Preserve the failed-mount cleanup and no-retry lifecycle in `server.mjs`; require operator readiness plus process restart for recovery, with no timer or dynamic remount path *(FR-016, SC-010)*
+- [X] T027 [P] [US3] Verify `react-ui/src/api/v4Intake.ts` continues to hide the panel for a 503 degraded response and add coverage to the existing UI smoke mechanism without introducing a component-test framework *(FR-012, SC-006)*
+- [X] T028 [US3] Add a controlled real-process failure test in `integration-test/document-intake-extraction-v4-db-provisioning.postgres.mjs` proving Matter Workbench/legacy availability and degraded V4 503 with an unreachable database *(FR-011, FR-012, SC-006, SC-008)*
 
 **Checkpoint**: US3 independently complete. The V4 boundary has operational meaning.
 
@@ -172,6 +172,9 @@ event.
 - T013 red: pool factory ignored; green: app-mount suite 6/6.
 - T017/T019 red: missing backup/restore modules; green: 5/5 focused tests.
 - T021 real PostgreSQL: 75,022-byte dump, SHA-256 verified, restored migrations/RLS/canary, disposable database cleaned; integration 1/1 pass.
+- T024 red: server classifier/export absent; green: degraded app-mount suite 9/9.
+- T027 React build passed; UI smoke 70/70 including 404/503-hide assertion.
+- T028 real process: unreachable V4 returned stable 503; legacy config stayed 200; non-status V4 stayed 404; integration 2/2.
 - T022 pack red: V4 steps absent; green: combined recoverability suite 11/11.
 - T015 PostgreSQL: fixed database provisioned twice; 1/1 pass with sampled 4-primary/4-repair role workload at 8 connections.
 - T003/T005 red: missing operator-config module and missing 011 canary. Green: 6/6 focused tests.
